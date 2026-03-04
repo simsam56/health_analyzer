@@ -328,15 +328,22 @@ def generate_html(
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
 <style>
 :root {
-  --bg: #f6f7fb;
+  --bg: #f4f6fb;
   --card: #ffffff;
-  --text: #1f2937;
-  --muted: #6b7280;
-  --line: #e5e7eb;
+  --text: #0f172a;
+  --muted: #475569;
+  --line: #dbe4ee;
   --accent: #111827;
-  --shadow: 0 8px 30px rgba(17,24,39,.06);
+  --shadow: 0 12px 32px rgba(15,23,42,.08);
+  --ring: #e2e8f0;
+  --sante: #16a34a;
+  --travail: #2563eb;
+  --relationnel: #e11d8a;
+  --apprentissage: #ca8a04;
+  --autre: #64748b;
 }
 * { box-sizing: border-box; }
 body {
@@ -349,7 +356,7 @@ body {
   color: var(--text);
 }
 .app {
-  max-width: 1320px;
+  max-width: 1540px;
   margin: 0 auto;
   padding: 18px 16px 100px;
 }
@@ -403,9 +410,14 @@ body {
 .section.active { display: block; }
 .grid-planning {
   display: grid;
-  grid-template-columns: minmax(0, 1.8fr) minmax(340px, 1fr);
+  grid-template-columns: 1fr;
   gap: 12px;
   align-items: start;
+}
+.planning-secondary {
+  display: grid;
+  grid-template-columns: 1.1fr .9fr;
+  gap: 12px;
 }
 .stack {
   display: flex;
@@ -413,8 +425,8 @@ body {
   gap: 12px;
 }
 .stack-sticky {
-  position: sticky;
-  top: 12px;
+  position: static;
+  top: auto;
 }
 .card {
   background: var(--card);
@@ -422,6 +434,11 @@ body {
   border-radius: 16px;
   box-shadow: var(--shadow);
   padding: 14px;
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+.card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 36px rgba(15,23,42,.11);
 }
 .card h3 {
   margin: 0 0 12px;
@@ -446,17 +463,17 @@ body {
 .week-label { font-size: 13px; color: var(--muted); font-weight: 600; }
 .week-wrap { overflow-x: auto; }
 .week-grid {
-  min-width: 1150px;
+  min-width: 1240px;
   display: grid;
-  grid-template-columns: repeat(7, minmax(170px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(7, minmax(180px, 1fr));
+  gap: 10px;
 }
 .day-col {
-  background: #fcfcfe;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   border: 1px solid var(--line);
-  border-radius: 12px;
-  min-height: 280px;
-  padding: 8px;
+  border-radius: 14px;
+  min-height: 300px;
+  padding: 10px;
 }
 .day-head {
   display: flex;
@@ -468,11 +485,12 @@ body {
 }
 .day-add {
   border: none;
-  background: #eef2ff;
-  color: #4f46e5;
-  border-radius: 6px;
+  background: #e8f0ff;
+  color: #1d4ed8;
+  border-radius: 999px;
   font-size: 11px;
-  padding: 2px 6px;
+  font-weight: 600;
+  padding: 4px 10px;
   cursor: pointer;
 }
 .event {
@@ -480,9 +498,9 @@ body {
   background: #fff;
   border: 1px solid #edf0f5;
   border-left-width: 4px;
-  border-radius: 10px;
-  padding: 7px;
-  margin-bottom: 6px;
+  border-radius: 12px;
+  padding: 8px;
+  margin-bottom: 7px;
   cursor: grab;
   transition: transform .15s ease, box-shadow .15s ease;
 }
@@ -512,11 +530,11 @@ body {
 }
 .stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 .stat {
-  background: #f8fafc;
+  background: #f8fbff;
   border-radius: 12px;
   border: 1px solid #eef2f7;
   padding: 10px;
@@ -548,8 +566,8 @@ body {
   margin-top: 8px;
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #fafcff;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7fff9 100%);
 }
 .sync-box {
   margin-top: 10px;
@@ -582,9 +600,9 @@ body {
 .quick-ideas {
   margin-top: 8px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 10px;
-  background: #fff;
+  border-radius: 14px;
+  padding: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
 }
 .quick-row {
   display: grid;
@@ -594,7 +612,7 @@ body {
 }
 .quick-row-2 {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 92px;
+  grid-template-columns: 1fr 1fr 1fr 1fr 92px;
   gap: 8px;
 }
 .idea-board-head {
@@ -606,13 +624,13 @@ body {
 }
 .decision-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 8px;
   margin-bottom: 10px;
 }
 .decision-col {
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 12px;
   background: #f8fafc;
   padding: 8px;
 }
@@ -626,22 +644,27 @@ body {
 }
 .decision-item {
   font-size: 11px;
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
   border: 1px solid #e8eef5;
   padding: 6px;
   margin-bottom: 6px;
   line-height: 1.35;
 }
+.decision-col[data-lane="urgent"] { background: #fff7f7; border-color: #fecaca; }
+.decision-col[data-lane="planifier"] { background: #fffbeb; border-color: #fde68a; }
+.decision-col[data-lane="non_urgent"] { background: #f8fafc; border-color: #e2e8f0; }
+.decision-col[data-lane="done"] { background: #f0fdf4; border-color: #bbf7d0; }
+.decision-lane { min-height: 108px; }
 .idea-list {
-  max-height: 260px;
+  max-height: 300px;
   overflow: auto;
   border-top: 1px solid #eef2f7;
   padding-top: 8px;
 }
 .idea-item {
   border: 1px solid #e9eef4;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #fff;
   padding: 8px;
   margin-bottom: 8px;
@@ -672,7 +695,7 @@ body {
   border-radius: 999px;
   padding: 2px 8px;
   font-size: 11px;
-  color: #475569;
+  color: #334155;
   background: #f8fafc;
 }
 .idea-actions {
@@ -706,9 +729,9 @@ body {
   margin-bottom: 8px;
 }
 .goal-bar {
-  height: 12px;
+  height: 14px;
   border-radius: 999px;
-  background: #e5e7eb;
+  background: var(--ring);
   overflow: hidden;
 }
 .goal-fill {
@@ -734,7 +757,7 @@ body {
 }
 .kpi {
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 14px;
   background: #fff;
   padding: 12px;
 }
@@ -871,6 +894,11 @@ input, select {
   font-size: 13px;
   background: #fff;
 }
+input:focus, select:focus {
+  outline: none;
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(59,130,246,.15);
+}
 .checkline {
   display: flex;
   align-items: center;
@@ -941,6 +969,7 @@ input, select {
 }
 @media (max-width: 1100px) {
   .grid-planning { grid-template-columns: 1fr; }
+  .planning-secondary { grid-template-columns: 1fr; }
   .stack-sticky { position: static; }
   .health-grid { grid-template-columns: repeat(2, 1fr); }
   .progress-grid { grid-template-columns: 1fr; }
@@ -948,6 +977,7 @@ input, select {
 }
 @media (max-width: 680px) {
   .quick-row, .quick-row-2, .decision-grid { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: 1fr 1fr; }
   .health-grid { grid-template-columns: 1fr 1fr; }
   .top { align-items: flex-start; flex-direction: column; gap: 8px; }
 }
@@ -987,7 +1017,7 @@ input, select {
         </div>
       </div>
 
-      <div class="stack stack-sticky">
+      <div class="planning-secondary">
         <div class="card">
           <h3>Cockpit semaine</h3>
           <div class="stats">
@@ -1025,11 +1055,12 @@ input, select {
 
         <div class="card">
           <div class="idea-board-head">
-            <h3 style="margin:0;">Inbox idées & décisions</h3>
+            <h3 style="margin:0;">Brainstorm & triage des idées</h3>
             <select id="ideaFilter" style="max-width:160px;">
               <option value="all">Toutes</option>
-              <option value="inbox">Inbox</option>
-              <option value="planned">Planifiées</option>
+              <option value="urgent">Urgentes</option>
+              <option value="planifier">Planifier</option>
+              <option value="non_urgent">Non urgentes</option>
               <option value="done">Terminées</option>
             </select>
           </div>
@@ -1065,6 +1096,11 @@ input, select {
                 <option value="2">Impact 2/5</option>
                 <option value="1">Impact 1/5</option>
               </select>
+              <select id="ideaUrgency">
+                <option value="urgent">Urgence haute</option>
+                <option value="planifier" selected>À planifier</option>
+                <option value="non_urgent">Non urgent</option>
+              </select>
               <select id="ideaEffort">
                 <option value="1">Effort 1/5</option>
                 <option value="2">Effort 2/5</option>
@@ -1076,6 +1112,7 @@ input, select {
             <div class="sync-actions" style="margin-top:10px;">
               <button class="btn-mini primary" id="quickPomodoroBtn">+ Focus Pomodoro 25 min</button>
             </div>
+            <div class="muted" style="font-size:11px; margin-top:8px;">Astuce: glisse-dépose les cartes entre colonnes pour trier instantanément.</div>
           </div>
 
           <div style="margin-top:10px;">
@@ -1360,7 +1397,8 @@ function loadIdeas() {
         method: String(x.method || 'eisenhower'),
         impact: Number(x.impact || 3),
         effort: Number(x.effort || 3),
-        status: String(x.status || 'inbox'),
+        urgency: String(x.urgency || 'planifier'),
+        status: normalizeIdeaStatus(String(x.status || 'planifier'), String(x.urgency || 'planifier')),
         created_at: String(x.created_at || ''),
       }))
       .filter((x) => x.title);
@@ -1378,18 +1416,32 @@ function newIdeaId() {
   return 'idea-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
 }
 
+function normalizeIdeaStatus(status, urgency) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'done') return 'done';
+  if (s === 'urgent' || s === 'now') return 'urgent';
+  if (s === 'non_urgent' || s === 'later' || s === 'inbox') return 'non_urgent';
+  if (s === 'planifier' || s === 'planned' || s === 'next') return 'planifier';
+  const u = String(urgency || '').toLowerCase();
+  if (u === 'urgent') return 'urgent';
+  if (u === 'non_urgent') return 'non_urgent';
+  return 'planifier';
+}
+
 function ideaScore(it) {
   const imp = Math.max(1, Math.min(5, Number(it.impact || 3)));
   const eff = Math.max(1, Math.min(5, Number(it.effort || 3)));
-  const methodBoost = it.method === 'eisenhower' ? 1.2 : it.method === 'abcde' ? 1.1 : 1.0;
-  return (imp * methodBoost) - (eff * 0.6);
+  const urgency = normalizeIdeaStatus(it.status, it.urgency);
+  const urgencyBoost = urgency === 'urgent' ? 1.2 : urgency === 'planifier' ? 0.4 : 0.0;
+  return (imp * 1.3) - (eff * 0.6) + urgencyBoost;
 }
 
 function ideaLane(it) {
-  const score = ideaScore(it);
-  if (score >= 3.2) return 'now';
-  if (score >= 2.1) return 'next';
-  return 'later';
+  const s = normalizeIdeaStatus(it.status, it.urgency);
+  if (s === 'done') return 'done';
+  if (s === 'urgent') return 'urgent';
+  if (s === 'non_urgent') return 'non_urgent';
+  return 'planifier';
 }
 
 function methodDefaultDuration(method) {
@@ -1409,6 +1461,7 @@ function addIdeaFromForm() {
   const type = String((document.getElementById('ideaType') || {}).value || 'autre');
   const method = String((document.getElementById('ideaMethod') || {}).value || 'eisenhower');
   const impact = Number((document.getElementById('ideaImpact') || {}).value || 3);
+  const urgency = String((document.getElementById('ideaUrgency') || {}).value || 'planifier');
   const effort = Number((document.getElementById('ideaEffort') || {}).value || 3);
 
   const rows = loadIdeas();
@@ -1419,17 +1472,22 @@ function addIdeaFromForm() {
     method,
     impact,
     effort,
-    status: 'inbox',
+    urgency,
+    status: normalizeIdeaStatus(urgency, urgency),
     created_at: new Date().toISOString(),
   });
   saveIdeas(rows);
   if (textEl) textEl.value = '';
   renderIdeas();
-  showToast('Idée ajoutée à l’inbox.', 'ok');
+  showToast('Idée ajoutée au board.', 'ok');
 }
 
 function updateIdeaStatus(id, status) {
-  const rows = loadIdeas().map((x) => x.id === id ? Object.assign({}, x, { status }) : x);
+  const rows = loadIdeas().map((x) => {
+    if (x.id !== id) return x;
+    const nextStatus = normalizeIdeaStatus(status, x.urgency);
+    return Object.assign({}, x, { status: nextStatus, urgency: nextStatus === 'done' ? x.urgency : nextStatus });
+  });
   saveIdeas(rows);
   renderIdeas();
 }
@@ -1453,7 +1511,7 @@ function planIdea(id) {
     duration: methodDefaultDuration(it.method),
     syncApple: true,
   });
-  updateIdeaStatus(id, 'planned');
+  updateIdeaStatus(id, 'planifier');
 }
 
 async function quickPomodoroFromIdea(id) {
@@ -1479,9 +1537,57 @@ async function quickPomodoroFromIdea(id) {
     sync_apple: true,
   };
   await createEvent(payload);
-  updateIdeaStatus(id, 'planned');
+  updateIdeaStatus(id, 'planifier');
   await renderWeek();
   showToast('Bloc Pomodoro ajouté au planning.', 'ok');
+}
+
+function bindIdeaLaneButtons(root) {
+  root.querySelectorAll('[data-idea-plan]').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      planIdea(btn.getAttribute('data-idea-plan') || '');
+    });
+  });
+  root.querySelectorAll('[data-idea-pomo]').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      quickPomodoroFromIdea(btn.getAttribute('data-idea-pomo') || '');
+    });
+  });
+  root.querySelectorAll('[data-idea-done]').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      updateIdeaStatus(btn.getAttribute('data-idea-done') || '', 'done');
+    });
+  });
+  root.querySelectorAll('[data-idea-del]').forEach((btn) => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      deleteIdeaById(btn.getAttribute('data-idea-del') || '');
+    });
+  });
+}
+
+function bindIdeaLaneSortables(root) {
+  if (typeof Sortable === 'undefined') return;
+  root.querySelectorAll('.decision-lane').forEach((lane) => {
+    if (lane.dataset.sortableBound === '1') return;
+    Sortable.create(lane, {
+      group: 'performos-ideas',
+      animation: 180,
+      draggable: '.decision-item[data-idea-id]',
+      ghostClass: 'dragging',
+      onEnd: (evt) => {
+        const item = evt.item;
+        const id = item ? item.getAttribute('data-idea-id') : '';
+        const nextStatus = evt.to ? evt.to.getAttribute('data-status') : '';
+        if (!id || !nextStatus) return;
+        updateIdeaStatus(id, nextStatus);
+      },
+    });
+    lane.dataset.sortableBound = '1';
+  });
 }
 
 function renderIdeas() {
@@ -1495,27 +1601,46 @@ function renderIdeas() {
   const filter = (document.getElementById('ideaFilter') || {}).value || 'all';
   const filtered = rows.filter((x) => filter === 'all' ? true : x.status === filter);
 
-  const laneRows = rows.filter((x) => x.status !== 'done');
-  const buckets = { now: [], next: [], later: [] };
-  laneRows.forEach((x) => buckets[ideaLane(x)].push(x));
+  const buckets = { urgent: [], planifier: [], non_urgent: [], done: [] };
+  rows.forEach((x) => {
+    const lane = ideaLane(x);
+    buckets[lane] = buckets[lane] || [];
+    buckets[lane].push(x);
+  });
 
   const decisionGrid = document.getElementById('decisionGrid');
   if (decisionGrid) {
     const laneHtml = (key, label) => {
-      const items = buckets[key].slice(0, 3).map((x) => (
-        '<div class="decision-item">' + escapeHtml(x.title) + '</div>'
+      const count = (buckets[key] || []).length;
+      const items = buckets[key].map((x) => (
+        '<div class="decision-item" data-idea-id="' + x.id + '">'
+        + '<div style="font-weight:600; margin-bottom:5px;">' + escapeHtml(x.title) + '</div>'
+        + '<div style="display:flex; gap:5px; flex-wrap:wrap;">'
+        + '<span class="pill">' + escapeHtml((TYPE_DEFS[x.type] || TYPE_DEFS.autre).label) + '</span>'
+        + '<span class="pill">I' + Number(x.impact || 3) + '/5</span>'
+        + '<span class="pill">E' + Number(x.effort || 3) + '/5</span>'
+        + '</div>'
+        + '<div class="idea-actions">'
+        + '<button class="btn-mini primary" data-idea-plan="' + x.id + '">Planifier</button>'
+        + '<button class="btn-mini" data-idea-pomo="' + x.id + '">+25m</button>'
+        + '<button class="btn-mini success" data-idea-done="' + x.id + '">Fait</button>'
+        + '</div>'
+        + '</div>'
       )).join('') || '<div class="muted" style="font-size:11px;">—</div>';
       return (
-        '<div class="decision-col">'
-        + '<div class="decision-title">' + label + '</div>'
-        + items
+        '<div class="decision-col" data-lane="' + key + '">'
+        + '<div class="decision-title">' + label + ' · ' + count + '</div>'
+        + '<div class="decision-lane" data-status="' + key + '">' + items + '</div>'
         + '</div>'
       );
     };
     decisionGrid.innerHTML =
-      laneHtml('now', 'Now (agir)') +
-      laneHtml('next', 'Next (planifier)') +
-      laneHtml('later', 'Later (parking)');
+      laneHtml('urgent', 'Urgent') +
+      laneHtml('planifier', 'Planifier') +
+      laneHtml('non_urgent', 'Non urgent') +
+      laneHtml('done', 'Terminé');
+    bindIdeaLaneButtons(decisionGrid);
+    bindIdeaLaneSortables(decisionGrid);
   }
 
   const list = document.getElementById('ideaList');
@@ -1528,7 +1653,7 @@ function renderIdeas() {
   list.innerHTML = filtered.map((x) => {
     const lane = ideaLane(x);
     const score = ideaScore(x).toFixed(1);
-    const laneLabel = lane === 'now' ? 'Now' : lane === 'next' ? 'Next' : 'Later';
+    const laneLabel = lane === 'urgent' ? 'Urgent' : lane === 'planifier' ? 'Planifier' : lane === 'non_urgent' ? 'Non urgent' : 'Terminé';
     const method = METHOD_LABELS[x.method] || x.method;
     return (
       '<div class="idea-item ' + (x.status === 'done' ? 'done' : '') + '">'
@@ -1542,7 +1667,9 @@ function renderIdeas() {
       + '<span class="pill">' + laneLabel + '</span>'
       + '</div>'
       + '<div class="idea-actions">'
+      + '<button class="btn-mini" data-idea-urgent="' + x.id + '">Urgent</button>'
       + '<button class="btn-mini primary" data-idea-plan="' + x.id + '">Planifier</button>'
+      + '<button class="btn-mini" data-idea-nonurgent="' + x.id + '">Non urgent</button>'
       + '<button class="btn-mini" data-idea-pomo="' + x.id + '">+25m</button>'
       + '<button class="btn-mini success" data-idea-done="' + x.id + '">Fait</button>'
       + '<button class="btn-mini" data-idea-del="' + x.id + '">Supprimer</button>'
@@ -1553,6 +1680,12 @@ function renderIdeas() {
 
   list.querySelectorAll('[data-idea-plan]').forEach((btn) => {
     btn.addEventListener('click', () => planIdea(btn.getAttribute('data-idea-plan') || ''));
+  });
+  list.querySelectorAll('[data-idea-urgent]').forEach((btn) => {
+    btn.addEventListener('click', () => updateIdeaStatus(btn.getAttribute('data-idea-urgent') || '', 'urgent'));
+  });
+  list.querySelectorAll('[data-idea-nonurgent]').forEach((btn) => {
+    btn.addEventListener('click', () => updateIdeaStatus(btn.getAttribute('data-idea-nonurgent') || '', 'non_urgent'));
   });
   list.querySelectorAll('[data-idea-pomo]').forEach((btn) => {
     btn.addEventListener('click', () => quickPomodoroFromIdea(btn.getAttribute('data-idea-pomo') || ''));
