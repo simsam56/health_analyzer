@@ -251,10 +251,10 @@ def main():
     parser.add_argument("--days",       type=int, default=30,
                         help="Nb jours Garmin à synchroniser")
     parser.add_argument("--skip-parse", action="store_true",
-                        help="Sauter le parsing (utiliser DB existante)")
+                        help="Sauter Apple Health + Strava (utiliser DB existante)")
     parser.add_argument("--reset",      action="store_true",
                         help="Réinitialiser la DB (backup automatique)")
-    parser.add_argument("--weeks-muscle", type=int, default=4,
+    parser.add_argument("--weeks-muscle", type=int, default=8,
                         help="Fenêtre analyse musculaire (semaines)")
     parser.add_argument("--audit",      action="store_true",
                         help="Afficher rapport d'audit des données")
@@ -303,7 +303,13 @@ def main():
             from pipeline.parse_apple_health import run as run_ah
             result_ah = run_ah(xml_path=ah_xml, db_path=db_path)
             print(f"   Workouts : {result_ah.get('workouts_inserted',0)} insérés")
-            print(f"   Métriques : {result_ah.get('metrics_inserted',0)} lignes ({result_ah.get('days_covered',0)} jours)")
+            print(
+                "   Métriques : "
+                f"{result_ah.get('metrics_new',0)} nouvelles, "
+                f"{result_ah.get('metrics_updated',0)} mises à jour, "
+                f"{result_ah.get('metrics_unchanged',0)} inchangées "
+                f"({result_ah.get('days_covered',0)} jours)"
+            )
             print()
         else:
             print("⚠️  Apple Health XML non trouvé — étape ignorée\n")
@@ -317,28 +323,31 @@ def main():
         else:
             print("⚠️  Dossier Strava non trouvé — étape ignorée\n")
 
-        # ─── 4. Garmin Connect (optionnel) ───────────────────────
-        if args.garmin:
-            print(f"⌚ Pipeline Garmin Connect ({args.days} derniers jours)…")
-            from pipeline.parse_garmin_connect import run as run_garmin
-            from dotenv import load_dotenv
-            import os
-            load_dotenv(ROOT / ".env")
-            result_gc = run_garmin(
-                db_path=db_path,
-                days=args.days,
-                email=os.environ.get("GARMIN_EMAIL"),
-                password=os.environ.get("GARMIN_PASSWORD"),
-            )
-            if "error" not in result_gc:
-                garmin_connected = True
-                print(f"   Activités : {result_gc.get('activities_inserted',0)} nouvelles")
-                print(f"   Métriques : {result_gc.get('metrics_inserted',0)} nouvelles")
-            else:
-                print(f"   ⚠️  {result_gc.get('error','erreur inconnue')}")
-            print()
+    else:
+        print("⏭️  Parsing Apple Health + Strava ignoré (--skip-parse)\n")
+
+    # ─── 4. Garmin Connect (optionnel) ───────────────────────────
+    if args.garmin:
+        print(f"⌚ Pipeline Garmin Connect ({args.days} derniers jours)…")
+        from pipeline.parse_garmin_connect import run as run_garmin
+        from dotenv import load_dotenv
+        import os
+        load_dotenv(ROOT / ".env")
+        result_gc = run_garmin(
+            db_path=db_path,
+            days=args.days,
+            email=os.environ.get("GARMIN_EMAIL"),
+            password=os.environ.get("GARMIN_PASSWORD"),
+        )
+        if "error" not in result_gc:
+            garmin_connected = True
+            print(f"   Activités : {result_gc.get('activities_inserted',0)} nouvelles")
+            print(f"   Métriques : {result_gc.get('metrics_inserted',0)} nouvelles")
         else:
-            print("ℹ️  Garmin Connect : non activé (utilisez --garmin pour synchroniser)\n")
+            print(f"   ⚠️  {result_gc.get('error','erreur inconnue')}")
+        print()
+    else:
+        print("ℹ️  Garmin Connect : non activé (utilisez --garmin pour synchroniser)\n")
 
     # ─── 4.5 Dédup activités (optionnel) ────────────────────────
     if not args.no_dedup:

@@ -16,7 +16,12 @@ python3 -m pip install fitparse garminconnect python-dotenv pyobjc-framework-Eve
 python3 main.py --garmin --days 90
 ```
 
-- Run rapide (sans reparse):
+- Run rapide quotidien (Garmin + agenda, sans reparse Apple/Strava):
+```bash
+python3 main.py --garmin --days 90 --skip-parse
+```
+
+- Run rapide (sans reparse, sans Garmin):
 ```bash
 python3 main.py --skip-parse
 ```

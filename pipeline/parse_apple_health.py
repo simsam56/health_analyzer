@@ -289,23 +289,59 @@ def insert_activities(conn: sqlite3.Connection, workouts: list[dict]) -> tuple[i
 
 
 def insert_health_metrics(conn: sqlite3.Connection,
-                          daily: dict[str, dict]) -> int:
+                          daily: dict[str, dict]) -> dict[str, int]:
+    # Snapshot des métriques Apple existantes pour distinguer:
+    # nouvelles insertions / mises à jour / valeurs inchangées.
+    existing_rows = conn.execute(
+        "SELECT date, metric, value FROM health_metrics WHERE source='apple_health'"
+    ).fetchall()
+    existing = {(r[0], r[1]): float(r[2]) for r in existing_rows}
+
     inserted = 0
+    updated = 0
+    unchanged = 0
+
     for date, metrics in daily.items():
         for metric, value in metrics.items():
             if value is None:
                 continue
+            key = (date, metric)
+            new_val = float(value)
+            old_val = existing.get(key)
+
+            if old_val is None:
+                action = "insert"
+            elif abs(old_val - new_val) > 1e-9:
+                action = "update"
+            else:
+                action = "unchanged"
+
             try:
-                conn.execute(
-                    """INSERT OR REPLACE INTO health_metrics (date, metric, value, source)
-                       VALUES (?,?,?,?)""",
-                    (date, metric, float(value), "apple_health"),
-                )
-                inserted += 1
+                if action == "insert":
+                    conn.execute(
+                        """INSERT INTO health_metrics (date, metric, value, source)
+                           VALUES (?,?,?,?)""",
+                        (date, metric, new_val, "apple_health"),
+                    )
+                    inserted += 1
+                elif action == "update":
+                    conn.execute(
+                        """UPDATE health_metrics
+                           SET value=?
+                           WHERE date=? AND metric=? AND source='apple_health'""",
+                        (new_val, date, metric),
+                    )
+                    updated += 1
+                else:
+                    unchanged += 1
             except sqlite3.Error:
                 pass
     conn.commit()
-    return inserted
+    return {
+        "new": inserted,
+        "updated": updated,
+        "unchanged": unchanged,
+    }
 
 
 def run(xml_path: str | Path, db_path: str | Path) -> dict:
@@ -328,14 +364,22 @@ def run(xml_path: str | Path, db_path: str | Path) -> dict:
     # 2. Health records
     print("  → Health records (peut prendre 2-3 min)…", end="", flush=True)
     daily = parse_health_records(xml_path)
-    ins_m = insert_health_metrics(conn, daily)
-    print(f" {ins_m} métriques insérées ({len(daily)} jours)")
+    metrics_stats = insert_health_metrics(conn, daily)
+    print(
+        f" {metrics_stats.get('new', 0)} nouvelles, "
+        f"{metrics_stats.get('updated', 0)} mises à jour, "
+        f"{metrics_stats.get('unchanged', 0)} inchangées "
+        f"({len(daily)} jours)"
+    )
 
     conn.close()
     return {
         "workouts_inserted": ins_w,
         "workouts_skipped":  skip_w,
-        "metrics_inserted":  ins_m,
+        "metrics_inserted":  metrics_stats.get("new", 0),
+        "metrics_new":       metrics_stats.get("new", 0),
+        "metrics_updated":   metrics_stats.get("updated", 0),
+        "metrics_unchanged": metrics_stats.get("unchanged", 0),
         "days_covered":      len(daily),
     }
 
