@@ -761,6 +761,10 @@ body {
   background: #fff;
   padding: 12px;
 }
+.kpi.hero {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border-color: #cddcf0;
+}
 .kpi .v { font-size: 26px; font-weight: 700; }
 .kpi .l { font-size: 12px; color: var(--muted); margin-top: 3px; }
 .reco-item {
@@ -1128,10 +1132,10 @@ input:focus, select:focus {
     <div class="card" style="margin-bottom:12px;">
       <h3>Synthèse santé</h3>
       <div class="health-grid">
-        <div class="kpi"><div class="v">__READINESS_GLOBAL__</div><div class="l">Condition globale /100</div></div>
-        <div class="kpi"><div class="v">__WBS__</div><div class="l">Readiness /100</div></div>
-        <div class="kpi"><div class="v">__BODY_BATTERY__%</div><div class="l">Body Battery</div></div>
-        <div class="kpi"><div class="v">__HRV__</div><div class="l">HRV (ms)</div></div>
+        <div class="kpi hero"><div class="v">__READINESS_GLOBAL__</div><div class="l">Condition globale /100</div></div>
+        <div class="kpi hero"><div class="v">__WBS__</div><div class="l">Readiness /100</div></div>
+        <div class="kpi hero"><div class="v">__BODY_BATTERY__%</div><div class="l">Body Battery</div></div>
+        <div class="kpi hero"><div class="v">__HRV__</div><div class="l">HRV (ms)</div></div>
         <div class="kpi"><div class="v">__RHR__</div><div class="l">RHR (bpm)</div></div>
         <div class="kpi"><div class="v">__SLEEP_H__h</div><div class="l">Sommeil</div></div>
         <div class="kpi"><div class="v">__VO2MAX__</div><div class="l">VO2Max</div></div>
