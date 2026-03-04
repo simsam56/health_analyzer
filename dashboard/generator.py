@@ -327,7 +327,6 @@ def generate_html(
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
 <style>
 :root {
@@ -840,42 +839,6 @@ body {
   gap: 8px;
   font-size: 12px;
 }
-.progress-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-.range-switch {
-  display: inline-flex;
-  gap: 4px;
-  margin-bottom: 10px;
-}
-.range-btn {
-  border: 1px solid var(--line);
-  background: #fff;
-  color: #334155;
-  border-radius: 8px;
-  padding: 6px 9px;
-  font-size: 11px;
-  cursor: pointer;
-}
-.range-btn.active {
-  background: #111827;
-  border-color: #111827;
-  color: #fff;
-}
-.chart-card {
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #fff;
-  padding: 12px;
-}
-.chart-title {
-  font-size: 13px;
-  color: #334155;
-  margin-bottom: 8px;
-  font-weight: 600;
-}
 .muted { color: var(--muted); }
 .fab {
   position: fixed;
@@ -905,6 +868,59 @@ body {
   border-radius: 16px;
   border: 1px solid var(--line);
   padding: 14px;
+}
+.cmdk-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,.45);
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  z-index: 260;
+  padding-top: 12vh;
+}
+.cmdk {
+  width: min(640px, 94vw);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 24px 60px rgba(15,23,42,.22);
+  overflow: hidden;
+}
+.cmdk input {
+  border: none;
+  border-bottom: 1px solid #e5ebf3;
+  border-radius: 0;
+  font-size: 14px;
+  padding: 14px 16px;
+}
+.cmdk input:focus {
+  box-shadow: none;
+}
+.cmdk-list {
+  max-height: 300px;
+  overflow: auto;
+  padding: 8px;
+}
+.cmdk-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.cmdk-item:hover,
+.cmdk-item.active {
+  background: #f1f7ff;
+  border-color: #dbeafe;
+}
+.cmdk-key {
+  font-size: 11px;
+  color: #64748b;
 }
 .form-grid {
   display: grid;
@@ -1000,7 +1016,6 @@ input:focus, select:focus {
   .stack-sticky { position: static; }
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .health-grid { grid-template-columns: repeat(2, 1fr); }
-  .progress-grid { grid-template-columns: 1fr; }
   .split-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 680px) {
@@ -1023,6 +1038,7 @@ input:focus, select:focus {
     <div class="top-right">
       <div class="quick-sync">
         <span class="badge __CAL_BADGE_CLASS__">Calendar: __CAL_STATUS__</span>
+        <button class="btn-soft" id="openCmdBtn">⌘K</button>
         <button class="btn-soft" id="pushPendingTopBtn">Pousser local</button>
       </div>
       <div class="badges">
@@ -1263,6 +1279,13 @@ input:focus, select:focus {
   </div>
 </div>
 
+<div class="cmdk-bg" id="cmdkBg">
+  <div class="cmdk" role="dialog" aria-modal="true" aria-label="Commandes rapides">
+    <input id="cmdkInput" type="text" placeholder="Commande rapide... (ex: sync, santé, idée urgente)" />
+    <div class="cmdk-list" id="cmdkList"></div>
+  </div>
+</div>
+
 <script>
 const TYPE_DEFS = __TYPE_DEFS__;
 const CATEGORY_LABELS = __CATEGORY_LABELS__;
@@ -1284,19 +1307,11 @@ const METHOD_LABELS = {
   time_blocking: 'Time Blocking',
 };
 
-const PROG = {
-  hours: { labels: __HOURS_LABELS__, values: __HOURS_VALUES__ },
-  runKm: { labels: __RUN_LABELS__, values: __RUN_VALUES__ },
-  tenk: { labels: __TENK_LABELS__, values: __TENK_VALUES__ },
-  vo2: { labels: __VO2_LABELS__, values: __VO2_VALUES__ },
-};
-const RANGE_LIMITS = { '1m': 4, '3m': 13, '1y': 52, 'all': 0 };
-
 let weekOffset = 0;
 let editingId = null;
 let currentEvents = [];
-let activeRange = '1y';
-const chartInstances = {};
+let cmdkIndex = 0;
+let cmdkItems = [];
 
 function showToast(message, kind) {
   const wrap = document.getElementById('toastWrap');
@@ -1324,6 +1339,74 @@ function notifySyncResult(payload) {
       showToast('Sync Apple partielle: ' + err, 'warn');
     }
   }
+}
+
+function commandRegistry() {
+  return [
+    { label: 'Ajouter activité', key: 'A', run: () => openModal(null) },
+    {
+      label: 'Ajouter idée urgente',
+      key: 'I',
+      run: () => {
+        activateTab('planning');
+        const sel = document.getElementById('ideaUrgency');
+        if (sel) sel.value = 'urgent';
+        const inp = document.getElementById('ideaText');
+        if (inp) inp.focus();
+      }
+    },
+    { label: 'Synchroniser Apple Calendar', key: 'S', run: () => pushPendingApple() },
+    { label: 'Aller à Santé', key: '1', run: () => activateTab('sante') },
+    { label: 'Aller à Travail', key: '2', run: () => activateTab('travail') },
+    { label: 'Aller à Social', key: '3', run: () => activateTab('social') },
+    { label: 'Semaine suivante', key: '→', run: () => { weekOffset += 1; renderWeek(); } },
+    { label: 'Semaine précédente', key: '←', run: () => { weekOffset -= 1; renderWeek(); } },
+  ];
+}
+
+function closeCmdk() {
+  const bg = document.getElementById('cmdkBg');
+  if (bg) bg.style.display = 'none';
+}
+
+function runCommand(index) {
+  const item = cmdkItems[index];
+  if (!item) return;
+  closeCmdk();
+  item.run();
+}
+
+function renderCmdk(filterText) {
+  const q = String(filterText || '').trim().toLowerCase();
+  const all = commandRegistry();
+  cmdkItems = all.filter((x) => !q || x.label.toLowerCase().includes(q));
+  if (cmdkIndex >= cmdkItems.length) cmdkIndex = 0;
+  const list = document.getElementById('cmdkList');
+  if (!list) return;
+  if (!cmdkItems.length) {
+    list.innerHTML = '<div class="muted" style="font-size:12px;padding:8px;">Aucune commande</div>';
+    return;
+  }
+  list.innerHTML = cmdkItems.map((x, idx) => (
+    '<div class="cmdk-item ' + (idx === cmdkIndex ? 'active' : '') + '" data-cmd-idx="' + idx + '">'
+    + '<span>' + escapeHtml(x.label) + '</span>'
+    + '<span class="cmdk-key">' + escapeHtml(x.key || '') + '</span>'
+    + '</div>'
+  )).join('');
+  list.querySelectorAll('.cmdk-item').forEach((row) => {
+    row.addEventListener('click', () => runCommand(Number(row.getAttribute('data-cmd-idx') || 0)));
+  });
+}
+
+function openCmdk() {
+  const bg = document.getElementById('cmdkBg');
+  const inp = document.getElementById('cmdkInput');
+  if (!bg || !inp) return;
+  cmdkIndex = 0;
+  bg.style.display = 'flex';
+  inp.value = '';
+  renderCmdk('');
+  setTimeout(() => inp.focus(), 0);
 }
 
 function parseIso(s) {
@@ -2258,54 +2341,6 @@ function activateTab(tabId) {
   window.scrollTo(0, 0);
 }
 
-function filterSeries(dataObj) {
-  const limit = RANGE_LIMITS[activeRange] || 0;
-  if (!limit) return dataObj;
-  const labels = dataObj.labels.slice(-limit);
-  const values = dataObj.values.slice(-limit);
-  return { labels, values };
-}
-
-function chartLine(canvasId, labels, values, color, yReverse) {
-  const el = document.getElementById(canvasId);
-  if (!el) return;
-  if (chartInstances[canvasId]) {
-    chartInstances[canvasId].destroy();
-  }
-  chartInstances[canvasId] = new Chart(el, {
-    type: 'line',
-    data: { labels, datasets: [{ data: values, borderColor: color, backgroundColor: color + '22', fill: true, tension: .25, pointRadius: 0 }] },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        x: { ticks: { maxTicksLimit: 8, color: '#64748b' }, grid: { display: false } },
-        y: { reverse: !!yReverse, ticks: { color: '#64748b' }, grid: { color: '#eef2f7' } }
-      },
-      plugins: { legend: { display: false } }
-    }
-  });
-}
-
-function initCharts() {
-  const h = filterSeries(PROG.hours);
-  const r = filterSeries(PROG.runKm);
-  const t = filterSeries(PROG.tenk);
-  const v = filterSeries(PROG.vo2);
-  chartLine('chartHours', h.labels, h.values, '#3b82f6', false);
-  chartLine('chartRunKm', r.labels, r.values, '#10b981', false);
-  chartLine('chart10k', t.labels, t.values, '#f97316', true);
-  chartLine('chartVo2', v.labels, v.values, '#8b5cf6', false);
-}
-
-function setRange(range) {
-  activeRange = range;
-  document.querySelectorAll('.range-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.range === range);
-  });
-  initCharts();
-}
-
 window.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.tab').forEach(t => {
     t.addEventListener('click', () => activateTab(t.dataset.tab));
@@ -2320,6 +2355,50 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('deleteBtn').addEventListener('click', () => { removeModalEvent(); });
   document.getElementById('modalBg').addEventListener('click', (e) => {
     if (e.target.id === 'modalBg') closeModal();
+  });
+  const cmdkBg = document.getElementById('cmdkBg');
+  const cmdkInput = document.getElementById('cmdkInput');
+  const openCmdBtn = document.getElementById('openCmdBtn');
+  if (openCmdBtn) openCmdBtn.addEventListener('click', openCmdk);
+  if (cmdkBg) {
+    cmdkBg.addEventListener('click', (e) => {
+      if (e.target.id === 'cmdkBg') closeCmdk();
+    });
+  }
+  if (cmdkInput) {
+    cmdkInput.addEventListener('input', () => {
+      cmdkIndex = 0;
+      renderCmdk(cmdkInput.value);
+    });
+    cmdkInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') {
+        ev.preventDefault();
+        closeCmdk();
+        return;
+      }
+      if (ev.key === 'ArrowDown') {
+        ev.preventDefault();
+        cmdkIndex = Math.min(cmdkItems.length - 1, cmdkIndex + 1);
+        renderCmdk(cmdkInput.value);
+        return;
+      }
+      if (ev.key === 'ArrowUp') {
+        ev.preventDefault();
+        cmdkIndex = Math.max(0, cmdkIndex - 1);
+        renderCmdk(cmdkInput.value);
+        return;
+      }
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        runCommand(cmdkIndex);
+      }
+    });
+  }
+  document.addEventListener('keydown', (ev) => {
+    if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === 'k') {
+      ev.preventDefault();
+      openCmdk();
+    }
   });
 
   document.getElementById('goalTarget').textContent = GOAL_TARGET.toFixed(1) + 'h';
@@ -2355,11 +2434,7 @@ window.addEventListener('DOMContentLoaded', () => {
       });
     });
   }
-  document.querySelectorAll('.range-btn').forEach(btn => {
-    btn.addEventListener('click', () => setRange(btn.dataset.range));
-  });
   renderWeek();
-  initCharts();
 });
 </script>
 </body>
