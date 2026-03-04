@@ -363,30 +363,43 @@ body {
 .top {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 12px;
   margin-bottom: 12px;
 }
 .brand h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 30px;
   letter-spacing: -0.02em;
 }
 .brand p {
   margin: 4px 0 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
 }
-.badges { display: flex; gap: 8px; flex-wrap: wrap; }
+.top-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.badges { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .badge {
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 6px 11px;
+  font-size: 11px;
+  font-weight: 600;
   color: var(--muted);
 }
 .badge.ok { color: #15803d; border-color: #bbf7d0; background: #f0fdf4; }
 .badge.warn { color: #92400e; border-color: #fde68a; background: #fffbeb; }
+.quick-sync {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
 .tabs {
   display: flex;
   gap: 8px;
@@ -415,8 +428,8 @@ body {
   align-items: start;
 }
 .planning-secondary {
-  display: grid;
-  grid-template-columns: 1.1fr .9fr;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 .stack {
@@ -474,6 +487,11 @@ body {
   border-radius: 14px;
   min-height: 300px;
   padding: 10px;
+  transition: border-color .16s ease, background .16s ease;
+}
+.day-col.drop-target {
+  border-color: #93c5fd;
+  background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
 }
 .day-head {
   display: flex;
@@ -529,18 +547,23 @@ body {
   font-size: 12px;
 }
 .stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .stat {
-  background: #f8fbff;
-  border-radius: 12px;
-  border: 1px solid #eef2f7;
-  padding: 10px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  border-radius: 14px;
+  border: 1px solid #e4ecf7;
+  padding: 12px;
 }
-.stat .v { font-size: 22px; font-weight: 700; }
-.stat .l { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.stat .v { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
+.stat .l { font-size: 11px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: .04em; }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
 .hbar {
   margin-top: 8px;
 }
@@ -570,11 +593,7 @@ body {
   background: linear-gradient(180deg, #ffffff 0%, #f7fff9 100%);
 }
 .sync-box {
-  margin-top: 10px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: #fff;
+  display: none;
 }
 .sync-head {
   display: flex;
@@ -650,6 +669,10 @@ body {
   padding: 6px;
   margin-bottom: 6px;
   line-height: 1.35;
+}
+.idea-draggable { cursor: grab; }
+.idea-draggable.dragging {
+  opacity: .5;
 }
 .decision-col[data-lane="urgent"] { background: #fff7f7; border-color: #fecaca; }
 .decision-col[data-lane="planifier"] { background: #fffbeb; border-color: #fde68a; }
@@ -973,17 +996,20 @@ input:focus, select:focus {
 }
 @media (max-width: 1100px) {
   .grid-planning { grid-template-columns: 1fr; }
-  .planning-secondary { grid-template-columns: 1fr; }
+  .planning-secondary { flex-direction: column; }
   .stack-sticky { position: static; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
   .health-grid { grid-template-columns: repeat(2, 1fr); }
   .progress-grid { grid-template-columns: 1fr; }
   .split-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 680px) {
   .quick-row, .quick-row-2, .decision-grid { grid-template-columns: 1fr; }
-  .stats { grid-template-columns: 1fr 1fr; }
+  .stat-grid { grid-template-columns: 1fr 1fr; }
   .health-grid { grid-template-columns: 1fr 1fr; }
   .top { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .top-right { align-items: flex-start; }
+  .badges { justify-content: flex-start; }
 }
 </style>
 </head>
@@ -991,20 +1017,27 @@ input:focus, select:focus {
 <div class="app">
   <div class="top">
     <div class="brand">
-      <h1>PerformOS</h1>
-      <p>Cockpit vie & entraînement · __TODAY__ · __NOW__</p>
+      <h1>Pilotage</h1>
+      <p>__TODAY__ · __NOW__</p>
     </div>
-    <div class="badges">
-      <span class="badge __CAL_BADGE_CLASS__">Apple Calendar: __CAL_STATUS__</span>
-      <span class="badge">Readiness: __WBS__/100 (__WBS_LABEL__)</span>
-      <span class="badge">ACWR: __ACWR__ (__ACWR_ZONE__)</span>
+    <div class="top-right">
+      <div class="quick-sync">
+        <span class="badge __CAL_BADGE_CLASS__">Calendar: __CAL_STATUS__</span>
+        <button class="btn-soft" id="pushPendingTopBtn">Pousser local</button>
+      </div>
+      <div class="badges">
+        <span class="badge">Readiness __WBS__/100</span>
+        <span class="badge">Sommeil __SLEEP_H__h</span>
+        <span class="badge">Objectif __GOAL_DONE__ / __GOAL_TARGET__h</span>
+      </div>
     </div>
   </div>
 
   <div class="tabs">
     <button class="tab active" data-tab="planning">Pilotage</button>
     <button class="tab" data-tab="sante">Santé</button>
-    <button class="tab" data-tab="progression">Progression</button>
+    <button class="tab" data-tab="travail">Travail</button>
+    <button class="tab" data-tab="social">Social</button>
   </div>
 
   <section class="section active" id="sec-planning">
@@ -1022,41 +1055,6 @@ input:focus, select:focus {
       </div>
 
       <div class="planning-secondary">
-        <div class="card">
-          <h3>Cockpit semaine</h3>
-          <div class="stats">
-            <div class="stat"><div class="v" id="sum-sante">__SUM_SANTE__</div><div class="l">Santé</div></div>
-            <div class="stat"><div class="v" id="sum-travail">__SUM_TRAVAIL__</div><div class="l">Travail</div></div>
-            <div class="stat"><div class="v" id="sum-relationnel">__SUM_REL__</div><div class="l">Relationnel</div></div>
-            <div class="stat"><div class="v" id="sum-apprentissage">__SUM_APP__</div><div class="l">Apprentissage</div></div>
-            <div class="stat"><div class="v" id="sum-autre">__SUM_AUTRE__</div><div class="l">Autre</div></div>
-            <div class="stat"><div class="v" id="sum-total">__SUM_TOTAL__</div><div class="l">Total (h)</div></div>
-          </div>
-          <div class="hbar" id="categoryBars"></div>
-
-          <div class="goal">
-            <div class="goal-top"><span>Objectif sport semaine</span><span><strong id="goalDone">__GOAL_DONE__h</strong> / <span id="goalTarget">__GOAL_TARGET__h</span></span></div>
-            <div class="goal-bar"><div class="goal-fill" id="goalFill" style="width: __GOAL_PCT__%"></div></div>
-            <div class="muted" style="font-size:12px;margin-top:6px;">Reste: <span id="goalLeft">__GOAL_LEFT__</span>h</div>
-          </div>
-
-          <div class="sync-box">
-            <div class="sync-head">
-              <div class="sync-title">Sync Apple Calendar</div>
-              <span class="badge __CAL_BADGE_CLASS__">__CAL_STATUS__</span>
-            </div>
-            <div class="sync-meta" id="pendingSyncLabel">__PENDING_SYNC_LABEL__</div>
-            <div class="sync-actions">
-              <button class="btn-soft" id="pushPendingBtn">Pousser tâches locales</button>
-            </div>
-          </div>
-
-          <div style="margin-top:12px;">
-            <h3 style="margin-bottom:8px;">5 dernières activités</h3>
-            __RECENT_HTML__
-          </div>
-        </div>
-
         <div class="card">
           <div class="idea-board-head">
             <h3 style="margin:0;">Brainstorm & triage des idées</h3>
@@ -1124,6 +1122,28 @@ input:focus, select:focus {
             <div class="idea-list" id="ideaList"></div>
           </div>
         </div>
+
+        <div class="card">
+          <h3>Cockpit semaine</h3>
+          <div class="stats">
+            <div class="stat-grid">
+              <div class="stat"><div class="v" id="sum-sante">__SUM_SANTE__</div><div class="l">Sport (h)</div></div>
+              <div class="stat"><div class="v" id="sum-total">__SUM_TOTAL__</div><div class="l">Total (h)</div></div>
+              <div class="stat"><div class="v" id="week-focus">—</div><div class="l">Focus</div></div>
+              <div class="stat"><div class="v" id="pending-count">0</div><div class="l">Tâches à sync</div></div>
+            </div>
+            <div class="hbar" id="categoryBars"></div>
+            <div class="goal">
+              <div class="goal-top"><span>Objectif sport</span><span><strong id="goalDone">__GOAL_DONE__h</strong> / <span id="goalTarget">__GOAL_TARGET__h</span></span></div>
+              <div class="goal-bar"><div class="goal-fill" id="goalFill" style="width: __GOAL_PCT__%"></div></div>
+              <div class="muted" style="font-size:12px;margin-top:6px;">Reste: <span id="goalLeft">__GOAL_LEFT__</span>h</div>
+            </div>
+            <div style="margin-top:12px;">
+              <h3 style="margin-bottom:8px;">Dernières activités</h3>
+              __RECENT_HTML__
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -1176,23 +1196,17 @@ input:focus, select:focus {
     </div>
   </section>
 
-  <section class="section" id="sec-progression">
-    <div class="range-switch">
-      <button class="range-btn active" data-range="1m">1M</button>
-      <button class="range-btn" data-range="3m">3M</button>
-      <button class="range-btn" data-range="1y">1A</button>
-      <button class="range-btn" data-range="all">Tout</button>
+  <section class="section" id="sec-travail">
+    <div class="card">
+      <h3>Travail</h3>
+      <div class="muted">Espace en préparation. Tu pourras piloter projets, tâches et objectifs ici.</div>
     </div>
-    <div class="progress-grid">
-      <div class="chart-card"><div class="chart-title">Heures sport / semaine</div><canvas id="chartHours" height="140"></canvas></div>
-      <div class="chart-card"><div class="chart-title">Distance running / semaine (km)</div><canvas id="chartRunKm" height="140"></canvas></div>
-      <div class="chart-card"><div class="chart-title">Estimation 10km (minutes)</div><canvas id="chart10k" height="140"></canvas></div>
-      <div class="chart-card"><div class="chart-title">VO2max</div><canvas id="chartVo2" height="140"></canvas></div>
-    </div>
+  </section>
 
-    <div class="card" style="margin-top:12px;">
-      <h3>Répartition sport (temps cumulé)</h3>
-      __SPORT_MIX_HTML__
+  <section class="section" id="sec-social">
+    <div class="card">
+      <h3>Social</h3>
+      <div class="muted">Espace en préparation. Tu pourras gérer relations, appels et suivis ici.</div>
     </div>
   </section>
 </div>
@@ -1346,6 +1360,12 @@ function isoDate(d) {
 
 function hm(d) {
   return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+function shortDateFr(d) {
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  return day + '/' + month;
 }
 
 function inferTypeFromEvent(ev) {
@@ -1546,6 +1566,37 @@ async function quickPomodoroFromIdea(id) {
   showToast('Bloc Pomodoro ajouté au planning.', 'ok');
 }
 
+function getIdeaById(id) {
+  return loadIdeas().find((x) => x.id === id) || null;
+}
+
+async function dropIdeaOnDay(ideaId, dateIso) {
+  const it = getIdeaById(ideaId);
+  if (!it) return;
+  const type = it.type || 'travail';
+  const def = TYPE_DEFS[type] || TYPE_DEFS.autre;
+  const start = new Date(dateIso + 'T09:00:00');
+  const duration = methodDefaultDuration(it.method);
+  const end = addMin(start, duration);
+  await createEvent({
+    title: it.title,
+    type,
+    category: def.category,
+    icon: def.icon,
+    color: def.color,
+    start_at: toIsoNoMs(start),
+    end_at: toIsoNoMs(end),
+    source: 'local_ui',
+    task_date: dateIso,
+    task_time: '09:00:00',
+    duration_min: duration,
+    sync_apple: true,
+  });
+  updateIdeaStatus(it.id, 'planifier');
+  await renderWeek();
+  showToast('Idée planifiée sur le planning.', 'ok');
+}
+
 function bindIdeaLaneButtons(root) {
   root.querySelectorAll('[data-idea-plan]').forEach((btn) => {
     btn.addEventListener('click', (ev) => {
@@ -1594,6 +1645,23 @@ function bindIdeaLaneSortables(root) {
   });
 }
 
+function bindIdeaDraggables(root) {
+  root.querySelectorAll('.idea-draggable[data-idea-id]').forEach((node) => {
+    if (node.dataset.dragBound === '1') return;
+    node.setAttribute('draggable', 'true');
+    node.addEventListener('dragstart', (ev) => {
+      const id = node.getAttribute('data-idea-id') || '';
+      if (!id) return;
+      node.classList.add('dragging');
+      ev.dataTransfer.setData('application/x-performos-idea', id);
+      ev.dataTransfer.setData('text/plain', 'idea:' + id);
+      ev.dataTransfer.effectAllowed = 'copy';
+    });
+    node.addEventListener('dragend', () => node.classList.remove('dragging'));
+    node.dataset.dragBound = '1';
+  });
+}
+
 function renderIdeas() {
   const rows = loadIdeas().sort((a, b) => {
     const sa = ideaScore(a);
@@ -1617,7 +1685,7 @@ function renderIdeas() {
     const laneHtml = (key, label) => {
       const count = (buckets[key] || []).length;
       const items = buckets[key].map((x) => (
-        '<div class="decision-item" data-idea-id="' + x.id + '">'
+        '<div class="decision-item idea-draggable" data-idea-id="' + x.id + '">'
         + '<div style="font-weight:600; margin-bottom:5px;">' + escapeHtml(x.title) + '</div>'
         + '<div style="display:flex; gap:5px; flex-wrap:wrap;">'
         + '<span class="pill">' + escapeHtml((TYPE_DEFS[x.type] || TYPE_DEFS.autre).label) + '</span>'
@@ -1645,6 +1713,7 @@ function renderIdeas() {
       laneHtml('done', 'Terminé');
     bindIdeaLaneButtons(decisionGrid);
     bindIdeaLaneSortables(decisionGrid);
+    bindIdeaDraggables(decisionGrid);
   }
 
   const list = document.getElementById('ideaList');
@@ -1660,7 +1729,7 @@ function renderIdeas() {
     const laneLabel = lane === 'urgent' ? 'Urgent' : lane === 'planifier' ? 'Planifier' : lane === 'non_urgent' ? 'Non urgent' : 'Terminé';
     const method = METHOD_LABELS[x.method] || x.method;
     return (
-      '<div class="idea-item ' + (x.status === 'done' ? 'done' : '') + '">'
+      '<div class="idea-item idea-draggable ' + (x.status === 'done' ? 'done' : '') + '" data-idea-id="' + x.id + '">'
       + '<div class="idea-top"><div class="idea-title">' + escapeHtml(x.title) + '</div>'
       + '<div class="pill">Score ' + score + '</div></div>'
       + '<div class="idea-meta">'
@@ -1700,6 +1769,7 @@ function renderIdeas() {
   list.querySelectorAll('[data-idea-del]').forEach((btn) => {
     btn.addEventListener('click', () => deleteIdeaById(btn.getAttribute('data-idea-del') || ''));
   });
+  bindIdeaDraggables(list);
 }
 
 function uidForBase(ev, idx) {
@@ -2053,27 +2123,23 @@ async function renderWeek() {
     const id = String(ev.id || '');
     return id.startsWith('task:') && !ev.calendar_uid;
   }).length;
-  const pendingLabel = document.getElementById('pendingSyncLabel');
-  const pushBtn = document.getElementById('pushPendingBtn');
-  if (pendingLabel) {
-    pendingLabel.textContent = pendingAll > 0
-      ? (pendingAll + ' tâche(s) locale(s) à pousser vers Apple Calendar')
-      : 'Aucune tâche locale en attente de synchronisation';
+  const pushTopBtn = document.getElementById('pushPendingTopBtn');
+  if (pushTopBtn) {
+    pushTopBtn.disabled = pendingAll <= 0;
+    pushTopBtn.style.opacity = pendingAll <= 0 ? '.55' : '1';
   }
-  if (pushBtn) {
-    pushBtn.disabled = pendingAll <= 0;
-    pushBtn.style.opacity = pendingAll <= 0 ? '.6' : '1';
-  }
+  const pendingCount = document.getElementById('pending-count');
+  if (pendingCount) pendingCount.textContent = String(pendingAll);
 
   const durations = categoryDurations(events);
   const total = durations.sante + durations.travail + durations.relationnel + durations.apprentissage + durations.autre;
+  const focusKey = Object.keys(durations).sort((a, b) => (durations[b] || 0) - (durations[a] || 0))[0] || 'autre';
+  const focusLabel = CATEGORY_LABELS[focusKey] || focusKey;
 
   document.getElementById('sum-sante').textContent = durations.sante.toFixed(1);
-  document.getElementById('sum-travail').textContent = durations.travail.toFixed(1);
-  document.getElementById('sum-relationnel').textContent = durations.relationnel.toFixed(1);
-  document.getElementById('sum-apprentissage').textContent = durations.apprentissage.toFixed(1);
-  document.getElementById('sum-autre').textContent = durations.autre.toFixed(1);
   document.getElementById('sum-total').textContent = total.toFixed(1);
+  const weekFocus = document.getElementById('week-focus');
+  if (weekFocus) weekFocus.textContent = focusLabel;
   renderCategoryBars(durations);
 
   const goalDone = durations.sante;
@@ -2097,13 +2163,23 @@ async function renderWeek() {
 
     const head = document.createElement('div');
     head.className = 'day-head';
-    head.innerHTML = '<span>' + days[i] + ' · ' + dateIso + '</span>'
+    head.innerHTML = '<span>' + days[i] + ' ' + shortDateFr(d) + '</span>'
       + '<button class="day-add" data-date="' + dateIso + '">+ Ajouter</button>';
     col.appendChild(head);
 
-    col.addEventListener('dragover', ev => ev.preventDefault());
+    col.addEventListener('dragover', ev => {
+      ev.preventDefault();
+      col.classList.add('drop-target');
+    });
+    col.addEventListener('dragleave', () => col.classList.remove('drop-target'));
     col.addEventListener('drop', ev => {
       ev.preventDefault();
+      col.classList.remove('drop-target');
+      const ideaId = ev.dataTransfer.getData('application/x-performos-idea');
+      if (ideaId) {
+        dropIdeaOnDay(ideaId, dateIso);
+        return;
+      }
       const uid = ev.dataTransfer.getData('text/plain');
       if (uid) moveEventToDate(uid, dateIso);
     });
@@ -2119,7 +2195,7 @@ async function renderWeek() {
       const empty = document.createElement('div');
       empty.className = 'muted';
       empty.style.fontSize = '12px';
-      empty.textContent = 'Aucune activité';
+      empty.textContent = '—';
       col.appendChild(empty);
     }
 
@@ -2250,9 +2326,9 @@ window.addEventListener('DOMContentLoaded', () => {
   if (!CAL_SYNC_ENABLED) {
     showToast('Apple Calendar non connecté dans ce contexte.', 'warn');
   }
-  const pushBtn = document.getElementById('pushPendingBtn');
-  if (pushBtn) {
-    pushBtn.addEventListener('click', pushPendingApple);
+  const pushTopBtn = document.getElementById('pushPendingTopBtn');
+  if (pushTopBtn) {
+    pushTopBtn.addEventListener('click', pushPendingApple);
   }
   const addIdeaBtn = document.getElementById('addIdeaBtn');
   if (addIdeaBtn) addIdeaBtn.addEventListener('click', addIdeaFromForm);
