@@ -141,3 +141,25 @@ python3 -m pip install pyobjc-framework-EventKit --break-system-packages
 - `Garmin non connecté`:
   - Vérifier `.env` (`GARMIN_EMAIL`, `GARMIN_PASSWORD`)
   - Tester `python3 garmin_sync_full.py --from 2025-01-01`
+
+## 8) Sauvegarde locale (recommandé)
+
+Pour avoir une sauvegarde locale robuste (code + DB + dashboard), lance:
+
+```bash
+bash backup_local.sh
+```
+
+Le script crée un snapshot horodaté dans `backups/YYYYMMDD_HHMMSS/` avec:
+
+- `source_head.tar.gz` (code du dernier commit)
+- `git_diff.patch` (modifs locales non commit)
+- `athlete.db` (backup SQLite cohérent)
+- dernier dashboard `reports/dashboard_*.html`
+- `metadata.txt`
+
+Bonne pratique:
+
+- exécuter `backup_local.sh` avant toute grosse refonte
+- exécuter `backup_local.sh` avant `--reset`
+- garder les secrets dans `.env` (déjà gitignoré)

@@ -85,6 +85,7 @@ Thumbs.db
 *.tmp
 *.bak
 *.backup
+backups/
 dist/
 build/
 *.egg-info/
