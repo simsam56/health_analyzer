@@ -2000,7 +2000,7 @@ async function debugAppleCalendar() {
       'calendars_count: ' + String(d.calendars_count || 0),
       'default_calendar: ' + String(d.default_calendar || '-'),
       'probe_events_synced: ' + String(d.probe_events_synced ?? '-'),
-    ].join('\n'));
+    ].join('\\n'));
     if (d.error) showToast('Debug calendrier: ' + d.error, 'warn');
     else showToast('Debug calendrier OK.', 'ok');
   } catch (_) {
