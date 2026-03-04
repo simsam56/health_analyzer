@@ -7,6 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 from datetime import date, datetime
 import json
+from html import escape
 
 
 TYPE_DEFS = {
@@ -108,6 +109,7 @@ def generate_html(
     metrics_history: list[dict],
     daily_load_rows: list[dict],
     output_path: str | Path,
+    api_token: str = "",
 ) -> None:
     del daily_load_rows  # kept for signature compatibility
 
@@ -162,7 +164,7 @@ def generate_html(
     total_mix = sum(float(r.get("hours", 0) or 0) for r in sport_mix) or 1.0
     sport_mix_html = ""
     for row in sport_mix[:8]:
-        t = row.get("type", "Other")
+        t = escape(str(row.get("type", "Other")))
         h = float(row.get("hours", 0) or 0)
         pct = h / total_mix * 100
         sport_mix_html += (
@@ -175,9 +177,9 @@ def generate_html(
 
     recent_html = ""
     for act in recent_activities:
-        at = act.get("type") or "Activité"
+        at = escape(str(act.get("type") or "Activité"))
         icon = ICONS_BY_ACTIVITY.get(at, "🏃")
-        dt = (act.get("started_at") or "")[:16].replace("T", " ")
+        dt = escape(((act.get("started_at") or "")[:16].replace("T", " ")))
         dur = int(act.get("duration_s") or 0)
         dur_m = max(1, dur // 60) if dur else 0
         recent_html += (
@@ -212,7 +214,7 @@ def generate_html(
     if weak:
         recommendations.append("Priorité renforcement cette semaine: " + ", ".join(weak) + ".")
 
-    reco_html = "".join([f'<div class="reco-item">{r}</div>' for r in recommendations[:4]])
+    reco_html = "".join([f'<div class="reco-item">{escape(r)}</div>' for r in recommendations[:4]])
 
     # Template (no f-string to keep CSS/JS braces simple)
     html = """
@@ -746,6 +748,7 @@ const BASE_EVENTS = __PLANNER_EVENTS__;
 const STORAGE_KEY = 'performos_planner_v1';
 const WEEK_START_ISO = '__WEEK_START__';
 const GOAL_TARGET = __GOAL_TARGET_NUM__;
+const API_TOKEN = '__API_TOKEN__';
 let API_ENABLED = location.protocol.startsWith('http');
 const API_BASE = '/api/planner';
 
@@ -808,6 +811,21 @@ function inferTypeFromEvent(ev) {
   if (ev.category === 'relationnel') return 'relationnel';
   if (ev.category === 'sante') return 'cardio';
   return 'autre';
+}
+
+function escapeHtml(v) {
+  return String(v || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function apiHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (API_TOKEN && API_TOKEN !== '__API_TOKEN__') h['X-PerformOS-Token'] = API_TOKEN;
+  return h;
 }
 
 function loadState() {
@@ -923,7 +941,7 @@ async function updateEvent(uid, payload) {
         const body = Object.assign({}, payload, { sync_apple: true });
         const r = await fetch(route, {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: apiHeaders(),
           body: JSON.stringify(body),
         });
         if (!r.ok) throw new Error('update_failed');
@@ -951,7 +969,10 @@ async function removeEvent(uid) {
       else if (ev.id && String(ev.id).startsWith('apple:')) route = API_BASE + '/apple/' + encodeURIComponent(String(ev.id).slice(6));
 
       if (route) {
-        const r = await fetch(route, { method: 'DELETE' });
+        const r = await fetch(route, {
+          method: 'DELETE',
+          headers: apiHeaders(),
+        });
         if (!r.ok) throw new Error('delete_failed');
         return;
       }
@@ -968,7 +989,7 @@ async function createEvent(payload) {
     try {
       const r = await fetch(API_BASE + '/tasks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: apiHeaders(),
         body: JSON.stringify(payload),
       });
       if (!r.ok) throw new Error('create_failed');
@@ -1206,7 +1227,7 @@ async function renderWeek() {
       card.className = 'event';
       card.draggable = true;
       card.style.borderLeftColor = def.color;
-      card.innerHTML = '<div class="event-title">' + def.icon + ' ' + (ev.title || def.label) + '</div>'
+      card.innerHTML = '<div class="event-title">' + def.icon + ' ' + escapeHtml(ev.title || def.label) + '</div>'
         + '<div class="event-meta"><span>' + hm(s) + ' · ' + dur + ' min</span>'
         + '<button class="event-x" title="Supprimer">✕</button></div>';
 
@@ -1342,6 +1363,7 @@ window.addEventListener('DOMContentLoaded', () => {
         "__TENK_VALUES__": json.dumps(tenk_values, ensure_ascii=False),
         "__VO2_LABELS__": json.dumps(vo2_labels, ensure_ascii=False),
         "__VO2_VALUES__": json.dumps(vo2_values, ensure_ascii=False),
+        "__API_TOKEN__": api_token,
     }
 
     for key, value in repl.items():
