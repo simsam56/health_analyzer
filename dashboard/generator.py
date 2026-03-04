@@ -369,19 +369,58 @@ body {
 .brand-wrap {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 10px;
+}
+.totem {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  border: 1px solid #d8e4f3;
+  background: radial-gradient(circle at 30% 30%, #fff9e6 0%, #ffe8bf 55%, #ffd5a3 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+}
+.totem::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 16px;
+  border: 1px dashed #f59e0b88;
+  animation: spinSlow 9s linear infinite;
+}
+.totem .animal {
+  font-size: 26px;
+  animation: floatTotem 2.2s ease-in-out infinite;
+}
+.totem.wiggle .animal {
+  animation: wiggle .42s ease;
+}
+@keyframes floatTotem {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes wiggle {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(-10deg); }
+  50% { transform: rotate(10deg); }
+  75% { transform: rotate(-6deg); }
+  100% { transform: rotate(0deg); }
 }
 .brand h1 {
   margin: 0;
-  font-size: 34px;
-  line-height: 1.02;
-  letter-spacing: -0.04em;
-  font-weight: 800;
-  font-family: "Avenir Next", "SF Pro Display", "Inter", sans-serif;
-  color: #0b1220;
+  font-size: 30px;
+  letter-spacing: -0.02em;
 }
 .brand p {
-  margin: 2px 0 0;
+  margin: 4px 0 0;
   color: var(--muted);
   font-size: 12px;
 }
@@ -422,7 +461,6 @@ body {
 .hero-meta { display: flex; flex-direction: column; gap: 1px; }
 .hero-label { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; font-weight: 700; }
 .hero-value { font-size: 13px; font-weight: 700; color: #0f172a; }
-.hero-sub { font-size: 11px; color: #64748b; font-weight: 600; }
 .badge {
   background: #fff;
   border: 1px solid var(--line);
@@ -871,6 +909,19 @@ body {
   font-size: 12px;
 }
 .muted { color: var(--muted); }
+.fab {
+  position: fixed;
+  right: 18px;
+  bottom: 20px;
+  border: none;
+  border-radius: 999px;
+  background: #111827;
+  color: #fff;
+  padding: 14px 16px;
+  font-weight: 600;
+  box-shadow: 0 10px 24px rgba(17,24,39,.25);
+  cursor: pointer;
+}
 .modal-bg {
   position: fixed;
   inset: 0;
@@ -1056,8 +1107,11 @@ input:focus, select:focus {
 <div class="app">
   <div class="top">
     <div class="brand-wrap">
+      <div class="totem" id="totemPet" title="Totem du jour">
+        <div class="animal">🦊</div>
+      </div>
       <div class="brand">
-        <h1>SimSam</h1>
+        <h1>Pilotage</h1>
         <p>__TODAY__ · __NOW__</p>
       </div>
     </div>
@@ -1066,8 +1120,7 @@ input:focus, select:focus {
         <span class="hero-icon health">💚</span>
         <div class="hero-meta">
           <span class="hero-label">Santé</span>
-          <span class="hero-value" id="heroHealth">__READINESS_GLOBAL__/100</span>
-          <span class="hero-sub" id="heroHealthSub">Body Battery __BODY_BATTERY__%</span>
+          <span class="hero-value" id="heroHealth">__HEALTH_STATUS__</span>
         </div>
       </div>
       <div class="hero-card">
@@ -1075,7 +1128,6 @@ input:focus, select:focus {
         <div class="hero-meta">
           <span class="hero-label">Travail</span>
           <span class="hero-value" id="heroWork">—</span>
-          <span class="hero-sub" id="heroWorkSub">Avancement semaine</span>
         </div>
       </div>
       <div class="hero-card">
@@ -1083,7 +1135,6 @@ input:focus, select:focus {
         <div class="hero-meta">
           <span class="hero-label">Social</span>
           <span class="hero-value" id="heroSocial">—</span>
-          <span class="hero-sub" id="heroSocialSub">Équilibre relationnel</span>
         </div>
       </div>
     </div>
@@ -1232,6 +1283,8 @@ input:focus, select:focus {
     </div>
   </section>
 </div>
+
+<button class="fab" id="openAdd">+ Ajouter activité</button>
 <div class="toast-wrap" id="toastWrap"></div>
 
 <div class="modal-bg" id="modalBg">
@@ -1302,6 +1355,8 @@ const API_TOKEN = __API_TOKEN_JS__;
 const CAL_SYNC_ENABLED = __CAL_SYNC_ENABLED__;
 let API_ENABLED = location.protocol.startsWith('http');
 const API_BASE = '/api/planner';
+const TOTEM_ANIMALS = ['🦊', '🦉', '🐼', '🐬', '🐺', '🦁', '🐯', '🦭'];
+const TOTEM_KEY = 'performos_totem_idx';
 
 let weekOffset = 0;
 let editingId = null;
@@ -1350,7 +1405,6 @@ function commandRegistry() {
       }
     },
     { label: 'Synchroniser Apple Calendar', key: 'S', run: () => pushPendingApple() },
-    { label: 'Debug Apple Calendar', key: 'D', run: () => debugAppleCalendar() },
     { label: 'Aller à Santé', key: '1', run: () => activateTab('sante') },
     { label: 'Aller à Travail', key: '2', run: () => activateTab('travail') },
     { label: 'Aller à Social', key: '3', run: () => activateTab('social') },
@@ -1402,6 +1456,34 @@ function openCmdk() {
   inp.value = '';
   renderCmdk('');
   setTimeout(() => inp.focus(), 0);
+}
+
+function initTotem() {
+  const root = document.getElementById('totemPet');
+  if (!root) return;
+  const animalNode = root.querySelector('.animal');
+  if (!animalNode) return;
+
+  let idx = Number(localStorage.getItem(TOTEM_KEY));
+  if (!Number.isFinite(idx) || idx < 0) {
+    const d = new Date();
+    idx = (d.getDay() + d.getDate()) % TOTEM_ANIMALS.length;
+  }
+
+  const apply = () => {
+    animalNode.textContent = TOTEM_ANIMALS[idx % TOTEM_ANIMALS.length];
+  };
+  apply();
+
+  root.addEventListener('click', () => {
+    idx = (idx + 1) % TOTEM_ANIMALS.length;
+    localStorage.setItem(TOTEM_KEY, String(idx));
+    root.classList.remove('wiggle');
+    void root.offsetWidth;
+    root.classList.add('wiggle');
+    apply();
+    setTimeout(() => root.classList.remove('wiggle'), 420);
+  });
 }
 
 function parseIso(s) {
@@ -1897,41 +1979,6 @@ async function pushPendingApple() {
   }
 }
 
-async function debugAppleCalendar() {
-  if (!API_ENABLED) {
-    showToast('Debug Apple Calendar disponible uniquement via serveur local (--serve).', 'warn');
-    return;
-  }
-  try {
-    const r = await fetch(API_BASE + '/calendar/debug', {
-      method: 'GET',
-      headers: apiHeaders(),
-    });
-    if (!r.ok) throw new Error('calendar_debug_failed');
-    const out = await r.json();
-    const d = out.debug || {};
-    const lines = [
-      'Debug Apple Calendar',
-      'enabled: ' + String(!!d.enabled),
-      'error: ' + String(d.error || '-'),
-      'platform: ' + String(d.platform || '-'),
-      'eventkit: ' + String(d.eventkit || '-'),
-      'permission: ' + String(d.permission || '-'),
-      'calendars: ' + String(d.calendars_count || 0),
-      'default_calendar: ' + String(d.default_calendar || '-'),
-      'probe_events_synced: ' + String(d.probe_events_synced ?? '-'),
-    ];
-    if (d.error) {
-      showToast('Debug calendar: ' + d.error, 'warn');
-    } else {
-      showToast('Debug calendar OK (' + String(d.calendars_count || 0) + ' calendriers).', 'ok');
-    }
-    alert(lines.join('\n'));
-  } catch (_) {
-    showToast('Échec du debug Apple Calendar.', 'err');
-  }
-}
-
 async function moveEventToDate(uid, newDateIso) {
   const ev = findCurrentEvent(uid) || mergedEvents().find(x => x._uid === uid);
   if (!ev) return;
@@ -2040,54 +2087,6 @@ function categoryDurations(events) {
   return out;
 }
 
-function eventDurationHours(ev) {
-  const s = parseIso(ev.start_at);
-  const e = parseIso(ev.end_at);
-  if (!s || !e) return 0;
-  return Math.max(0, (e - s) / 3600000);
-}
-
-function computeWorkProgress(events, weekStart, weekEnd) {
-  const now = new Date();
-  const cursor = now < weekStart ? weekStart : (now > weekEnd ? weekEnd : now);
-  const workEvents = events.filter((ev) => {
-    const t = inferTypeFromEvent(ev);
-    const cat = (TYPE_DEFS[t] || TYPE_DEFS.autre).category;
-    return cat === 'travail';
-  });
-  const due = workEvents.filter((ev) => {
-    const s = parseIso(ev.start_at);
-    return !!s && s <= cursor;
-  });
-  const dueH = due.reduce((acc, ev) => acc + eventDurationHours(ev), 0);
-  const doneH = due.reduce((acc, ev) => {
-    const e = parseIso(ev.end_at) || parseIso(ev.start_at);
-    if (e && e <= now) return acc + eventDurationHours(ev);
-    return acc;
-  }, 0);
-  const pct = dueH > 0 ? Math.round(Math.max(0, Math.min(100, (doneH / dueH) * 100))) : 0;
-  return {
-    pct,
-    dueH,
-    doneH,
-    dueCount: due.length,
-  };
-}
-
-function computeSocialScore(socialHours) {
-  const targetH = 4.0;
-  const pct = Math.round(Math.max(0, Math.min(100, (socialHours / targetH) * 100)));
-  let label = 'À booster';
-  if (pct >= 90) label = 'Excellent';
-  else if (pct >= 65) label = 'Bon';
-  else if (pct >= 40) label = 'Correct';
-  return {
-    pct,
-    label,
-    targetH,
-  };
-}
-
 function renderCategoryBars(durations) {
   const wrap = document.getElementById('categoryBars');
   const keys = ['sante', 'travail', 'relationnel', 'apprentissage', 'autre'];
@@ -2147,7 +2146,7 @@ async function renderWeek() {
     if (!CAL_SYNC_ENABLED) {
       calBadgeBtn.classList.add('warn');
       calBadgeBtn.textContent = 'Apple Calendar · indisponible';
-      calBadgeBtn.title = 'Clique pour lancer le debug calendrier';
+      calBadgeBtn.title = 'Accès non disponible depuis ce contexte';
     } else if (pendingAll > 0) {
       calBadgeBtn.classList.add('warn');
       calBadgeBtn.textContent = 'Apple Calendar · ' + pendingAll + ' à sync';
@@ -2172,23 +2171,15 @@ async function renderWeek() {
   const focusLabel = CATEGORY_LABELS[focusKey] || focusKey;
   const workH = durations.travail || 0;
   const socialH = durations.relationnel || 0;
-  const workProgress = computeWorkProgress(events, start, end);
-  const socialScore = computeSocialScore(socialH);
   const heroWork = document.getElementById('heroWork');
-  const heroWorkSub = document.getElementById('heroWorkSub');
   const heroSocial = document.getElementById('heroSocial');
-  const heroSocialSub = document.getElementById('heroSocialSub');
   if (heroWork) {
-    heroWork.textContent = workProgress.pct + '%';
-  }
-  if (heroWorkSub) {
-    heroWorkSub.textContent = workProgress.doneH.toFixed(1) + 'h / ' + workProgress.dueH.toFixed(1) + 'h prévues à date';
+    const status = workH < 4 ? 'Léger' : (workH <= 28 ? 'Bon' : 'Chargé');
+    heroWork.textContent = status + ' · ' + workH.toFixed(1) + 'h';
   }
   if (heroSocial) {
-    heroSocial.textContent = socialScore.pct + '% · ' + socialScore.label;
-  }
-  if (heroSocialSub) {
-    heroSocialSub.textContent = socialH.toFixed(1) + 'h / ' + socialScore.targetH.toFixed(1) + 'h cible';
+    const status = socialH < 1 ? 'À booster' : (socialH <= 8 ? 'Bon' : 'Dense');
+    heroSocial.textContent = status + ' · ' + socialH.toFixed(1) + 'h';
   }
 
   document.getElementById('sum-sante').textContent = durations.sante.toFixed(1);
@@ -2321,8 +2312,7 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('prevWeek').addEventListener('click', () => { weekOffset -= 1; renderWeek(); });
   document.getElementById('nextWeek').addEventListener('click', () => { weekOffset += 1; renderWeek(); });
 
-  const openAddBtn = document.getElementById('openAdd');
-  if (openAddBtn) openAddBtn.addEventListener('click', () => openModal(null));
+  document.getElementById('openAdd').addEventListener('click', () => openModal(null));
   document.getElementById('cancelBtn').addEventListener('click', closeModal);
   document.getElementById('saveBtn').addEventListener('click', () => { submitModal(); });
   document.getElementById('deleteBtn').addEventListener('click', () => { removeModalEvent(); });
@@ -2375,6 +2365,7 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('goalTarget').textContent = GOAL_TARGET.toFixed(1) + 'h';
+  initTotem();
   if (!CAL_SYNC_ENABLED) {
     showToast('Apple Calendar non connecté dans ce contexte.', 'warn');
   }
@@ -2382,7 +2373,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if (calBadgeBtn) {
     calBadgeBtn.addEventListener('click', () => {
       if (!CAL_SYNC_ENABLED) {
-        debugAppleCalendar();
+        showToast('Apple Calendar indisponible ici.', 'warn');
         return;
       }
       pushPendingApple();
