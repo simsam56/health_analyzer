@@ -22,13 +22,20 @@ def _to_iso_from_nsdate(nsdate) -> str | None:
     return datetime.fromtimestamp(ts).replace(microsecond=0).isoformat()
 
 
-def _fetch_with_eventkit(days_ahead: int, calendar_name: str | None = None) -> tuple[list[dict], str | None]:
-    """Fetch calendar events via EventKit (requires pyobjc on macOS)."""
+def _nsdate_from_iso(iso_ts: str):
     try:
         from Foundation import NSDate  # type: ignore
+        dt = datetime.fromisoformat(iso_ts[:19])
+        return NSDate.dateWithTimeIntervalSince1970_(dt.timestamp())
+    except Exception:
+        return None
+
+
+def _get_store_and_access():
+    try:
         from EventKit import EKEntityTypeEvent, EKEventStore  # type: ignore
     except Exception:
-        return [], "eventkit_unavailable"
+        return None, None, "eventkit_unavailable"
 
     store = EKEventStore.alloc().init()
     grant = {"ok": False, "err": None}
@@ -42,9 +49,21 @@ def _fetch_with_eventkit(days_ahead: int, calendar_name: str | None = None) -> t
 
     store.requestAccessToEntityType_completion_(EKEntityTypeEvent, _completion)
     done.wait(timeout=15)
-
     if not grant["ok"]:
-        return [], grant["err"] or "calendar_permission_denied"
+        return None, None, grant["err"] or "calendar_permission_denied"
+    return store, EKEntityTypeEvent, None
+
+
+def _fetch_with_eventkit(days_ahead: int, calendar_name: str | None = None) -> tuple[list[dict], str | None]:
+    """Fetch calendar events via EventKit (requires pyobjc on macOS)."""
+    try:
+        from Foundation import NSDate  # type: ignore
+    except Exception:
+        return [], "eventkit_unavailable"
+
+    store, EKEntityTypeEvent, err = _get_store_and_access()
+    if err:
+        return [], err
 
     start_dt = datetime.now()
     end_dt = start_dt + timedelta(days=days_ahead)
@@ -81,6 +100,74 @@ def _fetch_with_eventkit(days_ahead: int, calendar_name: str | None = None) -> t
 
     parsed.sort(key=lambda x: x["start_at"])
     return parsed, None
+
+
+def create_apple_calendar_event(
+    title: str,
+    start_at: str,
+    end_at: str,
+    notes: str | None = None,
+    location: str | None = None,
+    calendar_name: str | None = None,
+) -> dict:
+    """Create an event in Apple Calendar via EventKit."""
+    if sys.platform != "darwin":
+        return {"enabled": False, "error": "apple_calendar_macos_only"}
+
+    try:
+        from EventKit import EKEvent, EKSpanThisEvent  # type: ignore
+    except Exception:
+        return {"enabled": False, "error": "eventkit_unavailable"}
+
+    store, entity_type, err = _get_store_and_access()
+    if err:
+        return {"enabled": False, "error": err}
+
+    start_date = _nsdate_from_iso(start_at)
+    end_date = _nsdate_from_iso(end_at)
+    if start_date is None or end_date is None:
+        return {"enabled": False, "error": "invalid_datetime"}
+
+    event = EKEvent.eventWithEventStore_(store)
+    event.setTitle_(str(title or "Tâche"))
+    event.setStartDate_(start_date)
+    event.setEndDate_(end_date)
+    if notes:
+        event.setNotes_(str(notes))
+    if location:
+        event.setLocation_(str(location))
+
+    calendar = None
+    if calendar_name:
+        calendars = list(store.calendarsForEntityType_(entity_type) or [])
+        for c in calendars:
+            if str(c.title()) == calendar_name:
+                calendar = c
+                break
+    if calendar is None:
+        calendar = store.defaultCalendarForNewEvents()
+    if calendar is None:
+        return {"enabled": False, "error": "no_default_calendar"}
+    event.setCalendar_(calendar)
+
+    try:
+        ok, save_err = store.saveEvent_span_commit_error_(event, EKSpanThisEvent, True, None)
+    except Exception:
+        try:
+            ok, save_err = store.saveEvent_span_error_(event, EKSpanThisEvent, None)
+        except Exception as e:
+            return {"enabled": False, "error": str(e)}
+
+    if not ok:
+        return {"enabled": False, "error": str(save_err) if save_err else "save_failed"}
+
+    uid = str(event.calendarItemIdentifier() or event.eventIdentifier() or "")
+    return {
+        "enabled": True,
+        "error": None,
+        "event_uid": uid,
+        "calendar_name": str(calendar.title()) if calendar else None,
+    }
 
 
 def sync_apple_calendar(

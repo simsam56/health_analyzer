@@ -26,6 +26,11 @@ python3 main.py --garmin --days 90 --skip-parse
 python3 main.py --skip-parse
 ```
 
+- Ajouter une tâche dans le planning (et Apple Calendar si activé):
+```bash
+python3 main.py --add-task "10km tempo" --task-category sante --task-date 2026-12-11 --task-time 14:00 --task-duration-min 70 --task-sync-apple
+```
+
 - Audit data console:
 ```bash
 python3 main.py --skip-parse --audit

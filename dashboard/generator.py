@@ -37,6 +37,14 @@ MUSCLE_COLORS = {
     "Core":    "#bf5af2",
 }
 
+CATEGORY_COLORS = {
+    "sante": "#30d158",
+    "travail": "#4aa8ff",
+    "relationnel": "#ff9f0a",
+    "apprentissage": "#a78bfa",
+    "autre": "#9fa4bf",
+}
+
 
 # ─── Composants SVG ──────────────────────────────────────────────
 def ring_svg(value: float, max_val: float, color: str, size: int = 120,
@@ -186,6 +194,17 @@ def source_range(data_quality: dict, source: str) -> str:
     return "Données indisponibles"
 
 
+def category_label(cat: str) -> str:
+    labels = {
+        "sante": "Santé",
+        "travail": "Travail",
+        "relationnel": "Relationnel",
+        "apprentissage": "Apprentissage",
+        "autre": "Autre",
+    }
+    return labels.get(cat, "Autre")
+
+
 def metric_val(metrics_history: list[dict], metric: str, days: int = 7) -> float:
     """Dernière valeur connue d'une métrique dans l'historique."""
     relevant = [m for m in metrics_history if m.get("metric") == metric and m.get("value")]
@@ -221,6 +240,7 @@ def generate_html(
     data_quality = training.get("data_quality", {})
     agenda_events = training.get("agenda_events", [])
     calendar_sync = training.get("calendar_sync", {})
+    pilotage = training.get("pilotage", {})
 
     wbs_score = float(wbs.get("score", 0) or 0)
     wbs_label = wbs.get("label", "—")
@@ -270,6 +290,42 @@ def generate_html(
     km_week     = float(running.get("km_per_week", 0) or 0)
     avg_pace    = running.get("avg_pace_str", "—")
     recent_runs = running.get("recent_activities", [])
+    pred_10k = (
+        (running.get("estimated_10k") or {}).get("label")
+        or running.get("predictions", {}).get("10km", "—")
+    )
+
+    # ── Pilotage hebdo ───────────────────────────────────────────
+    pilot_events = pilotage.get("events", [])
+    pilot_summary = pilotage.get("summary", {})
+    pilot_series = pilotage.get("series", {})
+    pilot_events_json = json.dumps(pilot_events, ensure_ascii=False).replace("</", "<\\/")
+    week_start = pilotage.get("week_start", date.today().isoformat())
+
+    sante_h = float(pilot_summary.get("sante_h", 0) or 0)
+    travail_h = float(pilot_summary.get("travail_h", 0) or 0)
+    relationnel_h = float(pilot_summary.get("relationnel_h", 0) or 0)
+    apprentissage_h = float(pilot_summary.get("apprentissage_h", 0) or 0)
+    autre_h = float(pilot_summary.get("autre_h", 0) or 0)
+    total_planner_h = float(pilot_summary.get("total_h", 0) or 0)
+
+    weekly_training_vals = [float(x.get("value", 0) or 0) for x in pilot_series.get("training_hours_weekly", [])][-260:]
+    weekly_steps_vals = [float(x.get("value", 0) or 0) for x in pilot_series.get("steps_weekly", [])][-260:]
+    training_long_spark = spark_svg(weekly_training_vals, C["accent"], 340, 70)
+    steps_long_spark = spark_svg(weekly_steps_vals, C["green"], 340, 70)
+
+    sport_mix = pilot_series.get("sport_mix_hours", [])
+    total_mix = sum(float(x.get("hours", 0) or 0) for x in sport_mix) or 1.0
+    sport_mix_rows = []
+    for row in sport_mix[:10]:
+        t = row.get("type", "Other")
+        h = float(row.get("hours", 0) or 0)
+        pct = h / total_mix * 100
+        sport_mix_rows.append(
+            f'<div class="metric-row"><span class="metric-label">{t}</span>'
+            f'<span class="metric-val">{h:.1f}h <span class="muted" style="font-size:12px">({pct:.0f}%)</span></span></div>'
+        )
+    sport_mix_html = "".join(sport_mix_rows) if sport_mix_rows else '<p class="muted">Données sport indisponibles</p>'
 
     # ── SVGs ──────────────────────────────────────────────────────
     ring_readiness = ring_svg(wbs_score, 100, wbs_color, size=140, stroke=14,
@@ -367,6 +423,28 @@ def generate_html(
     cal_status = "Connecté" if calendar_sync.get("enabled") else f"Indispo ({calendar_sync.get('error','n/a')})"
     cal_status_color = C["green"] if calendar_sync.get("enabled") else C["orange"]
 
+    # ── Recommandations auto ─────────────────────────────────────
+    recos = []
+    if acwr_val > 1.4:
+        recos.append("Charge élevée: prévoir 2-3 jours de récupération active.")
+    elif acwr_val < 0.8:
+        recos.append("Charge faible: ajouter progressivement du volume (+10% max/semaine).")
+    else:
+        recos.append("Charge en zone correcte: maintenir la progression.")
+
+    if wbs_score < 55:
+        recos.append("Readiness basse: privilégier sommeil + mobilité avant intensité.")
+    elif wbs_score > 75:
+        recos.append("Readiness haute: positionner une séance qualitative cette semaine.")
+
+    major_imb = [im for im in imbalances if (im.get("status") or im.get("level")) in ("critique", "faible")]
+    if major_imb:
+        target_m = ", ".join(sorted({im.get("muscle", "") for im in major_imb if im.get("muscle")}))
+        if target_m:
+            recos.append(f"Priorité renforcement: {target_m}.")
+
+    recos_html = "".join([f'<div class="rec-item">{r}</div>' for r in recos[:5]])
+
     # ── Long-term HRV Chart ───────────────────────────────────────
     hrv_long = last_n(metrics_history, "hrv_sdnn", 90)
     hrv_long_spark = spark_svg(hrv_long, C["teal"], 340, 60)
@@ -420,7 +498,7 @@ def generate_html(
   .badge-red {{ background: rgba(255,69,58,.15); color: var(--red); }}
 
   /* Navigation tabs */
-  .nav {{ position: fixed; bottom: 0; left: 0; right: 0; background: rgba(10,10,15,.95); backdrop-filter: blur(20px); border-top: 1px solid var(--border); display: flex; z-index: 100; padding: 8px 0 20px; }}
+  .nav {{ position: fixed; bottom: 0; left: 0; right: 0; background: rgba(10,10,15,.95); backdrop-filter: blur(20px); border-top: 1px solid var(--border); display: flex; z-index: 100; padding: 8px 0 20px; overflow-x: auto; }}
   .nav-btn {{ flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 4px; border: none; background: none; color: var(--muted); font-size: 10px; cursor: pointer; transition: color .2s; }}
   .nav-btn.active {{ color: var(--accent); }}
   .nav-icon {{ font-size: 20px; }}
@@ -492,6 +570,20 @@ def generate_html(
   .mt16 {{ margin-top: 16px; }}
   .sep {{ height: 1px; background: var(--border); margin: 8px 0; }}
   .tag {{ display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 600; }}
+  .rec-item {{ padding: 10px 12px; border: 1px solid var(--border); background: var(--card2); border-radius: 10px; margin-bottom: 8px; font-size: 13px; line-height: 1.45; }}
+
+  /* Pilotage weekly planner */
+  .planner-toolbar {{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }}
+  .planner-btn {{ background: var(--card2); border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 8px 10px; font-size: 12px; cursor: pointer; }}
+  .planner-week-label {{ font-size: 13px; color: var(--muted); }}
+  .week-scroll {{ overflow-x:auto; -webkit-overflow-scrolling:touch; }}
+  .week-grid {{ display:grid; grid-template-columns:repeat(7, minmax(170px, 1fr)); gap:8px; min-width:1240px; }}
+  .day-col {{ background: var(--card2); border: 1px solid var(--border); border-radius: 12px; padding: 10px; min-height: 220px; }}
+  .day-head {{ display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--muted); margin-bottom:8px; }}
+  .evt {{ border-left: 3px solid var(--accent); padding: 6px 8px; margin-bottom: 6px; border-radius: 8px; background: rgba(255,255,255,.02); }}
+  .evt-t {{ font-size: 12px; font-weight: 600; line-height: 1.3; }}
+  .evt-s {{ font-size: 11px; color: var(--muted); margin-top: 2px; }}
+  .evt-empty {{ font-size: 11px; color: var(--muted); }}
 
   /* Scrollable areas */
   .scroll-x {{ overflow-x: auto; -webkit-overflow-scrolling: touch; }}
@@ -518,9 +610,13 @@ def generate_html(
 
 <!-- ═══ NAVIGATION ═════════════════════════════════════════════ -->
 <nav class="nav">
-  <button class="nav-btn active" onclick="showSection('today')" id="btn-today">
+  <button class="nav-btn active" onclick="showSection('pilotage')" id="btn-pilotage">
+    <span class="nav-icon">&#128197;</span>
+    <span>Pilotage</span>
+  </button>
+  <button class="nav-btn" onclick="showSection('today')" id="btn-today">
     <span class="nav-icon">&#9711;</span>
-    <span>Aujourd'hui</span>
+    <span>Santé</span>
   </button>
   <button class="nav-btn" onclick="showSection('training')" id="btn-training">
     <span class="nav-icon">&#9654;</span>
@@ -540,14 +636,73 @@ def generate_html(
   </button>
   <button class="nav-btn" onclick="showSection('agenda')" id="btn-agenda">
     <span class="nav-icon">&#128197;</span>
-    <span>Agenda</span>
+    <span>Reco</span>
   </button>
 </nav>
 
 <!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION : PILOTAGE HEBDO                                    -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="section active" id="s-pilotage">
+
+  <div class="card" style="margin-top:12px">
+    <div class="card-title">Planning semaine (Apple Calendar + tâches)</div>
+    <div class="planner-toolbar">
+      <button class="planner-btn" onclick="shiftWeek(-1)">Semaine -1</button>
+      <div class="planner-week-label" id="plannerWeekLabel">{week_start}</div>
+      <button class="planner-btn" onclick="shiftWeek(1)">Semaine +1</button>
+    </div>
+    <div class="week-scroll">
+      <div class="week-grid" id="weekGrid"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Répartition hebdo (heures)</div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-val" id="sum-sante" style="color:{CATEGORY_COLORS['sante']}">{sante_h:.1f}</div><div class="stat-lbl">Santé</div></div>
+      <div class="stat-card"><div class="stat-val" id="sum-travail" style="color:{CATEGORY_COLORS['travail']}">{travail_h:.1f}</div><div class="stat-lbl">Travail</div></div>
+      <div class="stat-card"><div class="stat-val" id="sum-relationnel" style="color:{CATEGORY_COLORS['relationnel']}">{relationnel_h:.1f}</div><div class="stat-lbl">Relationnel</div></div>
+      <div class="stat-card"><div class="stat-val" id="sum-apprentissage" style="color:{CATEGORY_COLORS['apprentissage']}">{apprentissage_h:.1f}</div><div class="stat-lbl">Apprentissage</div></div>
+      <div class="stat-card"><div class="stat-val" id="sum-autre" style="color:{CATEGORY_COLORS['autre']}">{autre_h:.1f}</div><div class="stat-lbl">Autre</div></div>
+      <div class="stat-card"><div class="stat-val" id="sum-total">{total_planner_h:.1f}</div><div class="stat-lbl">Total semaine</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Séries longues (2017 → 2026)</div>
+    <div class="metric-row">
+      <span class="metric-label">Heures d'entraînement / semaine</span>
+      <span class="metric-val" style="color:{C['accent']}">{(weekly_training_vals[-1] if weekly_training_vals else 0):.1f}h</span>
+    </div>
+    <div class="scroll-x">{training_long_spark}</div>
+    <div class="sep"></div>
+    <div class="metric-row">
+      <span class="metric-label">Pas / semaine</span>
+      <span class="metric-val" style="color:{C['green']}">{(weekly_steps_vals[-1] if weekly_steps_vals else 0):.0f}</span>
+    </div>
+    <div class="scroll-x">{steps_long_spark}</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Répartition sports (temps cumulé)</div>
+    {sport_mix_html}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Ajout tâche (CLI rapide)</div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.6">
+      Exemple:<br>
+      <code>python3 main.py --add-task "10km tempo" --task-category sante --task-date 2026-12-11 --task-time 14:00 --task-duration-min 70 --task-sync-apple</code>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
 <!-- SECTION : AUJOURD'HUI                                       -->
 <!-- ═══════════════════════════════════════════════════════════ -->
-<div class="section active" id="s-today">
+<div class="section" id="s-today">
 
   <!-- Hero Readiness -->
   <div class="hero" style="margin-top:12px">
@@ -683,6 +838,14 @@ def generate_html(
       <div class="stat-card">
         <div class="stat-val" style="color:{C['teal']}">{avg_pace}</div>
         <div class="stat-lbl">Allure moy.</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="color:{C['accent']}">{pred_10k}</div>
+        <div class="stat-lbl">Estimation 10km</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="color:{C['purple']}">{wbs_score:.0f}/100</div>
+        <div class="stat-lbl">Readiness</div>
       </div>
     </div>
   </div>
@@ -887,10 +1050,15 @@ def generate_html(
   </div>
 
   <div class="card">
-    <div class="card-title">Proposition entraînement</div>
-    <div style="font-size:13px;line-height:1.6;color:var(--text)">
-      {('Readiness haute: placez une séance intense dans les 24h.' if wbs_score >= 75 else 'Readiness modérée: privilégiez technique ou zone 2 dans les 24h.') if acwr_val < 1.3 else 'ACWR élevée: priorisez récupération active et mobilité.'}
-    </div>
+    <div class="card-title">Recommandations auto</div>
+    {recos_html}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Plan entraînement (3 semaines)</div>
+    <div class="rec-item">Semaine 1: base aérobie + renforcement ciblé dos/jambes/core.</div>
+    <div class="rec-item">Semaine 2: montée progressive (+5 à +10%) avec 1 séance qualitative.</div>
+    <div class="rec-item">Semaine 3: consolidation puis récupération active selon ACWR et Readiness.</div>
   </div>
 
 </div>
@@ -905,13 +1073,118 @@ function showSection(id) {{
   window.scrollTo(0, 0);
 }}
 
-// Animate rings on load
+const PILOT_EVENTS = {pilot_events_json};
+const CAT_COLORS = {json.dumps(CATEGORY_COLORS)};
+const CAT_KEYS = ['sante', 'travail', 'relationnel', 'apprentissage', 'autre'];
+const WEEK_START_ISO = "{week_start}";
+let weekOffset = 0;
+
+function parseIso(s) {{
+  return s ? new Date(s.replace(' ', 'T')) : null;
+}}
+
+function startOfWeek(baseDate) {{
+  const d = new Date(baseDate);
+  const day = (d.getDay() + 6) % 7; // Monday=0
+  d.setDate(d.getDate() - day);
+  d.setHours(0,0,0,0);
+  return d;
+}}
+
+function addDays(d, n) {{
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}}
+
+function isoDate(d) {{
+  return d.toISOString().slice(0,10);
+}}
+
+function hmDiff(start, end) {{
+  if (!start || !end) return 0;
+  return Math.max(0, (end - start) / 3600000);
+}}
+
+function categoryLabel(cat) {{
+  const labels = {{
+    sante: 'Santé', travail: 'Travail', relationnel: 'Relationnel',
+    apprentissage: 'Apprentissage', autre: 'Autre'
+  }};
+  return labels[cat] || 'Autre';
+}}
+
+function renderPlannerWeek() {{
+  const base = startOfWeek(parseIso(WEEK_START_ISO) || new Date());
+  const weekStart = addDays(base, weekOffset * 7);
+  const weekEnd = addDays(weekStart, 7);
+
+  const label = `${{isoDate(weekStart)}} → ${{isoDate(addDays(weekEnd, -1))}}`;
+  const lblEl = document.getElementById('plannerWeekLabel');
+  if (lblEl) lblEl.textContent = label;
+
+  const days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+  const byDay = Array.from({{length:7}}, () => []);
+  const sums = {{ sante:0, travail:0, relationnel:0, apprentissage:0, autre:0, total:0 }};
+
+  PILOT_EVENTS.forEach(ev => {{
+    const st = parseIso(ev.start_at);
+    const en = parseIso(ev.end_at) || st;
+    if (!st) return;
+    if (st < weekStart || st >= weekEnd) return;
+    const idx = (st.getDay() + 6) % 7;
+    const cat = CAT_KEYS.includes(ev.category) ? ev.category : 'autre';
+    byDay[idx].push({{...ev, _start: st, _end: en, _cat: cat}});
+    const h = hmDiff(st, en);
+    sums[cat] += h;
+    sums.total += h;
+  }});
+
+  for (const k of CAT_KEYS) {{
+    const el = document.getElementById(`sum-${{k}}`);
+    if (el) el.textContent = sums[k].toFixed(1);
+  }}
+  const sumTot = document.getElementById('sum-total');
+  if (sumTot) sumTot.textContent = sums.total.toFixed(1);
+
+  const grid = document.getElementById('weekGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  for (let i = 0; i < 7; i++) {{
+    const d = addDays(weekStart, i);
+    const dateLbl = isoDate(d);
+    const evts = byDay[i].sort((a,b) => a._start - b._start);
+    const rows = evts.length ? evts.map(e => {{
+      const hh = String(e._start.getHours()).padStart(2,'0');
+      const mm = String(e._start.getMinutes()).padStart(2,'0');
+      const src = e.calendar_name ? ` · ${{e.calendar_name}}` : '';
+      const color = CAT_COLORS[e._cat] || CAT_COLORS.autre;
+      return `<div class="evt" style="border-left-color:${{color}}">
+        <div class="evt-t">${{e.title || 'Événement'}}</div>
+        <div class="evt-s">${{hh}}:${{mm}} · ${{categoryLabel(e._cat)}}${{src}}</div>
+      </div>`;
+    }}).join('') : '<div class="evt-empty">Aucun événement</div>';
+
+    const col = document.createElement('div');
+    col.className = 'day-col';
+    col.innerHTML = `<div class="day-head"><span>${{days[i]}}</span><span>${{dateLbl}}</span></div>${{rows}}`;
+    grid.appendChild(col);
+  }}
+}}
+
+function shiftWeek(delta) {{
+  weekOffset += delta;
+  renderPlannerWeek();
+}}
+
 document.addEventListener('DOMContentLoaded', function() {{
   document.querySelectorAll('circle[stroke-dasharray]').forEach(c => {{
     const final = c.getAttribute('stroke-dasharray');
     c.setAttribute('stroke-dasharray', '0 1000');
     setTimeout(() => c.setAttribute('stroke-dasharray', final), 100);
   }});
+  renderPlannerWeek();
 }});
 </script>
 </body>

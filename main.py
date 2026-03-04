@@ -31,7 +31,7 @@ import sqlite3
 import sys
 import shutil
 import importlib.util
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).parent
@@ -264,6 +264,22 @@ def main():
                         help="Désactiver la sync agenda Apple Calendar")
     parser.add_argument("--no-dedup", action="store_true",
                         help="Désactiver la déduplication inter-sources des activités")
+    parser.add_argument("--add-task", default=None,
+                        help="Ajouter une tâche pilotage (titre)")
+    parser.add_argument("--task-category", default="sante",
+                        help="Catégorie tâche: sante|travail|relationnel|apprentissage|autre")
+    parser.add_argument("--task-date", default=None,
+                        help="Date tâche (YYYY-MM-DD)")
+    parser.add_argument("--task-time", default="09:00:00",
+                        help="Heure tâche (HH:MM[:SS])")
+    parser.add_argument("--task-duration-min", type=int, default=60,
+                        help="Durée tâche en minutes")
+    parser.add_argument("--task-notes", default=None,
+                        help="Notes tâche")
+    parser.add_argument("--task-sync-apple", action="store_true",
+                        help="Créer aussi l'événement dans Apple Calendar")
+    parser.add_argument("--task-calendar", default=None,
+                        help="Nom calendrier Apple cible (optionnel)")
     args = parser.parse_args()
 
     banner()
@@ -295,6 +311,40 @@ def main():
 
     garmin_connected = False
     calendar_sync = {"enabled": False, "error": "disabled", "events_synced": 0}
+
+    # ─── 1.5 Ajout tâche pilotage (optionnel) ───────────────────
+    if args.add_task:
+        from analytics.planner import add_task, parse_task_datetime
+        task_date = args.task_date or str(date.today())
+        try:
+            start_at, end_at = parse_task_datetime(
+                task_date=task_date,
+                task_time=args.task_time,
+                duration_min=args.task_duration_min,
+            )
+        except Exception as e:
+            print(f"❌ Format date/heure tâche invalide: {e}")
+            return
+
+        add_res = add_task(
+            db_path=db_path,
+            title=args.add_task,
+            category=args.task_category,
+            start_at=start_at,
+            end_at=end_at,
+            notes=args.task_notes,
+            sync_to_apple=args.task_sync_apple,
+            apple_calendar_name=args.task_calendar,
+        )
+        print(
+            f"📝 Tâche ajoutée: #{add_res.get('task_id')} "
+            f"[{add_res.get('category')}] {start_at} → {end_at}"
+        )
+        if add_res.get("apple_sync_error"):
+            print(f"   ⚠️  Sync Apple: {add_res.get('apple_sync_error')}")
+        elif args.task_sync_apple:
+            print(f"   ✅ Sync Apple OK (uid={add_res.get('apple_uid')})")
+        print()
 
     if not args.skip_parse:
         # ─── 2. Apple Health ─────────────────────────────────────
@@ -423,12 +473,27 @@ def main():
         except Exception:
             agenda_events = []
 
+    # ─── 7.5 Pilotage hebdo ─────────────────────────────────────
+    from analytics.planner import get_planner_events, weekly_category_summary, weekly_series
+    start_window = (date.today() - timedelta(days=14)).strftime("%Y-%m-%dT00:00:00")
+    end_window = (date.today() + timedelta(days=90)).strftime("%Y-%m-%dT23:59:59")
+    planner_events = get_planner_events(conn, start_at=start_window, end_at=end_window)
+    week_start = date.today() - timedelta(days=date.today().weekday())
+    planner_summary = weekly_category_summary(planner_events, week_start=week_start)
+    planner_series = weekly_series(conn)
+
     conn.close()
 
     training["garmin_connected"] = garmin_connected or has_garmin_data
     training["calendar_sync"] = calendar_sync
     training["agenda_events"] = agenda_events
     training["data_quality"] = data_quality
+    training["pilotage"] = {
+        "events": planner_events,
+        "week_start": str(week_start),
+        "summary": planner_summary,
+        "series": planner_series,
+    }
 
     # ─── 8. Dashboard HTML ───────────────────────────────────────
     print("🎨 Génération dashboard HTML…")
@@ -470,7 +535,7 @@ def _print_audit(db_path: Path):
     # Comptes par table
     for tbl in ["activities", "strength_sessions", "exercise_sets",
                 "health_metrics", "daily_load", "weekly_muscle_volume",
-                "calendar_events"]:
+                "calendar_events", "planner_tasks"]:
         n = conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0]
         print(f"  {tbl:<25} {n:>6} lignes")
     print()

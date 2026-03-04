@@ -118,6 +118,23 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 );
 
 -- ──────────────────────────────────────────────────────────────
+-- Pilotage: tâches planifiées (santé/travail/relationnel/apprentissage)
+-- ──────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS planner_tasks (
+    id            INTEGER PRIMARY KEY,
+    title         TEXT NOT NULL,
+    category      TEXT NOT NULL,          -- sante | travail | relationnel | apprentissage | autre
+    start_at      TEXT NOT NULL,
+    end_at        TEXT NOT NULL,
+    notes         TEXT,
+    status        TEXT DEFAULT 'planned', -- planned | done | cancelled
+    source        TEXT DEFAULT 'local',   -- local | apple_calendar
+    calendar_uid  TEXT,
+    created_at    TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at    TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ──────────────────────────────────────────────────────────────
 -- Indices
 -- ──────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_activities_started   ON activities(started_at);
@@ -128,6 +145,8 @@ CREATE INDEX IF NOT EXISTS idx_exercise_sets_session ON exercise_sets(session_id
 CREATE INDEX IF NOT EXISTS idx_exercise_sets_muscle  ON exercise_sets(muscle_group);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_start ON calendar_events(start_at);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_cal   ON calendar_events(calendar_name);
+CREATE INDEX IF NOT EXISTS idx_planner_tasks_start   ON planner_tasks(start_at);
+CREATE INDEX IF NOT EXISTS idx_planner_tasks_cat     ON planner_tasks(category);
 """
 
 

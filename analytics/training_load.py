@@ -507,6 +507,53 @@ def analyze_running(
     }
 
 
+def estimate_10k_time(
+    avg_pace_mpk: float | None,
+    ctl: float,
+    acwr: float,
+    readiness_score: float,
+) -> dict:
+    """
+    Estimation simple 10 km (MVP):
+    - base sur allure moyenne récente
+    - ajustée par forme (CTL), charge (ACWR) et readiness.
+    """
+    if not avg_pace_mpk:
+        return {"minutes": None, "label": "—"}
+
+    pace = float(avg_pace_mpk)
+
+    # Ajustement forme (CTL)
+    if ctl >= 40:
+        pace *= 0.97
+    elif ctl <= 15:
+        pace *= 1.03
+
+    # Ajustement charge
+    if acwr > 1.4:
+        pace *= 1.03
+    elif 0.8 <= acwr <= 1.2:
+        pace *= 0.99
+
+    # Ajustement readiness
+    if readiness_score >= 75:
+        pace *= 0.98
+    elif readiness_score < 55:
+        pace *= 1.02
+
+    total_min = pace * 10
+    total_sec = int(round(total_min * 60))
+    h = total_sec // 3600
+    m = (total_sec % 3600) // 60
+    s = total_sec % 60
+    label = f"{h}h{m:02d}m{s:02d}s" if h else f"{m}m{s:02d}s"
+    return {
+        "minutes": round(total_min, 2),
+        "label": label,
+        "pace_mpk": round(pace, 2),
+    }
+
+
 # ─────────────────────────────────────────────────────────────────
 # SAUVEGARDE PMC EN BASE
 # ─────────────────────────────────────────────────────────────────
@@ -572,6 +619,12 @@ def run(
     running = analyze_running(conn, weeks=12)
     if running:
         print(f"   Running: {running['km_per_week']:.1f} km/sem | allure moy: {running['avg_pace']:.2f} min/km")
+        running["estimated_10k"] = estimate_10k_time(
+            avg_pace_mpk=running.get("avg_pace"),
+            ctl=float(today_pmc.get("ctl", 0) or 0),
+            acwr=float(acwr_data.get("acwr", 0) or 0),
+            readiness_score=float(wbs.get("score", 0) or 0),
+        )
 
     # 7. Totaux historiques
     total_acts = conn.execute("SELECT COUNT(*) FROM activities").fetchone()[0]
