@@ -1,0 +1,85 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# .gitignore — Sport Performance Dashboard
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Données sensibles & identifiants ─────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ── Données Apple Health (volumineuses, privées) ──────────────────────────────
+export.xml
+export_cda.xml
+*.xml
+
+# ── Caches & états intermédiaires ─────────────────────────────────────────────
+*.pkl
+*.cache
+.ah_cache.pkl
+.health_cache.pkl
+.garmin_cache.pkl
+.garminconnect/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# ── Environnements virtuels Python ────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+ENV/
+virtualenv/
+.virtualenv/
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logs/
+*.log
+*.log.*
+
+# ── Rapports générés (conservés localement, pas dans Git) ─────────────────────
+# Décommentez pour exclure tous les rapports :
+# reports/
+
+# ── Données Strava brutes (privées) ───────────────────────────────────────────
+export_strava/activities/
+export_strava/*.csv
+workout-routes/
+
+# ── Base de données (trop volumineuse pour git, backup local) ─────────────────
+*.db
+*.db-shm
+*.db-wal
+*.bak_*.db
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db
+
+# ── Éditeurs & IDE ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ── Divers ────────────────────────────────────────────────────────────────────
+*.tmp
+*.bak
+*.backup
+dist/
+build/
+*.egg-info/
