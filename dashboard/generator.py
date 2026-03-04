@@ -2329,30 +2329,41 @@ async function renderWeek() {
 
 function activateTab(tabId) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelector('.tab[data-tab="' + tabId + '"]').classList.add('active');
+  const tabBtn = document.querySelector('.tab[data-tab="' + tabId + '"]');
+  if (!tabBtn) return;
+  tabBtn.classList.add('active');
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.getElementById('sec-' + tabId).classList.add('active');
+  const sec = document.getElementById('sec-' + tabId);
+  if (sec) sec.classList.add('active');
   window.scrollTo(0, 0);
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  const byId = (id) => document.getElementById(id);
   document.querySelectorAll('.tab').forEach(t => {
     t.addEventListener('click', () => activateTab(t.dataset.tab));
   });
 
-  document.getElementById('prevWeek').addEventListener('click', () => { weekOffset -= 1; renderWeek(); });
-  document.getElementById('nextWeek').addEventListener('click', () => { weekOffset += 1; renderWeek(); });
+  const prevWeekBtn = byId('prevWeek');
+  if (prevWeekBtn) prevWeekBtn.addEventListener('click', () => { weekOffset -= 1; renderWeek(); });
+  const nextWeekBtn = byId('nextWeek');
+  if (nextWeekBtn) nextWeekBtn.addEventListener('click', () => { weekOffset += 1; renderWeek(); });
 
-  document.getElementById('openAdd').addEventListener('click', () => openModal(null));
-  document.getElementById('cancelBtn').addEventListener('click', closeModal);
-  document.getElementById('saveBtn').addEventListener('click', () => { submitModal(); });
-  document.getElementById('deleteBtn').addEventListener('click', () => { removeModalEvent(); });
-  document.getElementById('modalBg').addEventListener('click', (e) => {
+  const openAddBtn = byId('openAdd');
+  if (openAddBtn) openAddBtn.addEventListener('click', () => openModal(null));
+  const cancelBtn = byId('cancelBtn');
+  if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+  const saveBtn = byId('saveBtn');
+  if (saveBtn) saveBtn.addEventListener('click', () => { submitModal(); });
+  const deleteBtn = byId('deleteBtn');
+  if (deleteBtn) deleteBtn.addEventListener('click', () => { removeModalEvent(); });
+  const modalBg = byId('modalBg');
+  if (modalBg) modalBg.addEventListener('click', (e) => {
     if (e.target.id === 'modalBg') closeModal();
   });
-  const cmdkBg = document.getElementById('cmdkBg');
-  const cmdkInput = document.getElementById('cmdkInput');
-  const openCmdBtn = document.getElementById('openCmdBtn');
+  const cmdkBg = byId('cmdkBg');
+  const cmdkInput = byId('cmdkInput');
+  const openCmdBtn = byId('openCmdBtn');
   if (openCmdBtn) openCmdBtn.addEventListener('click', openCmdk);
   if (cmdkBg) {
     cmdkBg.addEventListener('click', (e) => {
@@ -2395,24 +2406,25 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  document.getElementById('goalTarget').textContent = GOAL_TARGET.toFixed(1) + 'h';
+  const goalTargetEl = byId('goalTarget');
+  if (goalTargetEl) goalTargetEl.textContent = GOAL_TARGET.toFixed(1) + 'h';
   initTotem();
   if (!CAL_SYNC_ENABLED) {
     showToast('Apple Calendar non connecté dans ce contexte.', 'warn');
   }
-  const calBadgeBtn = document.getElementById('calendarBadgeBtn');
+  const calBadgeBtn = byId('calendarBadgeBtn');
   if (calBadgeBtn) {
     calBadgeBtn.addEventListener('click', () => {
       debugAppleCalendar();
     });
   }
-  const pushTopBtn = document.getElementById('pushPendingTopBtn');
+  const pushTopBtn = byId('pushPendingTopBtn');
   if (pushTopBtn) {
     pushTopBtn.addEventListener('click', pushPendingApple);
   }
-  const addIdeaBtn = document.getElementById('addIdeaBtn');
+  const addIdeaBtn = byId('addIdeaBtn');
   if (addIdeaBtn) addIdeaBtn.addEventListener('click', addIdeaFromForm);
-  const ideaText = document.getElementById('ideaText');
+  const ideaText = byId('ideaText');
   if (ideaText) {
     ideaText.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter') {

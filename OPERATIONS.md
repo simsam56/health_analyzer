@@ -163,3 +163,17 @@ Bonne pratique:
 - exécuter `backup_local.sh` avant toute grosse refonte
 - exécuter `backup_local.sh` avant `--reset`
 - garder les secrets dans `.env` (déjà gitignoré)
+
+## 9) Smoke test anti-régression UI
+
+Avant de pousser des modifications UI/JS:
+
+```bash
+bash smoke_check.sh
+```
+
+Ce check valide:
+
+- compilation Python des modules clés
+- génération du dashboard local
+- syntaxe JavaScript embarquée (évite les pannes d'affichage planning/listes)
