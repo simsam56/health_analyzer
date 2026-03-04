@@ -110,6 +110,7 @@ def generate_html(
     daily_load_rows: list[dict],
     output_path: str | Path,
     api_token: str = "",
+    sports_agent: dict | None = None,
 ) -> None:
     del daily_load_rows  # kept for signature compatibility
 

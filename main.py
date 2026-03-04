@@ -920,11 +920,11 @@ def main():
         print(f"  ⚠️  Sports agent error: {e}")
 
     # ─── 9. Dashboard HTML ───────────────────────────────────────
-    print("🎨 Génération dashboard premium…")
+    print("🎨 Génération dashboard…")
     try:
-        from dashboard.generator_premium import generate_html
-    except ImportError:
         from dashboard.generator import generate_html
+    except ImportError:
+        from dashboard.generator_premium import generate_html
     generate_html(
         training=training,
         muscles=muscles,
