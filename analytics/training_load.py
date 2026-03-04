@@ -16,6 +16,7 @@ import math
 from pathlib import Path
 from datetime import date, timedelta
 from collections import defaultdict
+from statistics import median
 
 ROOT    = Path(__file__).parent.parent
 DB_PATH = ROOT / "athlete.db"
@@ -55,58 +56,125 @@ ACWR_ZONES = {
     "danger":   (1.5, 10.0),
 }
 
+# Exposant empirique de Riegel (1981) pour extrapolation performance endurance
+RIEGEL_EXPONENT = 1.06
+
+
+def _clamp(v: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, v))
+
+
+def _estimate_hr_rest(conn: sqlite3.Connection) -> float:
+    """
+    FC repos de référence (RHR): moyenne des 30 dernières valeurs.
+    Fallback prudent à 58 bpm.
+    """
+    row = conn.execute(
+        """
+        SELECT AVG(value)
+        FROM (
+          SELECT value
+          FROM health_metrics
+          WHERE metric='rhr' AND value IS NOT NULL
+          ORDER BY date DESC
+          LIMIT 30
+        )
+        """
+    ).fetchone()
+    try:
+        r = float(row[0]) if row and row[0] is not None else 58.0
+    except Exception:
+        r = 58.0
+    return _clamp(r, 40.0, 90.0)
+
+
+def _estimate_hr_max(conn: sqlite3.Connection) -> float:
+    """
+    FC max de référence:
+    - max_hr observée (percentile haut implicite via MAX)
+    - fallback 190 bpm si indisponible.
+    """
+    row = conn.execute(
+        """
+        SELECT MAX(max_hr)
+        FROM activities
+        WHERE max_hr IS NOT NULL AND max_hr > 0
+        """
+    ).fetchone()
+    try:
+        m = float(row[0]) if row and row[0] is not None else 190.0
+    except Exception:
+        m = 190.0
+    return _clamp(m, 165.0, 210.0)
+
 
 # ─────────────────────────────────────────────────────────────────
 # CALCUL TSS PROXY
 # ─────────────────────────────────────────────────────────────────
-def tss_from_activity(row: dict) -> float:
+def tss_from_activity(
+    row: dict,
+    hr_rest: float = 58.0,
+    hr_max: float = 190.0,
+) -> float:
     """
-    TSS proxy depuis les données disponibles.
-    Priorité : training_load > formula FC × durée > calories > durée.
+    Charge interne (proxy TSS) depuis les données disponibles.
+    Priorité:
+      1) training_load si disponible
+      2) TRIMP type Bannister (FC réserve + durée)
+      3) modèle musculation (densité de séries + durée)
+      4) fallback calories / durée
     """
-    # 1. Training Load Apple Health (meilleure source)
+    # 1. Training Load source
     if row.get("training_load") and row["training_load"] > 0:
-        return float(row["training_load"]) / 10.0  # normalise ~50-150 TSS
+        return round(_clamp(float(row["training_load"]), 0.0, 300.0), 1)
 
     act_type  = (row.get("type") or "").lower()
+    act_name  = (row.get("name") or "").lower()
     duration  = row.get("duration_s") or 0
     avg_hr    = row.get("avg_hr") or 0
     calories  = row.get("calories") or 0
-    dist_m    = row.get("distance_m") or 0
+    strength_sets = int(row.get("strength_sets") or 0)
 
     if duration <= 0:
         return 0.0
 
     dur_h = duration / 3600
+    dur_min = duration / 60
 
-    # 2. Musculation : basé sur le nombre de séries et la fatigue neuronale
-    if "strength" in act_type or "training" in act_type:
-        name = (row.get("name") or "").lower()
-        # Multiplier neuromusculaire
+    # 2. Cardio basé FC: TRIMP (Bannister-like)
+    if avg_hr > 0 and hr_max > hr_rest + 20:
+        hr_ratio = (float(avg_hr) - hr_rest) / (hr_max - hr_rest)
+        hr_ratio = _clamp(hr_ratio, 0.0, 1.0)
+        # Coefficient masculin historique (0.64, 1.92) faute d'info sexe.
+        trimp = dur_min * hr_ratio * 0.64 * math.exp(1.92 * hr_ratio)
+        if trimp > 0:
+            return round(_clamp(trimp, 0.0, 300.0), 1)
+
+    # 3. Musculation: densité de séries + fatigue neuromusculaire
+    if ("strength" in act_type or "training" in act_type or "muscu" in act_name):
         mult = 1.0
         for key, val in NEURAL_FATIGUE_MULTIPLIERS.items():
-            if key in name:
+            if key in act_name:
                 mult = val
                 break
-        tss = dur_h * 60 * mult * 0.8  # ~48 TSS pour 1h muscu jambes
-        return round(min(tss, 150), 1)
+        base = dur_h * 40.0
+        if strength_sets > 0:
+            set_density = strength_sets / max(dur_h, 0.25)  # sets/h
+            density_factor = _clamp(0.75 + set_density / 32.0, 0.75, 1.45)
+        else:
+            density_factor = 1.0
+        tss = base * mult * density_factor
+        return round(_clamp(tss, 0.0, 220.0), 1)
 
-    # 3. FC disponible → formule classique
-    if avg_hr > 0:
-        # TRIMP simplifié : HR ratio × durée
-        hr_ratio = avg_hr / 185  # 185 = FC max estimée
-        tss = dur_h * 60 * hr_ratio * hr_ratio * 100
-        return round(min(tss, 200), 1)
-
-    # 4. Calories
+    # 4. Calories (fallback)
     if calories > 0:
-        return round(min(calories / 8.0, 150), 1)
+        return round(_clamp(float(calories) / 8.0, 0.0, 160.0), 1)
 
-    # 5. Durée seule (cardio ~50 TSS/h)
+    # 5. Durée seule
     if "running" in act_type or "cycling" in act_type:
-        return round(min(dur_h * 55, 150), 1)
+        return round(_clamp(dur_h * 50.0, 0.0, 150.0), 1)
 
-    return round(min(dur_h * 35, 100), 1)
+    return round(_clamp(dur_h * 32.0, 0.0, 110.0), 1)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -114,11 +182,22 @@ def tss_from_activity(row: dict) -> float:
 # ─────────────────────────────────────────────────────────────────
 def build_daily_tss(conn: sqlite3.Connection) -> dict[str, float]:
     """Agrège le TSS par jour depuis toutes les activités."""
+    hr_rest = _estimate_hr_rest(conn)
+    hr_max = _estimate_hr_max(conn)
     rows = conn.execute("""
-        SELECT date(started_at) AS day, type, name,
-               training_load, avg_hr, duration_s, calories, distance_m
-        FROM activities
-        WHERE started_at IS NOT NULL
+        SELECT
+          date(a.started_at) AS day,
+          a.type,
+          a.name,
+          a.training_load,
+          a.avg_hr,
+          a.duration_s,
+          a.calories,
+          a.distance_m,
+          COALESCE(ss.total_sets, 0) AS strength_sets
+        FROM activities a
+        LEFT JOIN strength_sessions ss ON ss.activity_id = a.id
+        WHERE a.started_at IS NOT NULL
         ORDER BY day
     """).fetchall()
 
@@ -128,9 +207,9 @@ def build_daily_tss(conn: sqlite3.Connection) -> dict[str, float]:
         d = {
             "type": row[1], "name": row[2], "training_load": row[3],
             "avg_hr": row[4], "duration_s": row[5], "calories": row[6],
-            "distance_m": row[7],
+            "distance_m": row[7], "strength_sets": row[8],
         }
-        tss = tss_from_activity(d)
+        tss = tss_from_activity(d, hr_rest=hr_rest, hr_max=hr_max)
         daily_tss[row[0]] += tss
 
     return dict(daily_tss)
@@ -208,10 +287,24 @@ def compute_acwr(
         )
         return total / n
 
-    acute   = avg_days(7)
-    chronic = avg_days(28)
+    acute_roll   = avg_days(7)
+    chronic_roll = avg_days(28)
+    acwr_roll = acute_roll / chronic_roll if chronic_roll > 0.5 else 0.0
 
-    acwr = acute / chronic if chronic > 0.5 else 0.0
+    # Variante EWMA (plus sensible aux changements récents)
+    k_acute = 1 - math.exp(-1 / 7)
+    k_chronic = 1 - math.exp(-1 / 28)
+    ewma_acute = 0.0
+    ewma_chronic = 0.0
+    for i in range(120, -1, -1):
+        ds = (end_date - timedelta(days=i)).strftime("%Y-%m-%d")
+        load = float(daily_tss.get(ds, 0.0) or 0.0)
+        ewma_acute = ewma_acute + k_acute * (load - ewma_acute)
+        ewma_chronic = ewma_chronic + k_chronic * (load - ewma_chronic)
+    acwr_ewma = ewma_acute / ewma_chronic if ewma_chronic > 0.5 else 0.0
+
+    # Valeur retenue = EWMA, fallback rolling
+    acwr = acwr_ewma if acwr_ewma > 0 else acwr_roll
 
     zone = "repos"
     for z, (lo, hi) in ACWR_ZONES.items():
@@ -221,8 +314,13 @@ def compute_acwr(
 
     return {
         "acwr":    round(acwr, 2),
-        "acute":   round(acute, 1),
-        "chronic": round(chronic, 1),
+        "acwr_roll": round(acwr_roll, 2),
+        "acwr_ewma": round(acwr_ewma, 2),
+        "acute":   round(acute_roll, 1),
+        "chronic": round(chronic_roll, 1),
+        "acute_ewma": round(ewma_acute, 1),
+        "chronic_ewma": round(ewma_chronic, 1),
+        "method": "ewma",
         "zone":    zone,
     }
 
@@ -292,6 +390,7 @@ def get_health_metrics(
     vo2max_val,  vo2max_date,  vo2max_days  = latest_metric("vo2max")
     sleep_val,   sleep_date,   sleep_days   = latest_metric("sleep_h")
     weight_val,  weight_date,  weight_days  = latest_metric("weight_kg")
+    bb_val,      bb_date,      bb_days      = latest_metric("body_battery")
 
     # Baseline HRV (percentile 50 des 6 derniers mois)
     hrv_baseline = conn.execute("""
@@ -303,6 +402,15 @@ def get_health_metrics(
     """).fetchone()
     hrv_baseline = float(hrv_baseline[0]) if hrv_baseline and hrv_baseline[0] else hrv_val
 
+    rhr_baseline = conn.execute("""
+        SELECT AVG(value) FROM (
+            SELECT value FROM health_metrics
+            WHERE metric='rhr'
+            ORDER BY date DESC LIMIT 30
+        )
+    """).fetchone()
+    rhr_baseline = float(rhr_baseline[0]) if rhr_baseline and rhr_baseline[0] else rhr_val
+
     return {
         "hrv":          hrv_val,
         "hrv_date":     hrv_date,
@@ -310,6 +418,7 @@ def get_health_metrics(
         "hrv_baseline": hrv_baseline,
         "hrv_freshness": freshness_factor("hrv_sdnn", hrv_days),
         "rhr":          rhr_val,
+        "rhr_baseline": rhr_baseline,
         "rhr_date":     rhr_date,
         "rhr_days_old": rhr_days,
         "rhr_freshness": freshness_factor("rhr", rhr_days),
@@ -325,6 +434,10 @@ def get_health_metrics(
         "weight_date":  weight_date,
         "weight_days_old": weight_days,
         "weight_freshness": freshness_factor("weight_kg", weight_days),
+        "body_battery": bb_val,
+        "body_battery_date": bb_date,
+        "body_battery_days_old": bb_days,
+        "body_battery_freshness": freshness_factor("rhr", bb_days),
     }
 
 
@@ -336,15 +449,20 @@ def compute_wakeboard_score(
     hrv_baseline:float | None,
     sleep_h:     float | None,
     acwr_val:    float,
+    rhr_val:     float | None = None,
+    rhr_baseline: float | None = None,
+    body_battery: float | None = None,
     freshness:   dict | None = None,
 ) -> dict:
     """
     Wakeboard Readiness Score : 0-100
 
     Composantes :
-      - HRV  (40%) : HRV / baseline × 50 + 50, capped 0-100
-      - Sommeil (30%) : 8h idéal, pénalité si < 7h ou > 9.5h
-      - ACWR (30%) : optimal zone 0.8-1.3
+      - HRV (30%)
+      - Sommeil (25%)
+      - ACWR (20%)
+      - RHR vs baseline (15%)
+      - Body Battery (10%)
 
     Retourne le score et les composantes.
     """
@@ -353,6 +471,8 @@ def compute_wakeboard_score(
     freshness = freshness or {}
     hrv_fresh = float(freshness.get("hrv", 1.0))
     sleep_fresh = float(freshness.get("sleep", 1.0))
+    rhr_fresh = float(freshness.get("rhr", 1.0))
+    bb_fresh = float(freshness.get("body_battery", 1.0))
 
     # ── HRV (40%) ────────────────────────────────────────────────
     if hrv_val and hrv_baseline and hrv_baseline > 0:
@@ -382,7 +502,30 @@ def compute_wakeboard_score(
 
     scores["sleep"] = round(s_sleep, 1)
 
-    # ── ACWR (30%) ───────────────────────────────────────────────
+    # ── RHR (15%) : plus bas que baseline = mieux ───────────────
+    if rhr_val and rhr_baseline and rhr_baseline > 0:
+        delta = (float(rhr_val) - float(rhr_baseline)) / float(rhr_baseline)
+        if delta <= -0.05:
+            s_rhr = 95
+        elif delta >= 0.15:
+            s_rhr = 20
+        else:
+            s_rhr = 95 - ((delta + 0.05) / 0.20) * 75
+    else:
+        s_rhr = 60.0
+    s_rhr = _clamp(s_rhr, 0, 100)
+    s_rhr = s_rhr * rhr_fresh + 60.0 * (1.0 - rhr_fresh)
+    scores["rhr"] = round(s_rhr, 1)
+
+    # ── Body Battery (10%) ───────────────────────────────────────
+    if body_battery is not None:
+        s_bb = _clamp(float(body_battery), 0.0, 100.0)
+    else:
+        s_bb = 55.0
+    s_bb = s_bb * bb_fresh + 55.0 * (1.0 - bb_fresh)
+    scores["body_battery"] = round(s_bb, 1)
+
+    # ── ACWR (20%) ───────────────────────────────────────────────
     if acwr_val <= 0:
         s_acwr = 40  # repos
     elif 0.8 <= acwr_val <= 1.3:
@@ -399,11 +542,20 @@ def compute_wakeboard_score(
 
     # ── Score composite ──────────────────────────────────────────
     total = (
-        scores["hrv"]   * 0.40 +
-        scores["sleep"] * 0.30 +
-        scores["acwr"]  * 0.30
+        scores["hrv"]         * 0.30 +
+        scores["sleep"]       * 0.25 +
+        scores["acwr"]        * 0.20 +
+        scores["rhr"]         * 0.15 +
+        scores["body_battery"] * 0.10
     )
     total = round(total, 1)
+    confidence = (
+        hrv_fresh * 0.30 +
+        sleep_fresh * 0.25 +
+        1.0 * 0.20 +  # ACWR calculé sur la charge interne
+        rhr_fresh * 0.15 +
+        bb_fresh * 0.10
+    )
 
     # Label
     if total >= 85:
@@ -422,9 +574,12 @@ def compute_wakeboard_score(
         "label":      label,
         "color":      color,
         "components": scores,
+        "confidence": round(_clamp(confidence, 0.0, 1.0), 2),
         "freshness": {
             "hrv": round(hrv_fresh, 2),
             "sleep": round(sleep_fresh, 2),
+            "rhr": round(rhr_fresh, 2),
+            "body_battery": round(bb_fresh, 2),
         },
     }
 
@@ -470,17 +625,45 @@ def analyze_running(
     total_km = sum((r[2] or 0) for r in rows) / 1000
     km_per_week = total_km / weeks
 
-    # Prédictions Riegel (depuis meilleure allure récente sur 5-10km)
-    long_runs = [r for r in rows if r[2] and r[2] >= 5000]
+    # Prédictions Riegel robustes (chaque séance 3k-21.1k)
+    def _fmt_time(mins: float) -> str:
+        sec = int(round(mins * 60))
+        h = sec // 3600
+        m = (sec % 3600) // 60
+        s = sec % 60
+        return f"{h}h{m:02d}m{s:02d}s" if h > 0 else f"{m}m{s:02d}s"
+
+    riegel_10k_candidates: list[float] = []
+    for r in rows:
+        dist_m = float(r[2] or 0)
+        dur_s = float(r[1] or 0)
+        if dist_m < 3000 or dist_m > 21100 or dur_s <= 0:
+            continue
+        t1 = dur_s / 60.0
+        t10 = t1 * ((10000.0 / dist_m) ** RIEGEL_EXPONENT)
+        # garde-fous d'allure réaliste
+        if 25 <= t10 <= 120:
+            riegel_10k_candidates.append(t10)
+
+    pred_10k_base = None
+    if riegel_10k_candidates:
+        riegel_10k_candidates.sort()
+        top_n = max(3, min(len(riegel_10k_candidates), len(riegel_10k_candidates) // 3 or 1))
+        pred_10k_base = float(median(riegel_10k_candidates[:top_n]))
+    pred_confidence = min(
+        1.0,
+        max(
+            0.25,
+            (len(riegel_10k_candidates) / 6.0) * 0.7 + (len(rows) / 10.0) * 0.3,
+        ),
+    )
+
     predictions = {}
-    if long_runs and best_pace:
-        # t = best_pace * distance
-        for dist_km, label in [(5, "5km"), (10, "10km"), (21.1, "Semi"), (42.2, "Marathon")]:
-            t_min = best_pace * dist_km
-            h = int(t_min // 60)
-            m = int(t_min % 60)
-            s = int((t_min * 60) % 60)
-            predictions[label] = f"{h}h{m:02d}m{s:02d}s" if h > 0 else f"{m}m{s:02d}s"
+    if pred_10k_base:
+        predictions["10km"] = _fmt_time(pred_10k_base)
+        predictions["5km"] = _fmt_time(pred_10k_base * ((5.0 / 10.0) ** RIEGEL_EXPONENT))
+        predictions["Semi"] = _fmt_time(pred_10k_base * ((21.1 / 10.0) ** RIEGEL_EXPONENT))
+        predictions["Marathon"] = _fmt_time(pred_10k_base * ((42.2 / 10.0) ** RIEGEL_EXPONENT))
 
     # Format pace string
     def fmt_pace(p):
@@ -503,45 +686,52 @@ def analyze_running(
         "avg_pace_str":     fmt_pace(avg_pace),
         "best_pace":        best_pace,
         "predictions":      predictions,
+        "pred_10k_base_min": round(pred_10k_base, 2) if pred_10k_base else None,
+        "pred_10k_candidates_n": len(riegel_10k_candidates),
+        "pred_10k_confidence": round(pred_confidence, 2),
         "recent_activities": recent_acts,
     }
 
 
 def estimate_10k_time(
-    avg_pace_mpk: float | None,
-    ctl: float,
-    acwr: float,
-    readiness_score: float,
+    base_10k_min: float | None = None,
+    avg_pace_mpk: float | None = None,
+    ctl: float = 0.0,
+    acwr: float = 0.0,
+    readiness_score: float = 60.0,
 ) -> dict:
     """
     Estimation simple 10 km (MVP):
     - base sur allure moyenne récente
     - ajustée par forme (CTL), charge (ACWR) et readiness.
     """
-    if not avg_pace_mpk:
+    if base_10k_min:
+        total_min = float(base_10k_min)
+    elif avg_pace_mpk:
+        total_min = float(avg_pace_mpk) * 10.0
+    else:
         return {"minutes": None, "label": "—"}
 
-    pace = float(avg_pace_mpk)
-
     # Ajustement forme (CTL)
+    factor = 1.0
     if ctl >= 40:
-        pace *= 0.97
+        factor *= 0.97
     elif ctl <= 15:
-        pace *= 1.03
+        factor *= 1.03
 
     # Ajustement charge
     if acwr > 1.4:
-        pace *= 1.03
+        factor *= 1.03
     elif 0.8 <= acwr <= 1.2:
-        pace *= 0.99
+        factor *= 0.99
 
     # Ajustement readiness
     if readiness_score >= 75:
-        pace *= 0.98
+        factor *= 0.98
     elif readiness_score < 55:
-        pace *= 1.02
+        factor *= 1.02
 
-    total_min = pace * 10
+    total_min *= factor
     total_sec = int(round(total_min * 60))
     h = total_sec // 3600
     m = (total_sec % 3600) // 60
@@ -550,7 +740,8 @@ def estimate_10k_time(
     return {
         "minutes": round(total_min, 2),
         "label": label,
-        "pace_mpk": round(pace, 2),
+        "pace_mpk": round(total_min / 10.0, 2),
+        "factor": round(factor, 3),
     }
 
 
@@ -592,7 +783,10 @@ def run(
 
     # 3. ACWR
     acwr_data = compute_acwr(daily_tss, end_date=today)
-    print(f"   ACWR: {acwr_data['acwr']} (zone: {acwr_data['zone']})")
+    print(
+        f"   ACWR: {acwr_data['acwr']} (zone: {acwr_data['zone']}, "
+        f"roll={acwr_data.get('acwr_roll')}, ewma={acwr_data.get('acwr_ewma')})"
+    )
 
     # 4. Métriques santé
     health = get_health_metrics(conn)
@@ -608,18 +802,30 @@ def run(
         hrv_baseline=health["hrv_baseline"],
         sleep_h=health["sleep_h"],
         acwr_val=acwr_data["acwr"],
+        rhr_val=health.get("rhr"),
+        rhr_baseline=health.get("rhr_baseline"),
+        body_battery=health.get("body_battery"),
         freshness={
             "hrv": health.get("hrv_freshness", 1.0),
             "sleep": health.get("sleep_freshness", 1.0),
+            "rhr": health.get("rhr_freshness", 1.0),
+            "body_battery": health.get("body_battery_freshness", 1.0),
         },
     )
-    print(f"   Wakeboard Score: {wbs['score']}/100 ({wbs['label']})")
+    conf = int(round(float(wbs.get("confidence", 1.0)) * 100))
+    print(f"   Wakeboard Score: {wbs['score']}/100 ({wbs['label']}, confiance {conf}%)")
 
     # 6. Running
     running = analyze_running(conn, weeks=12)
     if running:
-        print(f"   Running: {running['km_per_week']:.1f} km/sem | allure moy: {running['avg_pace']:.2f} min/km")
+        run_conf = int(round(float(running.get("pred_10k_confidence", 0.25)) * 100))
+        print(
+            f"   Running: {running['km_per_week']:.1f} km/sem | "
+            f"allure moy: {running['avg_pace']:.2f} min/km | "
+            f"10k conf: {run_conf}%"
+        )
         running["estimated_10k"] = estimate_10k_time(
+            base_10k_min=running.get("pred_10k_base_min"),
             avg_pace_mpk=running.get("avg_pace"),
             ctl=float(today_pmc.get("ctl", 0) or 0),
             acwr=float(acwr_data.get("acwr", 0) or 0),

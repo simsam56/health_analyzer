@@ -25,6 +25,27 @@ CATEGORY_ALIASES = {
     "other": "autre",
 }
 
+WEEKDAY_ALIASES = {
+    "lundi": 0, "monday": 0, "mon": 0,
+    "mardi": 1, "tuesday": 1, "tue": 1,
+    "mercredi": 2, "wednesday": 2, "wed": 2,
+    "jeudi": 3, "thursday": 3, "thu": 3,
+    "vendredi": 4, "friday": 4, "fri": 4,
+    "samedi": 5, "saturday": 5, "sat": 5,
+    "dimanche": 6, "sunday": 6, "sun": 6,
+}
+
+WEEK_REF_ALIASES = {
+    "this_week": 0,
+    "current_week": 0,
+    "cette_semaine": 0,
+    "next_week": 1,
+    "semaine_prochaine": 1,
+    "week_plus_2": 2,
+    "semaine_apres": 2,
+    "semaine_apres_prochaine": 2,
+}
+
 
 def now_iso() -> str:
     return datetime.now().replace(microsecond=0).isoformat()
@@ -65,6 +86,62 @@ def parse_task_datetime(task_date: str, task_time: str, duration_min: int) -> tu
         start.replace(microsecond=0).isoformat(),
         end.replace(microsecond=0).isoformat(),
     )
+
+
+def week_start_from_ref(week_ref: str | None, base_day: date | None = None) -> date:
+    """Retourne le lundi de la semaine ciblée à partir d'un alias."""
+    if base_day is None:
+        base_day = date.today()
+    current_week_start = base_day - timedelta(days=base_day.weekday())
+    key = str(week_ref or "this_week").strip().lower()
+    delta = WEEK_REF_ALIASES.get(key, 0)
+    return current_week_start + timedelta(days=delta * 7)
+
+
+def parse_weekday(raw: str | int | None) -> int:
+    """Normalise un jour semaine vers 0=lundi ... 6=dimanche."""
+    if raw is None:
+        return 0
+    if isinstance(raw, int):
+        return max(0, min(6, int(raw)))
+    key = str(raw).strip().lower()
+    if key in WEEKDAY_ALIASES:
+        return WEEKDAY_ALIASES[key]
+    try:
+        n = int(key)
+        return max(0, min(6, n))
+    except Exception:
+        return 0
+
+
+def parse_hhmm(raw: str | None, fallback: str = "09:00:00") -> str:
+    t = str(raw or fallback).strip()
+    if len(t) == 5:
+        t = t + ":00"
+    try:
+        time.fromisoformat(t)
+        return t
+    except Exception:
+        return fallback
+
+
+def parse_relative_slot(
+    week_ref: str | None,
+    weekday: str | int | None,
+    task_time: str | None,
+    duration_min: int | float | None,
+    base_day: date | None = None,
+) -> tuple[str, str]:
+    """
+    Construit start_at/end_at ISO depuis une référence relative.
+    Exemple: week_ref='next_week', weekday='mardi', task_time='14:00', duration=60
+    """
+    ws = week_start_from_ref(week_ref, base_day=base_day)
+    wd = parse_weekday(weekday)
+    d = ws + timedelta(days=wd)
+    hhmmss = parse_hhmm(task_time)
+    dur = max(5, int(duration_min or 60))
+    return parse_task_datetime(str(d), hhmmss, dur)
 
 
 def connect_db(db_path: str | Path) -> sqlite3.Connection:
@@ -140,6 +217,90 @@ def add_task(
         "source": source,
         "apple_uid": calendar_uid,
         "apple_sync_error": sync_error,
+    }
+
+
+def add_tasks_batch(
+    db_path: str | Path,
+    tasks: list[dict],
+    default_sync_apple: bool = True,
+    default_calendar_name: str | None = None,
+) -> dict:
+    """
+    Création batch de tâches planner.
+    Supporte:
+      - start_at/end_at directs
+      - ou week_ref + weekday + time + duration_min
+    """
+    created: list[dict] = []
+    errors: list[dict] = []
+
+    for idx, raw in enumerate(tasks or []):
+        try:
+            title = str(raw.get("title") or "").strip()
+            if not title:
+                raise ValueError("missing_title")
+
+            category = normalize_category(raw.get("category"))
+            if category == "autre" and raw.get("type"):
+                # fallback type -> category
+                t = str(raw.get("type")).lower().strip()
+                type_map = {
+                    "cardio": "sante",
+                    "musculation": "sante",
+                    "mobilite": "sante",
+                    "sport_libre": "sante",
+                    "travail": "travail",
+                    "apprentissage": "apprentissage",
+                    "relationnel": "relationnel",
+                }
+                category = type_map.get(t, category)
+
+            start_at = raw.get("start_at")
+            end_at = raw.get("end_at")
+            if not start_at or not end_at:
+                start_at, end_at = parse_relative_slot(
+                    week_ref=raw.get("week_ref") or raw.get("week"),
+                    weekday=raw.get("weekday"),
+                    task_time=raw.get("time") or raw.get("task_time"),
+                    duration_min=raw.get("duration_min"),
+                )
+
+            sync_apple = bool(raw.get("sync_apple", default_sync_apple))
+            notes = raw.get("notes")
+            res = add_task(
+                db_path=db_path,
+                title=title,
+                category=category,
+                start_at=str(start_at),
+                end_at=str(end_at),
+                notes=str(notes)[:5000] if notes is not None else None,
+                sync_to_apple=sync_apple,
+                apple_calendar_name=raw.get("calendar_name") or default_calendar_name,
+            )
+            created.append({
+                "index": idx,
+                "title": title,
+                "task_id": res.get("task_id"),
+                "start_at": res.get("start_at"),
+                "end_at": res.get("end_at"),
+                "category": res.get("category"),
+                "apple_uid": res.get("apple_uid"),
+                "apple_sync_error": res.get("apple_sync_error"),
+            })
+        except Exception as e:
+            errors.append({
+                "index": idx,
+                "title": raw.get("title"),
+                "error": str(e),
+            })
+
+    return {
+        "ok": len(errors) == 0,
+        "created": created,
+        "errors": errors,
+        "created_count": len(created),
+        "error_count": len(errors),
     }
 
 
@@ -268,6 +429,81 @@ def delete_apple_only_event(event_uid: str) -> dict:
         return delete_apple_calendar_event(event_uid=event_uid)
     except Exception as e:
         return {"enabled": False, "error": str(e)}
+
+
+def sync_pending_tasks_to_apple(
+    db_path: str | Path,
+    limit: int = 200,
+    calendar_name: str | None = None,
+) -> dict:
+    """
+    Pousse les tâches planner locales non synchronisées vers Apple Calendar.
+    Retourne un résumé: total, synced, failed.
+    """
+    conn = connect_db(db_path)
+    cur = conn.cursor()
+
+    rows = cur.execute(
+        """
+        SELECT id, title, start_at, end_at, notes
+        FROM planner_tasks
+        WHERE status != 'cancelled'
+          AND (calendar_uid IS NULL OR calendar_uid = '')
+        ORDER BY start_at
+        LIMIT ?
+        """,
+        (int(limit),),
+    ).fetchall()
+
+    total = len(rows)
+    synced = 0
+    failed = 0
+    last_error = None
+
+    try:
+        from integrations.apple_calendar import create_apple_calendar_event
+    except Exception as e:
+        conn.close()
+        return {
+            "ok": False,
+            "total": total,
+            "synced": 0,
+            "failed": total,
+            "error": str(e),
+        }
+
+    for r in rows:
+        res = create_apple_calendar_event(
+            title=str(r["title"] or "Activité"),
+            start_at=str(r["start_at"]),
+            end_at=str(r["end_at"]),
+            notes=r["notes"],
+            calendar_name=calendar_name,
+        )
+        if res.get("enabled") and res.get("event_uid"):
+            cur.execute(
+                """
+                UPDATE planner_tasks
+                SET source='apple_calendar', calendar_uid=?, updated_at=?
+                WHERE id=?
+                """,
+                (str(res["event_uid"]), now_iso(), int(r["id"])),
+            )
+            synced += 1
+        else:
+            failed += 1
+            last_error = res.get("error") or last_error
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "ok": True,
+        "total": total,
+        "synced": synced,
+        "failed": failed,
+        "error": last_error,
+    }
 
 
 def _event_duration_h(start_at: str, end_at: str) -> float:

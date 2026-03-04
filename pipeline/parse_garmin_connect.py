@@ -268,17 +268,17 @@ def _resolve_muscle_from_category(category: str | None, ex_name: str | None) -> 
     # Fallback par mots-clés quand Garmin envoie des catégories non mappées
     if any(k in key for k in ("ROW", "PULL_UP", "PULLDOWN", "PULL DOWN", "DEADLIFT", "HYPEREXTENSION")):
         return "Dos", "Rhomboïdes"
-    if any(k in key for k in ("SQUAT", "LUNGE", "LEG", "CALF", "GLUTE", "HIP_THRUST")):
+    if any(k in key for k in ("SQUAT", "LUNGE", "LEG", "CALF", "GLUTE", "HIP_THRUST", "HIP_RAISE")):
         return "Jambes", "Quadriceps"
     if any(k in key for k in ("PLANK", "CORE", "CRUNCH", "SIT_UP", "RUSSIAN", "TWIST", "LEG_RAISE")):
         return "Core", "Abdominaux"
     if any(k in key for k in ("CURL", "CHIN_UP")):
         return "Biceps", "Biceps Brachial"
-    if any(k in key for k in ("TRICEPS", "DIP", "SKULL")):
+    if any(k in key for k in ("TRICEPS", "DIP", "SKULL", "TRICEPS_EXTENSION", "TRICEP_EXTENSION")):
         return "Triceps", "Chef Long"
     if any(k in key for k in ("SHOULDER", "LATERAL", "FRONT_RAISE", "SHRUG", "FACE_PULL", "UPRIGHT_ROW")):
         return "Épaules", "Faisceau Latéral"
-    if any(k in key for k in ("BENCH", "CHEST", "FLY", "PUSH_UP")):
+    if any(k in key for k in ("BENCH", "CHEST", "FLY", "FLYE", "PUSH_UP")):
         return "Pecs", "Pecs Moyen"
 
     return "Inconnu", "Inconnu"
@@ -297,6 +297,24 @@ def _normalize_weight_kg(value) -> float | None:
     if w > 350:
         w = w / 1000.0
     return round(w, 3)
+
+
+def _pick_number(payload: dict, keys: list[str], as_int: bool = False):
+    """Récupère la première valeur numérique valide parmi plusieurs clés possibles."""
+    for key in keys:
+        if key not in payload:
+            continue
+        val = payload.get(key)
+        if val is None or val == "":
+            continue
+        try:
+            num = float(val)
+        except (TypeError, ValueError):
+            continue
+        if as_int:
+            return int(round(num))
+        return num
+    return None
 
 
 def _pick_best_exercise(exercises) -> dict:
@@ -338,27 +356,44 @@ def _upsert_strength_session_from_garmin_sets(
     # Conserver seulement les sets actifs comme dans le pipeline FIT.
     active_sets = [s for s in garmin_sets if str(s.get("setType", "")).upper() == "ACTIVE"]
     if not active_sets:
+        # Fallback: certaines payloads n'exposent pas "ACTIVE" explicitement.
+        active_sets = [
+            s for s in garmin_sets
+            if str(s.get("setType", "")).upper() not in {"REST", "RECOVERY", "WARMUP", "COOLDOWN"}
+        ]
+    if not active_sets:
         return False, 0
 
     parsed_sets = []
     for i, s in enumerate(active_sets, start=1):
         best = _pick_best_exercise(s.get("exercises"))
-        ex_cat = str(best.get("category") or "").upper().strip() or None
-        ex_name_token = best.get("name")
+        ex_cat = str(
+            best.get("category")
+            or s.get("exerciseCategory")
+            or s.get("category")
+            or ""
+        ).upper().strip() or None
+        ex_name_token = best.get("name") or s.get("exerciseName") or s.get("name")
         ex_name = _title_from_token(ex_name_token) or _title_from_token(ex_cat) or "Unknown"
         mg, sub = _resolve_muscle_from_category(ex_cat, ex_name_token)
 
-        reps = s.get("repetitionCount")
-        try:
-            reps = int(reps) if reps is not None else None
-        except (TypeError, ValueError):
-            reps = None
-
-        duration = s.get("duration")
-        try:
-            duration_s = float(duration) if duration is not None else None
-        except (TypeError, ValueError):
-            duration_s = None
+        reps = _pick_number(
+            s,
+            ["repetitionCount", "repetitions", "repCount", "numReps", "reps"],
+            as_int=True,
+        )
+        duration_s = _pick_number(
+            s,
+            ["duration", "durationSecs", "elapsedDuration", "time"],
+            as_int=False,
+        )
+        weight_kg = _normalize_weight_kg(
+            _pick_number(
+                s,
+                ["weightInKilograms", "weightKg", "weight", "resistance"],
+                as_int=False,
+            )
+        )
 
         parsed_sets.append({
             "started_at": str(s.get("startTime") or activity.get("started_at") or "")[:19] or None,
@@ -370,7 +405,7 @@ def _upsert_strength_session_from_garmin_sets(
             "set_type": "active",
             "reps": reps,
             "duration_s": duration_s,
-            "weight_kg": _normalize_weight_kg(s.get("weight")),
+            "weight_kg": weight_kg,
         })
 
     total_reps = sum(x["reps"] or 0 for x in parsed_sets)
@@ -454,22 +489,44 @@ def fetch_and_insert_strength_sets(
     client,
     conn: sqlite3.Connection,
     activities: list[dict],
-) -> tuple[int, int]:
+    refresh_tail_days: int = 3,
+) -> tuple[int, int, int]:
     """
     Pour chaque activité force/training Garmin, récupère les exercise sets
     et persiste en strength_sessions + exercise_sets.
     """
     sessions_created = 0
     sets_inserted = 0
+    skipped_existing = 0
 
     strength_acts = [a for a in activities if a.get("type") == "Strength Training"]
     if not strength_acts:
-        return sessions_created, sets_inserted
+        return sessions_created, sets_inserted, skipped_existing
+
+    cutoff_date = date.today() - timedelta(days=max(0, int(refresh_tail_days) - 1))
 
     for a in strength_acts:
         source_id = a.get("source_id")
         if not source_id:
             continue
+        activity_db_id = _find_activity_db_id(conn, a)
+        if not activity_db_id:
+            continue
+
+        # Skip des séances historiques déjà importées (sauf queue récente).
+        act_date = None
+        try:
+            act_date = datetime.fromisoformat(str(a.get("started_at", ""))[:19]).date()
+        except Exception:
+            act_date = None
+        existing = conn.execute(
+            "SELECT id FROM strength_sessions WHERE activity_id=?",
+            (activity_db_id,),
+        ).fetchone()
+        if existing and act_date and act_date < cutoff_date:
+            skipped_existing += 1
+            continue
+
         try:
             payload = client.get_activity_exercise_sets(int(source_id))
         except Exception:
@@ -477,10 +534,6 @@ def fetch_and_insert_strength_sets(
 
         garmin_sets = payload.get("exerciseSets", []) if isinstance(payload, dict) else []
         if not garmin_sets:
-            continue
-
-        activity_db_id = _find_activity_db_id(conn, a)
-        if not activity_db_id:
             continue
 
         created, ins_sets = _upsert_strength_session_from_garmin_sets(
@@ -494,7 +547,7 @@ def fetch_and_insert_strength_sets(
         sets_inserted += ins_sets
 
     conn.commit()
-    return sessions_created, sets_inserted
+    return sessions_created, sets_inserted, skipped_existing
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -503,15 +556,43 @@ def fetch_and_insert_strength_sets(
 def fetch_health_metrics(
     client,
     days: int = 30,
+    conn: sqlite3.Connection | None = None,
+    refresh_tail_days: int = 3,
 ) -> list[dict]:
     """Récupère HRV, FC repos, sommeil, Body Battery des N derniers jours."""
     metrics = []
     end   = date.today()
     start = end - timedelta(days=days)
+    refresh_cutoff = end - timedelta(days=max(0, int(refresh_tail_days) - 1))
+
+    existing_dates = set()
+    if conn is not None:
+        try:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT date
+                FROM health_metrics
+                WHERE source='garmin_connect'
+                  AND date >= ?
+                  AND date <= ?
+                """,
+                (str(start), str(end)),
+            ).fetchall()
+            existing_dates = {str(r[0]) for r in rows if r and r[0]}
+        except Exception:
+            existing_dates = set()
 
     current = start
+    skipped_days = 0
     while current <= end:
         ds = str(current)
+
+        # Incrémental: si on a déjà un historique Garmin, on ne refetch pas l'ancien.
+        # On conserve seulement une "queue" récente pour capter les mises à jour tardives.
+        if conn is not None and current < refresh_cutoff and existing_dates:
+            skipped_days += 1
+            current += timedelta(days=1)
+            continue
 
         # ── HRV ─────────────────────────────────────────────────
         try:
@@ -602,7 +683,10 @@ def fetch_health_metrics(
 
         current += timedelta(days=1)
 
-    print(f"   → {len(metrics)} métriques santé Garmin Connect")
+    if skipped_days > 0:
+        print(f"   → {len(metrics)} métriques santé Garmin Connect ({skipped_days} jours historiques ignorés)")
+    else:
+        print(f"   → {len(metrics)} métriques santé Garmin Connect")
     return metrics
 
 
@@ -663,6 +747,7 @@ def run(
     email:      str | None = None,
     password:   str | None = None,
     verbose:    bool = True,
+    refresh_tail_days: int = 3,
 ) -> dict:
     """
     Pipeline Garmin Connect → SQLite.
@@ -685,11 +770,24 @@ def run(
     print(f"   ✅ Activities : {ins_a} insérées, {skip_a} doublons")
 
     # 2. Sets musculation (si disponibles)
-    sess_new, sets_ins = fetch_and_insert_strength_sets(client, conn, activities)
-    print(f"   ✅ Musculation Garmin : {sess_new} séances créées, {sets_ins} sets importés")
+    sess_new, sets_ins, sets_skip = fetch_and_insert_strength_sets(
+        client,
+        conn,
+        activities,
+        refresh_tail_days=refresh_tail_days,
+    )
+    print(
+        f"   ✅ Musculation Garmin : {sess_new} séances créées, "
+        f"{sets_ins} sets importés, {sets_skip} séances historiques ignorées"
+    )
 
     # 3. Métriques santé
-    metrics = fetch_health_metrics(client, days=days)
+    metrics = fetch_health_metrics(
+        client,
+        days=days,
+        conn=conn,
+        refresh_tail_days=refresh_tail_days,
+    )
     ins_m = insert_health_metrics(conn, metrics)
     print(f"   ✅ Métriques santé : {ins_m} insérées")
 
@@ -701,6 +799,7 @@ def run(
         "activities_skipped":  skip_a,
         "strength_sessions_inserted": sess_new,
         "exercise_sets_inserted": sets_ins,
+        "strength_sessions_skipped": sets_skip,
         "metrics_inserted":    ins_m,
     }
 
@@ -713,6 +812,8 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Sync Garmin Connect → SQLite")
     p.add_argument("--db",       default=str(DB_PATH))
     p.add_argument("--days",     type=int, default=30, help="Nb jours à récupérer")
+    p.add_argument("--refresh-tail-days", type=int, default=3,
+                   help="Ne refresh complètement que les N derniers jours")
     p.add_argument("--email",    default=None)
     p.add_argument("--password", default=None)
     p.add_argument("--login",    action="store_true",
@@ -728,5 +829,11 @@ if __name__ == "__main__":
             print("✅ Connecté et token sauvegardé.")
         sys.exit(0)
 
-    result = run(Path(args.db), days=args.days, email=args.email, password=args.password)
+    result = run(
+        Path(args.db),
+        days=args.days,
+        email=args.email,
+        password=args.password,
+        refresh_tail_days=max(1, int(args.refresh_tail_days)),
+    )
     print(f"\n📊 Résultat : {result}")

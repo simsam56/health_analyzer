@@ -20,6 +20,7 @@ export_cda.xml
 .ah_cache.pkl
 .health_cache.pkl
 .garmin_cache.pkl
+.performos_state.json
 .garminconnect/
 __pycache__/
 *.pyc

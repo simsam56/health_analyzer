@@ -59,6 +59,39 @@ def normalize_muscle_name(name: str | None) -> str:
     return MUSCLE_ALIASES.get(name, name)
 
 
+def _infer_muscles_from_text(text: str | None) -> list[str]:
+    """
+    Heuristique de fallback quand les sets sont "Inconnu".
+    Permet d'améliorer la couverture de volume musculaire.
+    """
+    s = str(text or "").lower()
+    out: list[str] = []
+
+    if any(k in s for k in ["dos", "rowing", "row", "traction", "pull", "deadlift", "tirage"]):
+        out.extend(["Dos", "Biceps"])
+    if any(k in s for k in ["pec", "chest", "bench", "push", "développé", "pompe", "fly"]):
+        out.extend(["Pecs", "Triceps", "Épaules"])
+    if any(k in s for k in ["squat", "lunge", "leg", "jamb", "fente", "mollet", "hip", "glute"]):
+        out.extend(["Jambes", "Core"])
+    if any(k in s for k in ["abdo", "core", "plank", "gainage", "crunch", "sit up", "twist"]):
+        out.append("Core")
+    if any(k in s for k in ["shoulder", "épaule", "lateral", "shrug", "oiseau"]):
+        out.append("Épaules")
+    if any(k in s for k in ["biceps", "curl"]):
+        out.append("Biceps")
+    if any(k in s for k in ["triceps", "extension"]):
+        out.append("Triceps")
+    if any(k in s for k in ["wakeboard", "full body"]):
+        out.extend(["Dos", "Jambes", "Core", "Épaules"])
+
+    # Unique + muscles connus seulement
+    clean = []
+    for mg in out:
+        if mg in VOLUME_TARGETS and mg not in clean:
+            clean.append(mg)
+    return clean
+
+
 # ─────────────────────────────────────────────────────────────────
 # FONCTIONS D'ANALYSE
 # ─────────────────────────────────────────────────────────────────
@@ -169,6 +202,87 @@ def get_cumulative_volume(
             result[mg] = {"total_sets": 0, "total_reps": 0, "sessions": 0, "sets_per_week": 0}
 
     return result
+
+
+def apply_unknown_set_inference(
+    conn: sqlite3.Connection,
+    volume: dict[str, dict],
+    weeks: int = 4,
+    end_date: date | None = None,
+) -> tuple[dict[str, dict], dict]:
+    """
+    Réinjecte une partie des sets "Inconnu" dans les groupes probables.
+    - Priorité: muscles déjà présents dans la session
+    - Fallback: heuristique sur nom séance + exos
+    """
+    if end_date is None:
+        end_date = date.today()
+    start_date = end_date - timedelta(weeks=weeks)
+
+    # Copie défensive
+    out = {k: dict(v) for k, v in volume.items()}
+    for mg in VOLUME_TARGETS:
+        out.setdefault(mg, {"total_sets": 0, "total_reps": 0, "sessions": 0, "sets_per_week": 0})
+
+    rows = conn.execute(
+        """
+        SELECT
+          ss.id,
+          ss.workout_name,
+          SUM(CASE WHEN es.muscle_group IN ('Inconnu','') OR es.muscle_group IS NULL THEN 1 ELSE 0 END) AS unknown_sets,
+          GROUP_CONCAT(CASE WHEN es.muscle_group NOT IN ('Inconnu','Cardio') AND es.muscle_group IS NOT NULL THEN es.muscle_group END, '|') AS known_muscles,
+          GROUP_CONCAT(COALESCE(es.exercise_name,''), '|') AS ex_names
+        FROM strength_sessions ss
+        JOIN exercise_sets es ON es.session_id = ss.id
+        WHERE date(ss.started_at) >= ?
+          AND date(ss.started_at) <= ?
+          AND es.set_type='active'
+        GROUP BY ss.id, ss.workout_name
+        HAVING unknown_sets > 0
+        """,
+        (str(start_date), str(end_date)),
+    ).fetchall()
+
+    unknown_total = 0.0
+    inferred_total = 0.0
+
+    for row in rows:
+        unknown_sets = float(row[2] or 0)
+        if unknown_sets <= 0:
+            continue
+        unknown_total += unknown_sets
+
+        known_muscles = [normalize_muscle_name(x) for x in str(row[3] or "").split("|") if x]
+        known_muscles = [m for m in known_muscles if m in VOLUME_TARGETS]
+
+        targets: list[str] = []
+        if known_muscles:
+            # Utilise d'abord ce qui est déjà observé dans la séance
+            uniq = []
+            for m in known_muscles:
+                if m not in uniq:
+                    uniq.append(m)
+            targets = uniq
+        else:
+            text = f"{row[1] or ''} {row[4] or ''}"
+            targets = _infer_muscles_from_text(text)
+
+        if not targets:
+            continue
+
+        per = unknown_sets / len(targets)
+        for mg in targets:
+            out[mg]["total_sets"] = float(out[mg].get("total_sets", 0) or 0) + per
+            out[mg]["sets_per_week"] = round(float(out[mg]["total_sets"]) / weeks, 1)
+        inferred_total += unknown_sets
+
+    quality = {
+        "unknown_sets_total": int(round(unknown_total)),
+        "unknown_sets_inferred": int(round(inferred_total)),
+        "unknown_sets_unresolved": int(round(max(0.0, unknown_total - inferred_total))),
+        "inference_rate": round((inferred_total / unknown_total) if unknown_total > 0 else 1.0, 3),
+    }
+    return out, quality
 
 
 def analyze_imbalances(
@@ -411,13 +525,17 @@ def run(
     weekly_vol  = get_weekly_volume(conn, weeks=max(weeks, 8))
     save_weekly_volume(conn, weekly_vol)
     # Volume cumulé (N dernières semaines)
-    cum_volume  = get_cumulative_volume(conn, weeks=weeks)
+    cum_volume_raw = get_cumulative_volume(conn, weeks=weeks)
+    cum_volume, quality = apply_unknown_set_inference(conn, cum_volume_raw, weeks=weeks)
     # Déséquilibres
     imbalances  = analyze_imbalances(cum_volume, weeks=weeks)
     # Top exercices
     top_exercises = get_top_exercises(conn)
     # Score
-    score       = compute_muscle_score(cum_volume)
+    score_base  = compute_muscle_score(cum_volume)
+    # Confiance volume: pénalise légèrement si trop de sets inconnus non résolus
+    infer_rate = float(quality.get("inference_rate", 1.0) or 1.0)
+    score = round(score_base * (0.85 + 0.15 * infer_rate), 1)
     # Séances récentes
     recent      = get_recent_sessions(conn, limit=8)
 
@@ -426,6 +544,15 @@ def run(
     if verbose:
         print(f"\n📊 Analyse Musculaire ({weeks} dernières semaines)")
         print(f"   Score de balance : {score}/100")
+        unknown_total = int(quality.get("unknown_sets_total", 0) or 0)
+        unknown_inferred = int(quality.get("unknown_sets_inferred", 0) or 0)
+        if unknown_total <= 0:
+            print("   Qualité data muscu : aucun set inconnu dans la période")
+        else:
+            print(
+                "   Qualité data muscu : "
+                f"{unknown_inferred}/{unknown_total} sets inconnus attribués"
+            )
         print()
         print("   Volume (sets/semaine) :")
         for mg, data in cum_volume.items():
@@ -445,6 +572,8 @@ def run(
         "imbalances":     imbalances,
         "top_exercises":  top_exercises,
         "muscle_score":   score,
+        "muscle_score_base": score_base,
+        "data_quality":   quality,
         "recent_sessions": recent,
         "weeks_analyzed": weeks,
         "targets":        VOLUME_TARGETS,

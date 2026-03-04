@@ -109,6 +109,7 @@ CATEGORY_TO_MUSCLE = {
     "preacher_curl":    ("Biceps",    "Biceps Brachial"),
 
     "tricep_extension": ("Triceps",   "Chef Long"),
+    "triceps_extension":("Triceps",   "Chef Long"),
     "skull_crusher":    ("Triceps",   "Chef Long"),
     "tricep_pressdown": ("Triceps",   "Chef Latéral"),
     "close_grip_press": ("Triceps",   "Chef Médial"),
@@ -121,6 +122,7 @@ CATEGORY_TO_MUSCLE = {
     "leg_curl":         ("Jambes",    "Ischio-Jambiers"),
     "romanian_deadlift":("Jambes",    "Ischio-Jambiers"),
     "hip_thrust":       ("Jambes",    "Fessiers"),
+    "hip_raise":        ("Jambes",    "Fessiers"),
     "glute_bridge":     ("Jambes",    "Fessiers"),
     "calf_raise":       ("Jambes",    "Mollets"),
     "step_up":          ("Jambes",    "Quadriceps"),
@@ -132,6 +134,7 @@ CATEGORY_TO_MUSCLE = {
     "russian_twist":    ("Core",      "Obliques"),
     "leg_raise":        ("Core",      "Abdominaux Bas"),
     "ab_wheel":         ("Core",      "Abdominaux"),
+    "flye":             ("Pecs",      "Pecs Moyen"),
     "suspension":       ("Core",      "Gainage"),
     "mountain_climber": ("Core",      "Gainage"),
 
@@ -585,11 +588,11 @@ def insert_fit_data(conn: sqlite3.Connection, parsed: dict, csv_row: dict | None
         else:
             cursor.execute("""
                 INSERT INTO strength_sessions
-                  (activity_id, started_at, workout_name, duration_s, total_sets, total_reps)
-                VALUES (?,?,?,?,?,?)
+                  (activity_id, started_at, workout_name, duration_s, total_sets, total_reps, source)
+                VALUES (?,?,?,?,?,?,?)
             """, (
                 activity_db_id, act["started_at"], act["name"],
-                act["duration_s"], len(sets), total_reps,
+                act["duration_s"], len(sets), total_reps, "strava_fit",
             ))
             session_id = cursor.lastrowid
 
