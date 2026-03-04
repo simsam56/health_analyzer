@@ -15,7 +15,7 @@ cd "$SCRIPT_DIR"
 
 # Config
 ICLOUD_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/PerformOS"
-DASHBOARD_FILE="reports/dashboard_v3.html"
+DASHBOARD_FILE="reports/dashboard_$(date +%Y-%m-%d).html"
 GARMIN_FLAG=""
 RESET_FLAG=""
 DAYS_FLAG="--days 30"
@@ -35,7 +35,7 @@ echo "╚═══════════════════════�
 echo ""
 
 # 1. Pipeline + Dashboard
-python3 main.py $GARMIN_FLAG $RESET_FLAG $DAYS_FLAG --weeks-muscle 6
+python3 main.py $GARMIN_FLAG $RESET_FLAG $DAYS_FLAG --weeks-muscle 6 --output "$DASHBOARD_FILE"
 
 # 2. Copie iCloud (si disponible)
 if [ -d "$HOME/Library/Mobile Documents/com~apple~CloudDocs" ]; then

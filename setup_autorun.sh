@@ -21,8 +21,8 @@ echo ""
 
 # ── 1. Python & dépendances ──────────────────────────────────────
 echo "📦 Installation des dépendances Python..."
-pip3 install --quiet garminconnect python-dotenv 2>&1 | tail -3
-echo "   ✅ garminconnect + python-dotenv OK"
+pip3 install --quiet garminconnect python-dotenv fitparse pyobjc-framework-EventKit 2>&1 | tail -3
+echo "   ✅ garminconnect + python-dotenv + fitparse + EventKit OK"
 echo ""
 
 # ── 2. Vérifier .env ─────────────────────────────────────────────

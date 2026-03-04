@@ -1,7 +1,7 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────────────────────
 # run_health_report.sh
-# Lance le générateur de dashboard Health et ouvre le résultat dans le navigateur.
+# Lance le pipeline PerformOS v3 et ouvre le résultat dans le navigateur.
 # Appelé automatiquement chaque dimanche soir par launchd.
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -18,10 +18,11 @@ mkdir -p "$SCRIPT_DIR/reports"
 echo "──────────────────────────────────────────" >> "$LOG_FILE"
 echo "$(date '+%Y-%m-%d %H:%M:%S')  Démarrage du dashboard Health" >> "$LOG_FILE"
 
-# Lance le script Python
-"$PYTHON_BIN" "$SCRIPT_DIR/build_dashboard.py" \
+# Lance le pipeline v3
+"$PYTHON_BIN" "$SCRIPT_DIR/main.py" \
     --export "$SCRIPT_DIR/export.xml" \
-    --strava "$SCRIPT_DIR/export_strava/activities.csv" \
+    --strava "$SCRIPT_DIR/export_strava" \
+    --db "$SCRIPT_DIR/athlete.db" \
     --output "$OUTPUT" \
     >> "$LOG_FILE" 2>&1
 

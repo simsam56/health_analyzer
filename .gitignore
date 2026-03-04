@@ -44,8 +44,11 @@ logs/
 # ── Rapports générés (conservés localement, pas dans Git) ─────────────────────
 # Décommentez pour exclure tous les rapports :
 # reports/
+reports/dashboard_*.html
+reports/AUDIT_*.md
 
 # ── Données Strava brutes (privées) ───────────────────────────────────────────
+export_strava/
 export_strava/activities/
 export_strava/*.csv
 workout-routes/
@@ -59,6 +62,7 @@ workout-routes/
 # ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store
 .DS_Store?
+.fuse_hidden*
 ._*
 .Spotlight-V100
 .Trashes
