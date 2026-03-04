@@ -26,6 +26,15 @@ DB_PATH = ROOT / "athlete.db"
 CTL_DAYS = 42    # Chronic Training Load (fitness)
 ATL_DAYS = 7     # Acute Training Load (fatigue)
 
+# Fraîcheur maximale (jours) au-delà de laquelle la métrique est pénalisée
+FRESHNESS_DAYS = {
+    "hrv_sdnn": 14,
+    "rhr": 10,
+    "sleep_h": 10,
+    "vo2max": 90,
+    "weight_kg": 45,
+}
+
 # Multiplicateurs fatigue neuromusculaire (musculation)
 NEURAL_FATIGUE_MULTIPLIERS = {
     "jambe":    1.5,
@@ -148,9 +157,9 @@ def compute_pmc(
         first_day = min(date.fromisoformat(d) for d in daily_tss)
         start_date = first_day - timedelta(days=90)
 
-    # Facteurs de lissage EWM
-    k_ctl = 2 / (CTL_DAYS + 1)
-    k_atl = 2 / (ATL_DAYS + 1)
+    # Facteurs de lissage (EMA discret d'une décroissance exponentielle continue)
+    k_ctl = 1 - math.exp(-1 / CTL_DAYS)
+    k_atl = 1 - math.exp(-1 / ATL_DAYS)
 
     ctl = 0.0
     atl = 0.0
@@ -233,7 +242,15 @@ def get_health_metrics(
     if end_date is None:
         end_date = date.today()
 
-    def latest_metric(metric: str, windows=[7, 14, 30, 60, 90, 180, 365]) -> tuple[float | None, str | None]:
+    def _days_old(dt_iso: str | None) -> int | None:
+        if not dt_iso:
+            return None
+        try:
+            return (end_date - date.fromisoformat(dt_iso[:10])).days
+        except Exception:
+            return None
+
+    def latest_metric(metric: str, windows=[7, 14, 30, 60, 90, 180, 365]) -> tuple[float | None, str | None, int | None]:
         for w in windows:
             cutoff = (end_date - timedelta(days=w)).strftime("%Y-%m-%d")
             row = conn.execute("""
@@ -242,7 +259,8 @@ def get_health_metrics(
                 WHERE metric=? AND date>=? AND date<=?
             """, (metric, cutoff, str(end_date))).fetchone()
             if row and row[0] is not None:
-                return round(float(row[0]), 2), row[1]
+                dt = row[1]
+                return round(float(row[0]), 2), dt, _days_old(dt)
         # Fallback : 5 dernières valeurs sans limite de date
         row = conn.execute("""
             SELECT AVG(value), MAX(date)
@@ -250,14 +268,30 @@ def get_health_metrics(
                   WHERE metric=? ORDER BY date DESC LIMIT 5)
         """, (metric,)).fetchone()
         if row and row[0] is not None:
-            return round(float(row[0]), 2), row[1]
-        return None, None
+            dt = row[1]
+            return round(float(row[0]), 2), dt, _days_old(dt)
+        return None, None, None
 
-    hrv_val,     hrv_date     = latest_metric("hrv_sdnn")
-    rhr_val,     rhr_date     = latest_metric("rhr")
-    vo2max_val,  vo2max_date  = latest_metric("vo2max")
-    sleep_val,   sleep_date   = latest_metric("sleep_h")
-    weight_val,  weight_date  = latest_metric("weight_kg")
+    def freshness_factor(metric: str, days_old: int | None) -> float:
+        """Retourne un facteur 0.0-1.0 selon la fraîcheur de la métrique."""
+        if days_old is None:
+            return 0.0
+        max_days = FRESHNESS_DAYS.get(metric, 30)
+        if days_old <= 0:
+            return 1.0
+        if days_old <= max_days:
+            return 1.0
+        # Dégradation progressive jusqu'à 4x la fenêtre
+        fade_span = max_days * 3
+        if days_old >= max_days + fade_span:
+            return 0.0
+        return max(0.0, 1.0 - (days_old - max_days) / fade_span)
+
+    hrv_val,     hrv_date,     hrv_days     = latest_metric("hrv_sdnn")
+    rhr_val,     rhr_date,     rhr_days     = latest_metric("rhr")
+    vo2max_val,  vo2max_date,  vo2max_days  = latest_metric("vo2max")
+    sleep_val,   sleep_date,   sleep_days   = latest_metric("sleep_h")
+    weight_val,  weight_date,  weight_days  = latest_metric("weight_kg")
 
     # Baseline HRV (percentile 50 des 6 derniers mois)
     hrv_baseline = conn.execute("""
@@ -272,14 +306,25 @@ def get_health_metrics(
     return {
         "hrv":          hrv_val,
         "hrv_date":     hrv_date,
+        "hrv_days_old": hrv_days,
         "hrv_baseline": hrv_baseline,
+        "hrv_freshness": freshness_factor("hrv_sdnn", hrv_days),
         "rhr":          rhr_val,
         "rhr_date":     rhr_date,
+        "rhr_days_old": rhr_days,
+        "rhr_freshness": freshness_factor("rhr", rhr_days),
         "vo2max":       vo2max_val,
         "vo2max_date":  vo2max_date,
+        "vo2max_days_old": vo2max_days,
+        "vo2max_freshness": freshness_factor("vo2max", vo2max_days),
         "sleep_h":      sleep_val,
         "sleep_date":   sleep_date,
+        "sleep_days_old": sleep_days,
+        "sleep_freshness": freshness_factor("sleep_h", sleep_days),
         "weight_kg":    weight_val,
+        "weight_date":  weight_date,
+        "weight_days_old": weight_days,
+        "weight_freshness": freshness_factor("weight_kg", weight_days),
     }
 
 
@@ -291,6 +336,7 @@ def compute_wakeboard_score(
     hrv_baseline:float | None,
     sleep_h:     float | None,
     acwr_val:    float,
+    freshness:   dict | None = None,
 ) -> dict:
     """
     Wakeboard Readiness Score : 0-100
@@ -304,12 +350,18 @@ def compute_wakeboard_score(
     """
     scores = {}
 
+    freshness = freshness or {}
+    hrv_fresh = float(freshness.get("hrv", 1.0))
+    sleep_fresh = float(freshness.get("sleep", 1.0))
+
     # ── HRV (40%) ────────────────────────────────────────────────
     if hrv_val and hrv_baseline and hrv_baseline > 0:
         ratio = hrv_val / hrv_baseline
         s_hrv = max(0, min(100, (ratio - 0.5) / 0.5 * 100))
     else:
         s_hrv = 50.0  # neutre si pas de données
+    # Si la donnée est trop ancienne, on rapproche vers un score neutre
+    s_hrv = s_hrv * hrv_fresh + 50.0 * (1.0 - hrv_fresh)
 
     scores["hrv"] = round(s_hrv, 1)
 
@@ -326,6 +378,7 @@ def compute_wakeboard_score(
         s_sleep = max(0, min(100, s_sleep))
     else:
         s_sleep = 60.0  # neutre (pas de données)
+    s_sleep = s_sleep * sleep_fresh + 60.0 * (1.0 - sleep_fresh)
 
     scores["sleep"] = round(s_sleep, 1)
 
@@ -369,6 +422,10 @@ def compute_wakeboard_score(
         "label":      label,
         "color":      color,
         "components": scores,
+        "freshness": {
+            "hrv": round(hrv_fresh, 2),
+            "sleep": round(sleep_fresh, 2),
+        },
     }
 
 
@@ -492,7 +549,11 @@ def run(
 
     # 4. Métriques santé
     health = get_health_metrics(conn)
-    print(f"   HRV: {health['hrv']} ms | RHR: {health['rhr']} bpm | Sommeil: {health['sleep_h']} h")
+    print(
+        f"   HRV: {health['hrv']} ms (J-{health.get('hrv_days_old','?')}) | "
+        f"RHR: {health['rhr']} bpm (J-{health.get('rhr_days_old','?')}) | "
+        f"Sommeil: {health['sleep_h']} h (J-{health.get('sleep_days_old','?')})"
+    )
 
     # 5. Wakeboard Readiness
     wbs = compute_wakeboard_score(
@@ -500,6 +561,10 @@ def run(
         hrv_baseline=health["hrv_baseline"],
         sleep_h=health["sleep_h"],
         acwr_val=acwr_data["acwr"],
+        freshness={
+            "hrv": health.get("hrv_freshness", 1.0),
+            "sleep": health.get("sleep_freshness", 1.0),
+        },
     )
     print(f"   Wakeboard Score: {wbs['score']}/100 ({wbs['label']})")
 

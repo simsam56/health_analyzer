@@ -100,6 +100,24 @@ CREATE TABLE IF NOT EXISTS weekly_muscle_volume (
 );
 
 -- ──────────────────────────────────────────────────────────────
+-- Événements agenda (Apple Calendar)
+-- ──────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS calendar_events (
+    id            INTEGER PRIMARY KEY,
+    event_uid     TEXT NOT NULL,
+    calendar_name TEXT,
+    title         TEXT,
+    location      TEXT,
+    notes         TEXT,
+    start_at      TEXT NOT NULL,
+    end_at        TEXT,
+    is_all_day    INTEGER DEFAULT 0,
+    source        TEXT DEFAULT 'apple_calendar',
+    updated_at    TEXT,
+    UNIQUE(event_uid, start_at)
+);
+
+-- ──────────────────────────────────────────────────────────────
 -- Indices
 -- ──────────────────────────────────────────────────────────────
 CREATE INDEX IF NOT EXISTS idx_activities_started   ON activities(started_at);
@@ -108,6 +126,8 @@ CREATE INDEX IF NOT EXISTS idx_health_metrics_date  ON health_metrics(date);
 CREATE INDEX IF NOT EXISTS idx_health_metrics_metric ON health_metrics(metric);
 CREATE INDEX IF NOT EXISTS idx_exercise_sets_session ON exercise_sets(session_id);
 CREATE INDEX IF NOT EXISTS idx_exercise_sets_muscle  ON exercise_sets(muscle_group);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_start ON calendar_events(start_at);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_cal   ON calendar_events(calendar_name);
 """
 
 

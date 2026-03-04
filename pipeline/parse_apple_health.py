@@ -93,6 +93,12 @@ def parse_workouts(xml_path: str | Path) -> list[dict]:
     workouts = []
     xml_path = str(xml_path)
 
+    def _f(value, default=0.0) -> float:
+        try:
+            return float(value or default)
+        except (TypeError, ValueError):
+            return float(default)
+
     AH_TYPE_MAP = {
         "HKWorkoutActivityTypeRunning":          "Running",
         "HKWorkoutActivityTypeCycling":          "Cycling",
@@ -121,15 +127,16 @@ def parse_workouts(xml_path: str | Path) -> list[dict]:
         "HKWorkoutActivityTypeCooldown":         "Cooldown",
     }
 
-    for event, elem in ET.iterparse(xml_path, events=["start"]):
+    # Important: utiliser l'événement "end" pour lire les WorkoutStatistics enfants
+    for event, elem in ET.iterparse(xml_path, events=["end"]):
         if elem.tag != "Workout":
             continue
 
         ah_type = elem.get("workoutActivityType", "")
         activity_type = AH_TYPE_MAP.get(ah_type, ah_type.replace("HKWorkoutActivityType", ""))
         started = elem.get("startDate", "")[:19]
-        duration_s = float(elem.get("duration", 0)) * 60  # AH stocke en minutes
-        distance_m = float(elem.get("totalDistance", 0) or 0) * 1000  # km → m
+        duration_s = _f(elem.get("duration", 0)) * 60  # AH stocke en minutes
+        distance_m = _f(elem.get("totalDistance", 0)) * 1000  # km → m
 
         # calories : chercher dans les statistiques
         calories = 0
@@ -138,9 +145,9 @@ def parse_workouts(xml_path: str | Path) -> list[dict]:
             if stat.tag == "WorkoutStatistics":
                 qtype = stat.get("type", "")
                 if "ActiveEnergyBurned" in qtype:
-                    calories = float(stat.get("sum", 0) or 0)
+                    calories = _f(stat.get("sum", 0))
                 elif "HeartRate" in qtype:
-                    avg_hr = float(stat.get("average", 0) or 0) or None
+                    avg_hr = _f(stat.get("average", 0)) or None
 
         key_raw = f"ah_{started}"
         canonical_key = hashlib.md5(key_raw.encode()).hexdigest()[:16]

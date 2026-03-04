@@ -1,0 +1,1 @@
+"""Integrations externes (agenda, etc.)."""

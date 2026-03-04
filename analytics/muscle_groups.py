@@ -48,6 +48,16 @@ ALERT_THRESHOLDS = {
     "excessif":   1.5,   # > 150% → risque surentraînement
 }
 
+MUSCLE_ALIASES = {
+    "Epaules": "Épaules",
+}
+
+
+def normalize_muscle_name(name: str | None) -> str:
+    if not name:
+        return "Inconnu"
+    return MUSCLE_ALIASES.get(name, name)
+
 
 # ─────────────────────────────────────────────────────────────────
 # FONCTIONS D'ANALYSE
@@ -106,7 +116,7 @@ def get_weekly_volume(
         except ValueError:
             continue
 
-        mg = row[1]
+        mg = normalize_muscle_name(row[1])
         weekly[week_key][mg]["sets"]     += row[2]
         weekly[week_key][mg]["reps"]     += row[3]
         weekly[week_key][mg]["sessions"] += row[4]
@@ -144,7 +154,7 @@ def get_cumulative_volume(
 
     result = {}
     for row in rows:
-        mg = row[0]
+        mg = normalize_muscle_name(row[0])
         total_sets = row[1]
         result[mg] = {
             "total_sets":   total_sets,
@@ -209,10 +219,12 @@ def analyze_imbalances(
 
         alerts.append({
             "level":   level,
+            "status":  level,  # compat UI
             "type":    "volume",
             "muscle":  mg,
             "message": msg,
             "current": spw,
+            "sets_per_week": spw,  # compat UI
             "target":  hyp_sets,
             "icon":    icon,
         })
@@ -227,20 +239,24 @@ def analyze_imbalances(
             if ratio < ratio_min:
                 alerts.append({
                     "level":   "faible",
+                    "status":  "faible",
                     "type":    "balance",
                     "muscle":  mg_a,
                     "message": f"⚖️ Déséquilibre {label} : ratio {ratio:.2f} (idéal {ratio_min}-{ratio_max}). Entraîner davantage {mg_a}.",
                     "current": ratio,
+                    "sets_per_week": sets_a,
                     "target":  (ratio_min + ratio_max) / 2,
                     "icon":    "⚖️",
                 })
             elif ratio > ratio_max:
                 alerts.append({
                     "level":   "faible",
+                    "status":  "faible",
                     "type":    "balance",
                     "muscle":  mg_b,
                     "message": f"⚖️ Déséquilibre {label} : ratio {ratio:.2f} (idéal {ratio_min}-{ratio_max}). Entraîner davantage {mg_b}.",
                     "current": ratio,
+                    "sets_per_week": sets_b,
                     "target":  (ratio_min + ratio_max) / 2,
                     "icon":    "⚖️",
                 })
@@ -283,7 +299,7 @@ def get_top_exercises(
 
     by_muscle: dict[str, list] = defaultdict(list)
     for row in rows:
-        by_muscle[row[0]].append({
+        by_muscle[normalize_muscle_name(row[0])].append({
             "exercise":  row[1],
             "category":  row[2],
             "sets":      row[3],
@@ -317,6 +333,27 @@ def compute_muscle_score(volume: dict[str, dict]) -> float:
         scores.append(s)
 
     return round(sum(scores) / len(scores), 1)
+
+
+def save_weekly_volume(conn: sqlite3.Connection, weekly_volume: dict[str, dict]) -> None:
+    """Persiste le volume hebdomadaire pour historique long terme."""
+    cursor = conn.cursor()
+    for week_start, muscles in weekly_volume.items():
+        for muscle_group, data in muscles.items():
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO weekly_muscle_volume
+                (week_start, muscle_group, total_sets, total_reps)
+                VALUES (?,?,?,?)
+                """,
+                (
+                    week_start,
+                    normalize_muscle_name(muscle_group),
+                    int(data.get("sets", 0) or 0),
+                    int(data.get("reps", 0) or 0),
+                ),
+            )
+    conn.commit()
 
 
 def get_recent_sessions(
@@ -372,6 +409,7 @@ def run(
 
     # Volume par semaine
     weekly_vol  = get_weekly_volume(conn, weeks=max(weeks, 8))
+    save_weekly_volume(conn, weekly_vol)
     # Volume cumulé (N dernières semaines)
     cum_volume  = get_cumulative_volume(conn, weeks=weeks)
     # Déséquilibres

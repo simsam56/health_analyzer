@@ -16,12 +16,12 @@ C = {
     "card2":   "#1a1a26",
     "border":  "#2a2a3a",
     "text":    "#e8e8f0",
-    "muted":   "#6b6b80",
-    "accent":  "#5b8def",
+    "muted":   "#9fa4bf",
+    "accent":  "#4aa8ff",
     "green":   "#30d158",
     "orange":  "#ff9f0a",
     "red":     "#ff453a",
-    "purple":  "#bf5af2",
+    "purple":  "#a78bfa",
     "teal":    "#32ade6",
     "pink":    "#ff375f",
     "yellow":  "#ffd60a",
@@ -30,7 +30,7 @@ C = {
 MUSCLE_COLORS = {
     "Pecs":    "#ff6b6b",
     "Dos":     "#4ecdc4",
-    "Epaules": "#45b7d1",
+    "Épaules": "#45b7d1",
     "Biceps":  "#f9c74f",
     "Triceps": "#90be6d",
     "Jambes":  "#f8961e",
@@ -53,9 +53,9 @@ def ring_svg(value: float, max_val: float, color: str, size: int = 120,
     stroke-dasharray="{dash:.1f} {circ:.1f}" stroke-linecap="round"
     transform="rotate(-90 {cx} {cy})"
     style="transition:stroke-dasharray 1s ease"/>
-  <text x="{cx}" y="{cy - 4}" text-anchor="middle" fill="{C['text']}" font-size="20" font-weight="700" font-family="SF Pro Display,-apple-system,sans-serif">{val_str}</text>
-  <text x="{cx}" y="{cy + 14}" text-anchor="middle" fill="{C['muted']}" font-size="10" font-family="SF Pro Display,-apple-system,sans-serif">{label}</text>
-  {f'<text x="{cx}" y="{cy + 26}" text-anchor="middle" fill="{C["muted"]}" font-size="9" font-family="SF Pro Display,-apple-system,sans-serif">{sublabel}</text>' if sublabel else ''}
+  <text x="{cx}" y="{cy - 4}" text-anchor="middle" fill="{C['text']}" font-size="20" font-weight="700" font-family="Space Grotesk,Avenir Next,sans-serif">{val_str}</text>
+  <text x="{cx}" y="{cy + 14}" text-anchor="middle" fill="{C['muted']}" font-size="10" font-family="Space Grotesk,Avenir Next,sans-serif">{label}</text>
+  {f'<text x="{cx}" y="{cy + 26}" text-anchor="middle" fill="{C["muted"]}" font-size="9" font-family="Space Grotesk,Avenir Next,sans-serif">{sublabel}</text>' if sublabel else ''}
 </svg>"""
 
 
@@ -103,8 +103,8 @@ def bar_chart_svg(labels: list[str], values: list[float], targets: list[float],
         svg_bars.append(f"""
     <rect x="{x:.1f}" y="{h-20-th:.1f}" width="{bw:.1f}" height="{th:.1f}" fill="{col}" opacity="0.15" rx="3"/>
     <rect x="{x:.1f}" y="{by:.1f}" width="{bw:.1f}" height="{bh:.1f}" fill="{col}" opacity="0.85" rx="3"/>
-    <text x="{x+bw/2:.1f}" y="{by-4:.1f}" text-anchor="middle" fill="{col}" font-size="9" font-family="SF Pro Display,-apple-system,sans-serif">{val:.0f}</text>
-    <text x="{x+bw/2:.1f}" y="{h-6:.1f}" text-anchor="middle" fill="{C['muted']}" font-size="8" font-family="SF Pro Display,-apple-system,sans-serif">{lbl[:4]}</text>
+    <text x="{x+bw/2:.1f}" y="{by-4:.1f}" text-anchor="middle" fill="{col}" font-size="9" font-family="Space Grotesk,Avenir Next,sans-serif">{val:.0f}</text>
+    <text x="{x+bw/2:.1f}" y="{h-6:.1f}" text-anchor="middle" fill="{C['muted']}" font-size="8" font-family="Space Grotesk,Avenir Next,sans-serif">{lbl[:4]}</text>
 """)
     return f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}">{"".join(svg_bars)}</svg>'
 
@@ -143,9 +143,9 @@ def pmc_chart_svg(daily_load: list[dict], w: int = 340, h: int = 120) -> str:
   <polyline points="{ctl_pts}" fill="none" stroke="{C['teal']}" stroke-width="2" stroke-linecap="round"/>
   <polyline points="{atl_pts}" fill="none" stroke="{C['orange']}" stroke-width="2" stroke-linecap="round"/>
   <polyline points="{tsb_pts}" fill="none" stroke="{C['purple']}" stroke-width="1.5" stroke-dasharray="4 2"/>
-  <text x="8" y="12" fill="{C['teal']}" font-size="9" font-family="SF Pro Display,-apple-system,sans-serif">CTL</text>
-  <text x="30" y="12" fill="{C['orange']}" font-size="9" font-family="SF Pro Display,-apple-system,sans-serif">ATL</text>
-  <text x="52" y="12" fill="{C['purple']}" font-size="9" font-family="SF Pro Display,-apple-system,sans-serif">TSB</text>
+  <text x="8" y="12" fill="{C['teal']}" font-size="9" font-family="Space Grotesk,Avenir Next,sans-serif">CTL</text>
+  <text x="30" y="12" fill="{C['orange']}" font-size="9" font-family="Space Grotesk,Avenir Next,sans-serif">ATL</text>
+  <text x="52" y="12" fill="{C['purple']}" font-size="9" font-family="Space Grotesk,Avenir Next,sans-serif">TSB</text>
 </svg>"""
 
 
@@ -169,6 +169,21 @@ def safe(d: dict, *keys, default=0):
         else:
             return default
     return d or default
+
+
+def normalize_muscle_name(name: str) -> str:
+    return "Épaules" if name == "Epaules" else name
+
+
+def source_range(data_quality: dict, source: str) -> str:
+    ranges = data_quality.get("activity_by_source", []) if isinstance(data_quality, dict) else []
+    for row in ranges:
+        if row.get("source") == source:
+            first_date = row.get("first_date")
+            last_date = row.get("last_date")
+            if first_date and last_date:
+                return f"{first_date} → {last_date}"
+    return "Données indisponibles"
 
 
 def metric_val(metrics_history: list[dict], metric: str, days: int = 7) -> float:
@@ -203,6 +218,9 @@ def generate_html(
     acwr_d   = training.get("acwr", {})
     pmc      = training.get("pmc", {})
     running  = training.get("running", {})
+    data_quality = training.get("data_quality", {})
+    agenda_events = training.get("agenda_events", [])
+    calendar_sync = training.get("calendar_sync", {})
 
     wbs_score = float(wbs.get("score", 0) or 0)
     wbs_label = wbs.get("label", "—")
@@ -235,11 +253,15 @@ def generate_html(
     muscle_score = muscles.get("muscle_score", 0)
     muscle_color = color_for_score(muscle_score)
     imbalances   = muscles.get("imbalances", [])
-    cumulative   = muscles.get("cumulative", {})
-    targets      = {"Pecs": 12, "Dos": 14, "Epaules": 12,
-                    "Biceps": 10, "Triceps": 10, "Jambes": 16, "Core": 12}
+    cumulative_raw = muscles.get("cumulative", {})
+    cumulative = {normalize_muscle_name(k): v for k, v in cumulative_raw.items()}
+    targets_raw = muscles.get("targets", {})
+    targets = {normalize_muscle_name(k): v.get("hyper", 10) for k, v in targets_raw.items()} if targets_raw else {
+        "Pecs": 12, "Dos": 14, "Épaules": 12,
+        "Biceps": 10, "Triceps": 10, "Jambes": 16, "Core": 12,
+    }
 
-    muscle_groups_order = ["Pecs", "Dos", "Epaules", "Biceps", "Triceps", "Jambes", "Core"]
+    muscle_groups_order = ["Pecs", "Dos", "Épaules", "Biceps", "Triceps", "Jambes", "Core"]
     muscle_vals   = [cumulative.get(g, {}).get("sets_per_week", 0) for g in muscle_groups_order]
     muscle_tgts   = [targets.get(g, 10) for g in muscle_groups_order]
     muscle_colors = [MUSCLE_COLORS.get(g, C["accent"]) for g in muscle_groups_order]
@@ -271,14 +293,15 @@ def generate_html(
     # ── Imbalances HTML ───────────────────────────────────────────
     imbalance_items = []
     for im in imbalances[:5]:
-        status = im.get("status", "ok")
+        status = im.get("status") or im.get("level", "ok")
         col    = {"critique": C["red"], "faible": C["orange"],
-                  "ok": C["green"], "optimal": C["teal"]}.get(status, C["muted"])
-        icon   = {"critique": "!", "faible": "~", "ok": "OK", "optimal": "A+"}.get(status, "?")
+                  "ok": C["green"], "optimal": C["teal"], "excessif": C["orange"]}.get(status, C["muted"])
+        icon   = {"critique": "!", "faible": "~", "ok": "OK", "optimal": "A+", "excessif": "MAX"}.get(status, "?")
+        spw = im.get("sets_per_week", im.get("current", 0))
         imbalance_items.append(
             f'<div class="im-row"><span class="im-icon" style="color:{col}">{icon}</span>'
             f'<span class="im-muscle">{im.get("muscle","")}</span>'
-            f'<span class="im-detail" style="color:{col}">{im.get("sets_per_week",0):.1f}/sem '
+            f'<span class="im-detail" style="color:{col}">{float(spw):.1f}/sem '
             f'(cible {im.get("target",0)})</span></div>'
         )
     imbalances_html = "\n".join(imbalance_items) if imbalance_items else '<p class="muted">Données insuffisantes</p>'
@@ -309,6 +332,41 @@ def generate_html(
         )
     acts_html = "\n".join(acts_rows) if acts_rows else '<p class="muted">Aucune activité récente</p>'
 
+    # ── Data quality ───────────────────────────────────────────────
+    dq_score = float(data_quality.get("score", 0) or 0)
+    dq_duplicates = int(data_quality.get("duplicates_rows", 0) or 0)
+    dq_name_missing = float(data_quality.get("exercise_name_missing_pct", 0) or 0)
+    dq_weight_missing = float(data_quality.get("exercise_weight_missing_pct", 0) or 0)
+    freshness = data_quality.get("freshness", [])[:6] if isinstance(data_quality, dict) else []
+    freshness_html = "".join([
+        f'<div class="metric-row"><span class="metric-label">{row.get("metric","")}</span>'
+        f'<span class="metric-val">{row.get("days_old","?")}j</span></div>'
+        for row in freshness
+    ]) or '<p class="muted">Aucune métrique disponible</p>'
+
+    source_ah = source_range(data_quality, "apple_health")
+    source_strava = source_range(data_quality, "strava_fit")
+    source_garmin = source_range(data_quality, "garmin_connect")
+
+    # ── Agenda HTML ────────────────────────────────────────────────
+    agenda_rows = []
+    for ev in agenda_events[:12]:
+        title = (ev.get("title") or "Événement").strip()
+        cal = ev.get("calendar_name") or "Calendrier"
+        start = (ev.get("start_at") or "")[:16].replace("T", " ")
+        end = (ev.get("end_at") or "")[:16].replace("T", " ")
+        when = start if not end else f"{start} → {end}"
+        location = (ev.get("location") or "").strip()
+        agenda_rows.append(
+            f'<div class="act-row"><span class="act-icon">CAL</span>'
+            f'<span class="act-name">{title}</span>'
+            f'<span class="act-date muted">{cal}</span>'
+            f'<span class="act-meta">{when}{(" · " + location) if location else ""}</span></div>'
+        )
+    agenda_html = "\\n".join(agenda_rows) if agenda_rows else '<p class="muted">Aucun événement à venir</p>'
+    cal_status = "Connecté" if calendar_sync.get("enabled") else f"Indispo ({calendar_sync.get('error','n/a')})"
+    cal_status_color = C["green"] if calendar_sync.get("enabled") else C["orange"]
+
     # ── Long-term HRV Chart ───────────────────────────────────────
     hrv_long = last_n(metrics_history, "hrv_sdnn", 90)
     hrv_long_spark = spark_svg(hrv_long, C["teal"], 340, 60)
@@ -331,6 +389,9 @@ def generate_html(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>PerformOS v3 — Simon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {{
     --bg: {C['bg']}; --card: {C['card']}; --card2: {C['card2']};
@@ -339,8 +400,14 @@ def generate_html(
     --red: {C['red']}; --purple: {C['purple']}; --teal: {C['teal']};
   }}
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  html, body {{ background: var(--bg); color: var(--text); font-family: -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif; min-height: 100vh; }}
-  body {{ padding-bottom: 80px; }}
+  html, body {{ background: var(--bg); color: var(--text); font-family: "Space Grotesk", "Avenir Next", "Helvetica Neue", sans-serif; min-height: 100vh; }}
+  body {{
+    padding-bottom: 80px;
+    background:
+      radial-gradient(circle at 5% 0%, rgba(74,168,255,0.18), transparent 32%),
+      radial-gradient(circle at 95% 10%, rgba(48,209,88,0.12), transparent 30%),
+      linear-gradient(180deg, #090b14 0%, #0a0a0f 100%);
+  }}
 
   /* Header */
   .header {{ padding: 20px 16px 12px; background: linear-gradient(180deg, #0d0d18 0%, {C['bg']} 100%); display: flex; justify-content: space-between; align-items: flex-end; }}
@@ -430,6 +497,9 @@ def generate_html(
   .scroll-x {{ overflow-x: auto; -webkit-overflow-scrolling: touch; }}
   .no-scroll {{ overflow: visible; }}
   svg {{ max-width: 100%; }}
+  @media (min-width: 960px) {{
+    body {{ max-width: 1100px; margin: 0 auto; }}
+  }}
 </style>
 </head>
 <body>
@@ -467,6 +537,10 @@ def generate_html(
   <button class="nav-btn" onclick="showSection('history')" id="btn-history">
     <span class="nav-icon">&#9783;</span>
     <span>Historique</span>
+  </button>
+  <button class="nav-btn" onclick="showSection('agenda')" id="btn-agenda">
+    <span class="nav-icon">&#128197;</span>
+    <span>Agenda</span>
   </button>
 </nav>
 
@@ -530,6 +604,28 @@ def generate_html(
       <div class="stat-card">
         <div class="stat-val" style="color:{C['red']}">{rhr_val:.0f}</div>
         <div class="stat-lbl">FC Repos</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Data Quality</div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-val" style="color:{color_for_score(dq_score)}">{dq_score:.0f}</div>
+        <div class="stat-lbl">Score qualité /100</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="color:{C['orange']}">{dq_duplicates}</div>
+        <div class="stat-lbl">Lignes doublons</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="color:{C['red']}">{dq_name_missing:.1f}%</div>
+        <div class="stat-lbl">Exercice manquant</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="color:{C['red']}">{dq_weight_missing:.1f}%</div>
+        <div class="stat-lbl">Poids manquant</div>
       </div>
     </div>
   </div>
@@ -697,6 +793,11 @@ def generate_html(
   </div>
 
   <div class="card">
+    <div class="card-title">Freshness métriques</div>
+    {freshness_html}
+  </div>
+
+  <div class="card">
     <div class="card-title">Métriques long terme</div>
     <div class="metric-row">
       <span class="metric-label">VO2Max</span>
@@ -748,22 +849,47 @@ def generate_html(
     <div class="card-title">Sources de données</div>
     <div class="metric-row">
       <span class="metric-label">Apple Health</span>
-      <span class="metric-val muted" style="font-size:13px">2017 → sept 2025</span>
+      <span class="metric-val muted" style="font-size:13px">{source_ah}</span>
     </div>
     <div class="metric-row">
       <span class="metric-label">Strava FIT</span>
-      <span class="metric-val muted" style="font-size:13px">2020 → fev 2026</span>
+      <span class="metric-val muted" style="font-size:13px">{source_strava}</span>
     </div>
     <div class="metric-row">
       <span class="metric-label">Garmin Connect</span>
-      <span class="metric-val muted" style="font-size:13px">{('<span style="color:' + C['green'] + '">Connecté</span>') if training.get('garmin_connected') else ('<span style="color:' + C['orange'] + '">Non configuré</span>')}</span>
+      <span class="metric-val muted" style="font-size:13px">{source_garmin}</span>
+    </div>
+    <div class="metric-row">
+      <span class="metric-label">Apple Calendar</span>
+      <span class="metric-val" style="font-size:13px;color:{cal_status_color}">{cal_status}</span>
     </div>
     <div style="margin-top:12px;padding:10px;background:var(--card2);border-radius:10px;font-size:11px;color:var(--muted);line-height:1.6">
-      Pour avoir les donnees de mars 2026 et les metriques recentes,<br>
-      configurez Garmin Connect dans <code>.env</code> :<br>
-      <code>GARMIN_EMAIL=votre@email.com</code><br>
-      <code>GARMIN_PASSWORD=votre_mdp</code><br>
-      Puis relancez : <code>python3 main.py --garmin --days 60</code>
+      Les plages sont calculées automatiquement depuis la base.<br>
+      Utilisez <code>python3 main.py --garmin --days 60</code> pour rafraîchir Garmin.
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION : AGENDA                                           -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="section" id="s-agenda">
+
+  <div class="card" style="margin-top:12px">
+    <div class="card-title">Calendrier Apple — Prochains événements</div>
+    <div class="metric-row">
+      <span class="metric-label">Statut sync</span>
+      <span class="metric-val" style="color:{cal_status_color}">{cal_status}</span>
+    </div>
+    <div class="sep"></div>
+    {agenda_html}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Proposition entraînement</div>
+    <div style="font-size:13px;line-height:1.6;color:var(--text)">
+      {('Readiness haute: placez une séance intense dans les 24h.' if wbs_score >= 75 else 'Readiness modérée: privilégiez technique ou zone 2 dans les 24h.') if acwr_val < 1.3 else 'ACWR élevée: priorisez récupération active et mobilité.'}
     </div>
   </div>
 

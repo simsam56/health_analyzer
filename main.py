@@ -30,6 +30,7 @@ import argparse
 import sqlite3
 import sys
 import shutil
+import importlib.util
 from datetime import date, datetime
 from pathlib import Path
 
@@ -63,12 +64,165 @@ def check_sources(ah_xml: Path, strava_dir: Path) -> None:
         print("     → Exporter depuis iPhone : Santé > Profil > Exporter les données")
 
     if strava_dir.exists():
-        fit_count = len(list(strava_dir.glob("activities/*.fit.gz")))
+        fit_count = len(list(strava_dir.glob("activities/*.fit"))) + \
+                    len(list(strava_dir.glob("activities/*.fit.gz")))
         print(f"  ✅ Strava FIT         : {strava_dir} ({fit_count} fichiers FIT)")
     else:
         print(f"  ⚠️  Strava FIT         : {strava_dir} — MANQUANT")
         print("     → Exporter depuis strava.com > Paramètres > Mes données")
     print()
+
+
+def _has_module(name: str) -> bool:
+    return importlib.util.find_spec(name) is not None
+
+
+def check_runtime_dependencies(args) -> None:
+    """Affiche les dépendances critiques manquantes selon les options choisies."""
+    missing = []
+
+    if not args.skip_parse and not _has_module("fitparse"):
+        missing.append("fitparse (requis pour parse Strava FIT)")
+
+    if args.garmin and not _has_module("garminconnect"):
+        missing.append("garminconnect (requis pour Garmin Connect)")
+    if args.garmin and not _has_module("dotenv"):
+        missing.append("python-dotenv (recommandé pour charger .env)")
+    if not args.no_calendar and sys.platform == "darwin" and not _has_module("EventKit"):
+        missing.append("pyobjc-framework-EventKit (requis pour sync Apple Calendar)")
+
+    if missing:
+        print("⚠️  Dépendances manquantes détectées :")
+        for dep in missing:
+            print(f"   - {dep}")
+        print("   Installez avec : python3 -m pip install fitparse garminconnect python-dotenv pyobjc-framework-EventKit --break-system-packages")
+        print()
+
+
+def _compute_data_quality(conn: sqlite3.Connection) -> dict:
+    """Calcule des indicateurs qualité data pour l'affichage dashboard."""
+    activity_by_source = [dict(r) for r in conn.execute(
+        """
+        SELECT source, COUNT(*) AS n, MIN(date(started_at)) AS first_date, MAX(date(started_at)) AS last_date
+        FROM activities GROUP BY source ORDER BY source
+        """
+    ).fetchall()]
+
+    metrics_by_source = [dict(r) for r in conn.execute(
+        "SELECT source, COUNT(*) AS n FROM health_metrics GROUP BY source ORDER BY source"
+    ).fetchall()]
+
+    freshness = [dict(r) for r in conn.execute(
+        """
+        SELECT metric, MAX(date) AS last_date,
+               CAST(julianday('now') - julianday(MAX(date)) AS INT) AS days_old
+        FROM health_metrics
+        GROUP BY metric
+        ORDER BY days_old ASC
+        """
+    ).fetchall()]
+
+    duplicates = conn.execute(
+        """
+        WITH g AS (
+          SELECT lower(type) AS t, date(started_at) AS d,
+                 CAST(ROUND(COALESCE(duration_s,0)/300.0)*300 AS INT) AS dur5,
+                 COUNT(*) AS n
+          FROM activities
+          WHERE started_at IS NOT NULL
+          GROUP BY t,d,dur5
+          HAVING COUNT(*) > 1
+        )
+        SELECT COALESCE(SUM(n),0) FROM g
+        """
+    ).fetchone()[0] or 0
+
+    ex_total, ex_name_missing, ex_weight_missing = conn.execute(
+        """
+        SELECT COUNT(*),
+               SUM(CASE WHEN exercise_name IS NULL OR trim(exercise_name)='' OR lower(exercise_name)='none' THEN 1 ELSE 0 END),
+               SUM(CASE WHEN weight_kg IS NULL OR weight_kg<=0 THEN 1 ELSE 0 END)
+        FROM exercise_sets
+        """
+    ).fetchone()
+    ex_total = ex_total or 0
+    ex_name_missing = ex_name_missing or 0
+    ex_weight_missing = ex_weight_missing or 0
+
+    stale_critical = [
+        x for x in freshness
+        if x["metric"] in ("hrv_sdnn", "rhr", "sleep_h") and (x["days_old"] or 9999) > 45
+    ]
+
+    completeness_penalty = 0
+    if ex_total:
+        completeness_penalty += (ex_name_missing / ex_total) * 12
+        completeness_penalty += (ex_weight_missing / ex_total) * 8
+    duplicate_penalty = min(15, duplicates / 10)
+    stale_penalty = min(25, len(stale_critical) * 8)
+    score = max(0.0, 100.0 - completeness_penalty - duplicate_penalty - stale_penalty)
+
+    return {
+        "score": round(score, 1),
+        "activity_by_source": activity_by_source,
+        "metrics_by_source": metrics_by_source,
+        "freshness": freshness,
+        "duplicates_rows": int(duplicates),
+        "exercise_sets_total": int(ex_total),
+        "exercise_name_missing_pct": round((ex_name_missing / ex_total) * 100, 1) if ex_total else 0.0,
+        "exercise_weight_missing_pct": round((ex_weight_missing / ex_total) * 100, 1) if ex_total else 0.0,
+    }
+
+
+def deduplicate_activities(db_path: Path) -> int:
+    """
+    Supprime les doublons inter-sources (type + date + durée arrondie 5 min),
+    en conservant la meilleure source (Strava > Garmin > Apple).
+    Ne touche pas aux activités liées aux séances de musculation.
+    """
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("PRAGMA foreign_keys=ON")
+
+    before = conn.execute("SELECT COUNT(*) FROM activities").fetchone()[0]
+    conn.execute(
+        """
+        WITH ranked AS (
+            SELECT
+                a.id,
+                ROW_NUMBER() OVER (
+                    PARTITION BY lower(COALESCE(a.type,'')),
+                                 date(a.started_at),
+                                 CAST(ROUND(COALESCE(a.duration_s,0)/300.0)*300 AS INT)
+                    ORDER BY
+                        CASE a.source
+                            WHEN 'strava_fit' THEN 0
+                            WHEN 'garmin_connect' THEN 1
+                            WHEN 'apple_health' THEN 2
+                            ELSE 9
+                        END ASC,
+                        (CASE WHEN a.avg_hr IS NOT NULL THEN 1 ELSE 0 END +
+                         CASE WHEN a.calories IS NOT NULL THEN 1 ELSE 0 END +
+                         CASE WHEN a.distance_m IS NOT NULL THEN 1 ELSE 0 END) DESC,
+                        a.id ASC
+                ) AS rn
+            FROM activities a
+            WHERE a.started_at IS NOT NULL
+        )
+        DELETE FROM activities
+        WHERE id IN (
+            SELECT r.id
+            FROM ranked r
+            WHERE r.rn > 1
+        )
+        AND id NOT IN (
+            SELECT activity_id FROM strength_sessions WHERE activity_id IS NOT NULL
+        )
+        """
+    )
+    conn.commit()
+    after = conn.execute("SELECT COUNT(*) FROM activities").fetchone()[0]
+    conn.close()
+    return max(0, before - after)
 
 
 def backup_db(db_path: Path) -> None:
@@ -104,6 +258,12 @@ def main():
                         help="Fenêtre analyse musculaire (semaines)")
     parser.add_argument("--audit",      action="store_true",
                         help="Afficher rapport d'audit des données")
+    parser.add_argument("--calendar-days", type=int, default=21,
+                        help="Fenêtre agenda Apple Calendar (jours à venir)")
+    parser.add_argument("--no-calendar", action="store_true",
+                        help="Désactiver la sync agenda Apple Calendar")
+    parser.add_argument("--no-dedup", action="store_true",
+                        help="Désactiver la déduplication inter-sources des activités")
     args = parser.parse_args()
 
     banner()
@@ -115,6 +275,7 @@ def main():
                   REPORTS_DIR / f"dashboard_{date.today()}.html"
 
     check_sources(ah_xml, strava_dir)
+    check_runtime_dependencies(args)
 
     # ─── Reset optionnel ─────────────────────────────────────────
     if args.reset:
@@ -133,6 +294,7 @@ def main():
     print()
 
     garmin_connected = False
+    calendar_sync = {"enabled": False, "error": "disabled", "events_synced": 0}
 
     if not args.skip_parse:
         # ─── 2. Apple Health ─────────────────────────────────────
@@ -178,7 +340,37 @@ def main():
         else:
             print("ℹ️  Garmin Connect : non activé (utilisez --garmin pour synchroniser)\n")
 
-    # ─── 5. Audit optionnel ──────────────────────────────────────
+    # ─── 4.5 Dédup activités (optionnel) ────────────────────────
+    if not args.no_dedup:
+        removed = deduplicate_activities(db_path)
+        print(f"🧹 Dédup activités : {removed} doublons supprimés")
+        print()
+
+    # ─── 5.0 Agenda Apple Calendar (optionnel) ──────────────────
+    if not args.no_calendar:
+        try:
+            from integrations.apple_calendar import sync_apple_calendar
+            calendar_sync = sync_apple_calendar(
+                db_path=db_path,
+                days_ahead=args.calendar_days,
+            )
+            if calendar_sync.get("enabled"):
+                print(f"🗓️  Apple Calendar : {calendar_sync.get('events_synced',0)} événements synchronisés")
+            else:
+                err = calendar_sync.get("error", "indisponible")
+                print(f"🗓️  Apple Calendar : {err}")
+                if err == "calendar_permission_denied":
+                    print("   → Autorisez le calendrier dans:")
+                    print("     Réglages Système > Confidentialité et sécurité > Calendriers")
+                    print("     puis relancez python3 main.py")
+                elif err == "eventkit_unavailable":
+                    print("   → Installez EventKit: python3 -m pip install pyobjc-framework-EventKit --break-system-packages")
+        except Exception as e:
+            calendar_sync = {"enabled": False, "error": str(e), "events_synced": 0}
+            print(f"🗓️  Apple Calendar : erreur ({e})")
+        print()
+
+    # ─── 6. Audit optionnel ──────────────────────────────────────
     if args.audit:
         _print_audit(db_path)
 
@@ -186,7 +378,6 @@ def main():
     print("📈 Calcul charge d'entraînement…")
     from analytics.training_load import run as run_training
     training = run_training(db_path=db_path, verbose=True)
-    training["garmin_connected"] = garmin_connected
     print()
 
     print(f"💪 Analyse musculaire ({args.weeks_muscle} semaines)…")
@@ -206,7 +397,29 @@ def main():
             "SELECT date, ctl, atl, tsb, tss FROM daily_load ORDER BY date"
         ).fetchall()
     ]
+    has_garmin_data = conn.execute(
+        "SELECT COUNT(*) FROM activities WHERE source='garmin_connect'"
+    ).fetchone()[0] > 0
+    data_quality = _compute_data_quality(conn)
+
+    agenda_events = []
+    if not args.no_calendar:
+        try:
+            from integrations.apple_calendar import get_upcoming_events
+            agenda_events = get_upcoming_events(
+                db_path=db_path,
+                days_ahead=args.calendar_days,
+                limit=40,
+            )
+        except Exception:
+            agenda_events = []
+
     conn.close()
+
+    training["garmin_connected"] = garmin_connected or has_garmin_data
+    training["calendar_sync"] = calendar_sync
+    training["agenda_events"] = agenda_events
+    training["data_quality"] = data_quality
 
     # ─── 8. Dashboard HTML ───────────────────────────────────────
     print("🎨 Génération dashboard HTML…")
@@ -233,7 +446,7 @@ def main():
     if not args.garmin:
         print()
         print("  Tip : Ajoutez --garmin pour synchroniser les donnees Garmin")
-        print("        (incluant votre seance du 02/03/2026)")
+        print("        et enrichir les métriques récentes")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print()
 
@@ -247,7 +460,8 @@ def _print_audit(db_path: Path):
 
     # Comptes par table
     for tbl in ["activities", "strength_sessions", "exercise_sets",
-                "health_metrics", "daily_load"]:
+                "health_metrics", "daily_load", "weekly_muscle_volume",
+                "calendar_events"]:
         n = conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0]
         print(f"  {tbl:<25} {n:>6} lignes")
     print()
