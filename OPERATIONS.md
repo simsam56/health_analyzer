@@ -26,6 +26,12 @@ python3 main.py --garmin --days 90 --skip-parse
 python3 main.py --skip-parse
 ```
 
+- Mode cockpit interactif (UI persistante DB + API locale):
+```bash
+python3 main.py --skip-parse --garmin --days 90 --serve
+```
+Puis ouvrir: `http://127.0.0.1:8765`
+
 - Ajouter une tâche dans le planning (et Apple Calendar si activé):
 ```bash
 python3 main.py --add-task "10km tempo" --task-category sante --task-date 2026-12-11 --task-time 14:00 --task-duration-min 70 --task-sync-apple
@@ -51,6 +57,7 @@ python3 main.py --skip-parse --no-dedup
 - Dashboard: `reports/dashboard_YYYY-MM-DD.html`
 - DB SQLite: `athlete.db`
 - Logs sync Garmin auto: `garmin_sync.log`
+- API planner (mode serveur): `/api/planner/...`
 
 ## 4) Apple Calendar (permission macOS)
 

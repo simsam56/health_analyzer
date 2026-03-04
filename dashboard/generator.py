@@ -546,6 +546,17 @@ input, select {
   font-size: 13px;
   background: #fff;
 }
+.checkline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.checkline input {
+  width: auto;
+}
 .modal-actions {
   display: flex;
   justify-content: space-between;
@@ -712,6 +723,10 @@ input, select {
         <label>Heure</label>
         <input id="fTime" type="time" value="09:00" />
       </div>
+      <div class="full checkline">
+        <input id="fSyncApple" type="checkbox" checked />
+        <span>Synchroniser avec Apple Calendar</span>
+      </div>
     </div>
     <div class="modal-actions">
       <button class="btn-danger" id="deleteBtn" style="display:none;">Supprimer</button>
@@ -720,7 +735,7 @@ input, select {
         <button class="btn-primary" id="saveBtn">Enregistrer</button>
       </div>
     </div>
-    <div class="muted" style="font-size:11px; margin-top:8px;">MVP: modifications locales navigateur. Pour sync durable Apple: utilise la commande CLI --add-task --task-sync-apple.</div>
+    <div class="muted" style="font-size:11px; margin-top:8px;">Mode serveur: persistance SQLite + sync Apple bidirectionnelle. Mode fichier local: fallback localStorage.</div>
   </div>
 </div>
 
@@ -731,6 +746,8 @@ const BASE_EVENTS = __PLANNER_EVENTS__;
 const STORAGE_KEY = 'performos_planner_v1';
 const WEEK_START_ISO = '__WEEK_START__';
 const GOAL_TARGET = __GOAL_TARGET_NUM__;
+let API_ENABLED = location.protocol.startsWith('http');
+const API_BASE = '/api/planner';
 
 const PROG = {
   hours: { labels: __HOURS_LABELS__, values: __HOURS_VALUES__ },
@@ -741,6 +758,7 @@ const PROG = {
 
 let weekOffset = 0;
 let editingId = null;
+let currentEvents = [];
 
 function parseIso(s) {
   if (!s) return null;
@@ -831,6 +849,24 @@ function mergedEvents() {
   return base.concat(extra);
 }
 
+async function fetchApiEvents(startIso, endIso) {
+  const url = API_BASE + '/events?start=' + encodeURIComponent(startIso) + '&end=' + encodeURIComponent(endIso);
+  const r = await fetch(url, { method: 'GET' });
+  if (!r.ok) throw new Error('planner_api_unavailable');
+  const payload = await r.json();
+  const evts = (payload.events || []).map((ev, idx) => {
+    const uid = String(ev.id || ev.task_id || ('api:' + idx));
+    const x = Object.assign({}, ev);
+    x._uid = uid;
+    return x;
+  });
+  return evts;
+}
+
+function findCurrentEvent(uid) {
+  return currentEvents.find(e => e._uid === uid);
+}
+
 function eventDurationMin(ev) {
   const s = parseIso(ev.start_at);
   const e = parseIso(ev.end_at);
@@ -871,8 +907,81 @@ function createCustomEvent(ev) {
   saveState(state);
 }
 
-function moveEventToDate(uid, newDateIso) {
-  const ev = mergedEvents().find(x => x._uid === uid);
+async function updateEvent(uid, payload) {
+  const ev = findCurrentEvent(uid);
+  if (!ev) return;
+
+  if (API_ENABLED) {
+    try {
+      let route = null;
+      if (ev.task_id) route = API_BASE + '/tasks/' + ev.task_id;
+      else if (ev.id && String(ev.id).startsWith('task:')) route = API_BASE + '/tasks/' + String(ev.id).split(':')[1];
+      else if (ev.calendar_uid) route = API_BASE + '/apple/' + encodeURIComponent(ev.calendar_uid);
+      else if (ev.id && String(ev.id).startsWith('apple:')) route = API_BASE + '/apple/' + encodeURIComponent(String(ev.id).slice(6));
+
+      if (route) {
+        const body = Object.assign({}, payload, { sync_apple: true });
+        const r = await fetch(route, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error('update_failed');
+        return;
+      }
+    } catch (_) {
+      API_ENABLED = false;
+    }
+  }
+
+  // fallback local
+  setEvent(uid, payload);
+}
+
+async function removeEvent(uid) {
+  const ev = findCurrentEvent(uid);
+  if (!ev) return;
+
+  if (API_ENABLED) {
+    try {
+      let route = null;
+      if (ev.task_id) route = API_BASE + '/tasks/' + ev.task_id;
+      else if (ev.id && String(ev.id).startsWith('task:')) route = API_BASE + '/tasks/' + String(ev.id).split(':')[1];
+      else if (ev.calendar_uid) route = API_BASE + '/apple/' + encodeURIComponent(ev.calendar_uid);
+      else if (ev.id && String(ev.id).startsWith('apple:')) route = API_BASE + '/apple/' + encodeURIComponent(String(ev.id).slice(6));
+
+      if (route) {
+        const r = await fetch(route, { method: 'DELETE' });
+        if (!r.ok) throw new Error('delete_failed');
+        return;
+      }
+    } catch (_) {
+      API_ENABLED = false;
+    }
+  }
+
+  deleteEvent(uid);
+}
+
+async function createEvent(payload) {
+  if (API_ENABLED) {
+    try {
+      const r = await fetch(API_BASE + '/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) throw new Error('create_failed');
+      return;
+    } catch (_) {
+      API_ENABLED = false;
+    }
+  }
+  createCustomEvent(payload);
+}
+
+async function moveEventToDate(uid, newDateIso) {
+  const ev = findCurrentEvent(uid) || mergedEvents().find(x => x._uid === uid);
   if (!ev) return;
   const s = parseIso(ev.start_at);
   const e = parseIso(ev.end_at);
@@ -881,8 +990,8 @@ function moveEventToDate(uid, newDateIso) {
 
   const movedStart = new Date(newDateIso + 'T' + hm(s) + ':00');
   const movedEnd = new Date(movedStart.getTime() + dur);
-  setEvent(uid, { start_at: toIsoNoMs(movedStart), end_at: toIsoNoMs(movedEnd) });
-  renderWeek();
+  await updateEvent(uid, { start_at: toIsoNoMs(movedStart), end_at: toIsoNoMs(movedEnd) });
+  await renderWeek();
 }
 
 function openModal(ev) {
@@ -899,6 +1008,7 @@ function openModal(ev) {
     document.getElementById('fDate').value = isoDate(s);
     document.getElementById('fTime').value = hm(s);
     document.getElementById('fDuration').value = eventDurationMin(ev);
+    document.getElementById('fSyncApple').checked = true;
   } else {
     title.textContent = 'Ajouter activité';
     delBtn.style.display = 'none';
@@ -908,6 +1018,7 @@ function openModal(ev) {
     document.getElementById('fDate').value = isoDate(now);
     document.getElementById('fTime').value = '09:00';
     document.getElementById('fDuration').value = 60;
+    document.getElementById('fSyncApple').checked = true;
   }
 
   document.getElementById('modalBg').style.display = 'flex';
@@ -918,12 +1029,13 @@ function closeModal() {
   document.getElementById('modalBg').style.display = 'none';
 }
 
-function submitModal() {
+async function submitModal() {
   const title = (document.getElementById('fTitle').value || '').trim() || TYPE_DEFS[document.getElementById('fType').value].label;
   const type = document.getElementById('fType').value;
   const dateIso = document.getElementById('fDate').value;
   const timeIso = document.getElementById('fTime').value || '09:00';
   const duration = Math.max(5, Number(document.getElementById('fDuration').value || 60));
+  const syncApple = !!document.getElementById('fSyncApple').checked;
 
   if (!dateIso) return;
 
@@ -943,21 +1055,23 @@ function submitModal() {
     calendar_name: '',
   };
 
-  if (editingId) {
-    setEvent(editingId, payload);
-  } else {
-    createCustomEvent(payload);
-  }
+  if (editingId) await updateEvent(editingId, payload);
+  else await createEvent(Object.assign({}, payload, {
+    task_date: dateIso,
+    task_time: timeIso + ':00',
+    duration_min: duration,
+    sync_apple: syncApple,
+  }));
 
   closeModal();
-  renderWeek();
+  await renderWeek();
 }
 
-function removeModalEvent() {
+async function removeModalEvent() {
   if (!editingId) return;
-  deleteEvent(editingId);
+  await removeEvent(editingId);
   closeModal();
-  renderWeek();
+  await renderWeek();
 }
 
 function categoryDurations(events) {
@@ -996,17 +1110,32 @@ function renderCategoryBars(durations) {
   wrap.innerHTML = html;
 }
 
-function renderWeek() {
+async function renderWeek() {
   const baseStart = startOfWeek(parseIso(WEEK_START_ISO) || new Date());
   const start = addDays(baseStart, weekOffset * 7);
   const end = addDays(start, 7);
 
   document.getElementById('weekLabel').textContent = isoDate(start) + ' → ' + isoDate(addDays(end, -1));
 
-  const events = mergedEvents().filter(ev => {
+  let allEvents = [];
+  if (API_ENABLED) {
+    try {
+      const startIso = isoDate(start) + 'T00:00:00';
+      const endIso = isoDate(addDays(end, 1)) + 'T00:00:00';
+      allEvents = await fetchApiEvents(startIso, endIso);
+    } catch (_) {
+      API_ENABLED = false;
+      allEvents = mergedEvents();
+    }
+  } else {
+    allEvents = mergedEvents();
+  }
+
+  const events = allEvents.filter(ev => {
     const s = parseIso(ev.start_at);
     return s && s >= start && s < end;
   });
+  currentEvents = events.slice();
 
   const durations = categoryDurations(events);
   const total = durations.sante + durations.travail + durations.relationnel + durations.apprentissage + durations.autre;
@@ -1097,8 +1226,7 @@ function renderWeek() {
       card.querySelector('.event-x').addEventListener('click', evDel => {
         evDel.stopPropagation();
         if (confirm('Supprimer cette activité ?')) {
-          deleteEvent(ev._uid);
-          renderWeek();
+          removeEvent(ev._uid).then(renderWeek);
         }
       });
 
@@ -1159,8 +1287,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('openAdd').addEventListener('click', () => openModal(null));
   document.getElementById('cancelBtn').addEventListener('click', closeModal);
-  document.getElementById('saveBtn').addEventListener('click', submitModal);
-  document.getElementById('deleteBtn').addEventListener('click', removeModalEvent);
+  document.getElementById('saveBtn').addEventListener('click', () => { submitModal(); });
+  document.getElementById('deleteBtn').addEventListener('click', () => { removeModalEvent(); });
   document.getElementById('modalBg').addEventListener('click', (e) => {
     if (e.target.id === 'modalBg') closeModal();
   });

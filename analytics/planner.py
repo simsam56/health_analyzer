@@ -67,6 +67,12 @@ def parse_task_datetime(task_date: str, task_time: str, duration_min: int) -> tu
     )
 
 
+def connect_db(db_path: str | Path) -> sqlite3.Connection:
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
 def add_task(
     db_path: str | Path,
     title: str,
@@ -137,6 +143,133 @@ def add_task(
     }
 
 
+def update_task(
+    db_path: str | Path,
+    task_id: int,
+    title: str,
+    category: str,
+    start_at: str,
+    end_at: str,
+    notes: str | None = None,
+    sync_apple: bool = True,
+) -> dict:
+    """Met à jour une tâche planner, et éventuellement son événement Apple lié."""
+    conn = connect_db(db_path)
+    cur = conn.cursor()
+    row = cur.execute(
+        "SELECT id, source, calendar_uid FROM planner_tasks WHERE id=?",
+        (int(task_id),),
+    ).fetchone()
+    if not row:
+        conn.close()
+        return {"ok": False, "error": "task_not_found"}
+
+    calendar_uid = row["calendar_uid"]
+    source = row["source"] or "local"
+    sync_error = None
+
+    if sync_apple and source == "apple_calendar" and calendar_uid:
+        try:
+            from integrations.apple_calendar import update_apple_calendar_event
+            res = update_apple_calendar_event(
+                event_uid=calendar_uid,
+                title=title,
+                start_at=start_at,
+                end_at=end_at,
+                notes=notes,
+            )
+            if not res.get("enabled"):
+                sync_error = res.get("error")
+        except Exception as e:
+            sync_error = str(e)
+
+    cur.execute(
+        """
+        UPDATE planner_tasks
+        SET title=?, category=?, start_at=?, end_at=?, notes=?, updated_at=?
+        WHERE id=?
+        """,
+        (
+            title.strip(),
+            normalize_category(category),
+            start_at,
+            end_at,
+            notes.strip() if notes else None,
+            now_iso(),
+            int(task_id),
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return {
+        "ok": True,
+        "task_id": int(task_id),
+        "sync_error": sync_error,
+    }
+
+
+def delete_task(
+    db_path: str | Path,
+    task_id: int,
+    sync_apple: bool = True,
+) -> dict:
+    """Supprime une tâche planner (+ suppression Apple si liée)."""
+    conn = connect_db(db_path)
+    cur = conn.cursor()
+    row = cur.execute(
+        "SELECT id, source, calendar_uid FROM planner_tasks WHERE id=?",
+        (int(task_id),),
+    ).fetchone()
+    if not row:
+        conn.close()
+        return {"ok": False, "error": "task_not_found"}
+
+    sync_error = None
+    if sync_apple and (row["source"] == "apple_calendar") and row["calendar_uid"]:
+        try:
+            from integrations.apple_calendar import delete_apple_calendar_event
+            res = delete_apple_calendar_event(event_uid=row["calendar_uid"])
+            if not res.get("enabled"):
+                sync_error = res.get("error")
+        except Exception as e:
+            sync_error = str(e)
+
+    cur.execute("DELETE FROM planner_tasks WHERE id=?", (int(task_id),))
+    conn.commit()
+    conn.close()
+    return {"ok": True, "task_id": int(task_id), "sync_error": sync_error}
+
+
+def update_apple_only_event(
+    event_uid: str,
+    title: str,
+    start_at: str,
+    end_at: str,
+    notes: str | None = None,
+) -> dict:
+    """Met à jour un événement Apple non géré par planner_tasks."""
+    try:
+        from integrations.apple_calendar import update_apple_calendar_event
+        return update_apple_calendar_event(
+            event_uid=event_uid,
+            title=title,
+            start_at=start_at,
+            end_at=end_at,
+            notes=notes,
+        )
+    except Exception as e:
+        return {"enabled": False, "error": str(e)}
+
+
+def delete_apple_only_event(event_uid: str) -> dict:
+    """Supprime un événement Apple non géré par planner_tasks."""
+    try:
+        from integrations.apple_calendar import delete_apple_calendar_event
+        return delete_apple_calendar_event(event_uid=event_uid)
+    except Exception as e:
+        return {"enabled": False, "error": str(e)}
+
+
 def _event_duration_h(start_at: str, end_at: str) -> float:
     try:
         start = datetime.fromisoformat(start_at[:19])
@@ -156,7 +289,7 @@ def get_planner_events(
     tasks = [dict(r) for r in conn.execute(
         """
         SELECT
-          id, title, category, start_at, end_at, notes, status, source
+          id, title, category, start_at, end_at, notes, status, source, calendar_uid
         FROM planner_tasks
         WHERE status!='cancelled'
           AND start_at>=? AND start_at<=?
@@ -177,33 +310,59 @@ def get_planner_events(
     ).fetchall()]
 
     rows: list[dict] = []
+    task_calendar_keys = set()
     for t in tasks:
+        cal_uid = t.get("calendar_uid")
+        if cal_uid and t.get("start_at"):
+            task_calendar_keys.add((str(cal_uid), str(t.get("start_at"))[:16]))
+
         rows.append({
-            "id": t.get("id"),
+            "id": f"task:{t.get('id')}",
+            "task_id": t.get("id"),
             "title": t.get("title") or "Tâche",
             "category": normalize_category(t.get("category")),
             "start_at": t.get("start_at"),
             "end_at": t.get("end_at"),
             "notes": t.get("notes"),
             "source": t.get("source") or "local",
+            "calendar_uid": cal_uid,
             "calendar_name": None,
+            "editable": True,
         })
 
     for e in cals:
+        uid = str(e.get("event_uid") or "")
+        start_key = str(e.get("start_at") or "")[:16]
+        if (uid, start_key) in task_calendar_keys:
+            continue
         title = e.get("title") or "Événement"
         cal_name = e.get("calendar_name")
         rows.append({
-            "id": e.get("event_uid"),
+            "id": f"apple:{uid}",
+            "task_id": None,
             "title": title,
             "category": infer_category(title, cal_name),
             "start_at": e.get("start_at"),
             "end_at": e.get("end_at"),
             "notes": e.get("notes"),
             "source": "apple_calendar",
+            "calendar_uid": uid,
             "calendar_name": cal_name,
+            "editable": True,
         })
 
     rows.sort(key=lambda x: x.get("start_at") or "")
+    return rows
+
+
+def get_planner_events_db(
+    db_path: str | Path,
+    start_at: str,
+    end_at: str,
+) -> list[dict]:
+    conn = connect_db(db_path)
+    rows = get_planner_events(conn, start_at=start_at, end_at=end_at)
+    conn.close()
     return rows
 
 

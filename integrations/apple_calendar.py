@@ -170,6 +170,113 @@ def create_apple_calendar_event(
     }
 
 
+def _find_event_by_uid(store, event_uid: str):
+    """Find an EventKit event from multiple identifier methods."""
+    if not event_uid:
+        return None
+    for method in (
+        "eventWithIdentifier_",
+        "calendarItemWithIdentifier_",
+        "eventWithUniqueIdentifier_",
+        "eventWithEventIdentifier_",
+    ):
+        if not hasattr(store, method):
+            continue
+        try:
+            ev = getattr(store, method)(event_uid)
+            if ev is not None:
+                return ev
+        except Exception:
+            continue
+    return None
+
+
+def update_apple_calendar_event(
+    event_uid: str,
+    title: str | None = None,
+    start_at: str | None = None,
+    end_at: str | None = None,
+    notes: str | None = None,
+    location: str | None = None,
+) -> dict:
+    """Update an existing Apple Calendar event."""
+    if sys.platform != "darwin":
+        return {"enabled": False, "error": "apple_calendar_macos_only"}
+
+    try:
+        from EventKit import EKSpanThisEvent  # type: ignore
+    except Exception:
+        return {"enabled": False, "error": "eventkit_unavailable"}
+
+    store, _, err = _get_store_and_access()
+    if err:
+        return {"enabled": False, "error": err}
+
+    ev = _find_event_by_uid(store, event_uid)
+    if ev is None:
+        return {"enabled": False, "error": "event_not_found"}
+
+    if title is not None:
+        ev.setTitle_(str(title))
+    if start_at:
+        ns = _nsdate_from_iso(start_at)
+        if ns is not None:
+            ev.setStartDate_(ns)
+    if end_at:
+        ne = _nsdate_from_iso(end_at)
+        if ne is not None:
+            ev.setEndDate_(ne)
+    if notes is not None:
+        ev.setNotes_(str(notes))
+    if location is not None:
+        ev.setLocation_(str(location))
+
+    try:
+        ok, save_err = store.saveEvent_span_commit_error_(ev, EKSpanThisEvent, True, None)
+    except Exception:
+        try:
+            ok, save_err = store.saveEvent_span_error_(ev, EKSpanThisEvent, None)
+        except Exception as e:
+            return {"enabled": False, "error": str(e)}
+
+    if not ok:
+        return {"enabled": False, "error": str(save_err) if save_err else "save_failed"}
+
+    return {"enabled": True, "error": None, "event_uid": event_uid}
+
+
+def delete_apple_calendar_event(event_uid: str) -> dict:
+    """Delete an Apple Calendar event by uid."""
+    if sys.platform != "darwin":
+        return {"enabled": False, "error": "apple_calendar_macos_only"}
+
+    try:
+        from EventKit import EKSpanThisEvent  # type: ignore
+    except Exception:
+        return {"enabled": False, "error": "eventkit_unavailable"}
+
+    store, _, err = _get_store_and_access()
+    if err:
+        return {"enabled": False, "error": err}
+
+    ev = _find_event_by_uid(store, event_uid)
+    if ev is None:
+        return {"enabled": False, "error": "event_not_found"}
+
+    try:
+        ok, del_err = store.removeEvent_span_commit_error_(ev, EKSpanThisEvent, True, None)
+    except Exception:
+        try:
+            ok, del_err = store.removeEvent_span_error_(ev, EKSpanThisEvent, None)
+        except Exception as e:
+            return {"enabled": False, "error": str(e)}
+
+    if not ok:
+        return {"enabled": False, "error": str(del_err) if del_err else "delete_failed"}
+
+    return {"enabled": True, "error": None, "event_uid": event_uid}
+
+
 def sync_apple_calendar(
     db_path: str | Path,
     days_ahead: int = 21,

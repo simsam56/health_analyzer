@@ -31,6 +31,7 @@ import sqlite3
 import sys
 import shutil
 import importlib.util
+import subprocess
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -339,6 +340,10 @@ def main():
                         help="Créer aussi l'événement dans Apple Calendar")
     parser.add_argument("--task-calendar", default=None,
                         help="Nom calendrier Apple cible (optionnel)")
+    parser.add_argument("--serve", action="store_true",
+                        help="Lance un serveur local pour interactions UI persistantes")
+    parser.add_argument("--serve-port", type=int, default=8765,
+                        help="Port du serveur local PerformOS")
     args = parser.parse_args()
 
     banner()
@@ -584,6 +589,21 @@ def main():
         print("        et enrichir les métriques récentes")
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
     print()
+
+    if args.serve:
+        url = f"http://127.0.0.1:{args.serve_port}"
+        print(f"🌐 Lancement serveur cockpit: {url}")
+        try:
+            subprocess.Popen(["open", url])
+        except Exception:
+            pass
+        from cockpit_server import serve as serve_cockpit
+        serve_cockpit(
+            dashboard_path=output_path,
+            db_path=db_path,
+            host="127.0.0.1",
+            port=args.serve_port,
+        )
 
 
 def _print_audit(db_path: Path):
