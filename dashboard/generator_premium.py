@@ -209,6 +209,18 @@ body{background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,'SF Pro T
 .tag{display:inline-flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:11px;font-weight:600;}
 @media(max-width:1200px){.grid-4{grid-template-columns:repeat(2,1fr);}.grid-main{grid-template-columns:1fr;}.grid-perf{grid-template-columns:1fr;}}
 @media(max-width:800px){.grid-3{grid-template-columns:1fr 1fr;}.pred-grid{grid-template-columns:repeat(2,1fr);}}
+.quick-templates{display:flex;flex-wrap:wrap;gap:8px;}
+.qtpl{border:1px solid var(--border);background:var(--card2);color:var(--muted);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit;}
+.qtpl:hover{color:var(--text);border-color:var(--accent);background:rgba(99,102,241,0.12);}
+.apple-sync-btn{width:100%;background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;font-size:12px;font-weight:600;color:var(--text);cursor:pointer;transition:all .15s;font-family:inherit;text-align:left;}
+.apple-sync-btn:hover{border-color:rgba(255,255,255,0.25);background:rgba(255,255,255,0.04);}
+.idea-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;margin-bottom:6px;background:var(--surface);border:1px solid var(--border);transition:all .15s;}
+.idea-item:hover{border-color:rgba(255,255,255,0.15);}
+.idea-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.idea-text{font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.idea-meta{font-size:10px;color:var(--muted);flex-shrink:0;white-space:nowrap;}
+.idea-del{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:12px;padding:2px 5px;border-radius:4px;opacity:0;transition:opacity .1s;flex-shrink:0;}
+.idea-item:hover .idea-del{opacity:1;}
 """
 
 
@@ -261,6 +273,54 @@ def generate_html(
 
     planner_events = _prepare_pilot_events(pilotage.get("events", []))
     planner_events_json = _jse(planner_events)
+
+    # ─── Pilotage computation ─────────────────────────────────
+    week_start = pilotage.get("week_start", str(today))
+    summary = pilotage.get("summary", {})
+    sante_h = float(summary.get("sante_h", 0) or 0)
+    travail_h = float(summary.get("travail_h", 0) or 0)
+    relationnel_h = float(summary.get("relationnel_h", 0) or 0)
+    apprentissage_h = float(summary.get("apprentissage_h", 0) or 0)
+    total_h = float(summary.get("total_h", 0) or 0)
+    goal_h = 6.0
+    goal_done = sante_h
+    goal_left = max(0.0, goal_h - goal_done)
+    goal_pct = min(100.0, (goal_done / goal_h) * 100 if goal_h else 0)
+    try:
+        ws = date.fromisoformat(str(week_start)[:10])
+    except Exception:
+        ws = today
+    we = ws + timedelta(days=7)
+    load_split: dict = {"cardio": 0.0, "musculation": 0.0, "mobilite": 0.0, "sport_libre": 0.0}
+    for _ev in pilotage.get("events", []):
+        _sraw = str(_ev.get("start_at") or "")
+        if len(_sraw) < 10:
+            continue
+        try:
+            _d_ev = date.fromisoformat(_sraw[:10])
+        except Exception:
+            continue
+        if not (ws <= _d_ev < we):
+            continue
+        try:
+            _eraw = str(_ev.get("end_at") or "")
+            _sdt = datetime.fromisoformat(_sraw.replace("Z", ""))
+            _edt = datetime.fromisoformat(_eraw.replace("Z", ""))
+            _dur_h = max(0.0, (_edt - _sdt).total_seconds() / 3600.0)
+        except Exception:
+            _dur_h = 0.0
+        _t = _infer_event_type(_ev)
+        if _t in load_split:
+            load_split[_t] += _dur_h
+    cal_status = "Synchro OK" if garmin_ok else "En attente"
+    cal_badge_class = "ok" if garmin_ok else "warn"
+    pending_count = sum(1 for _ev in pilotage.get("events", [])
+                        if _ev.get("source") == "local" and not _ev.get("synced_to_apple"))
+    pending_label = escape(f"{pending_count} tâche(s) à synchroniser" if pending_count
+                           else "Aucune tâche en attente")
+    goal_status_text = escape("✅ Objectif atteint !" if goal_pct >= 100
+                               else f"Reste {goal_left:.1f}h pour atteindre l'objectif")
+    goal_fill_color = "#10b981" if goal_pct >= 100 else "#6366f1"
 
     pmc_labels, pmc_ctl, pmc_atl, pmc_tsb = [], [], [], []
     for r in daily_load_rows[-90:]:
@@ -407,6 +467,51 @@ def generate_html(
     last_strength_days = agent_strength.get("last_session_days_ago", 0) or 0
     consistency = agent_running.get("consistency_score", 0)
     last_run_days = agent_running.get("last_run_days_ago", 999)
+
+    # ─── Pilotage sidebar HTML builders ────────────────────────
+    cockpit_categories_html = ""
+    for _icon, _lbl, _val, _color in [
+        ("🏃", "Santé / Sport", sante_h, "#10b981"),
+        ("💼", "Travail", travail_h, "#3b82f6"),
+        ("💬", "Relationnel", relationnel_h, "#ec4899"),
+        ("📚", "Apprentissage", apprentissage_h, "#eab308"),
+    ]:
+        _pct2 = min(100.0, _val / max(total_h, 0.01) * 100) if total_h else 0
+        cockpit_categories_html += (
+            f'<div style="display:flex;align-items:center;gap:10px;padding:9px 0;'
+            f'border-bottom:1px solid rgba(255,255,255,0.07)">'
+            f'<span style="font-size:15px;width:22px;text-align:center">{_icon}</span>'
+            f'<div style="flex:1">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'
+            f'<span style="font-size:12px;font-weight:600">{escape(_lbl)}</span>'
+            f'<span style="font-size:14px;font-weight:800;color:{_color}">{_val:.1f}h</span>'
+            f'</div>'
+            f'<div style="height:5px;background:rgba(255,255,255,0.07);border-radius:3px;overflow:hidden">'
+            f'<div style="height:100%;width:{_pct2:.0f}%;background:{_color};border-radius:3px;'
+            f'transition:width .8s ease"></div>'
+            f'</div>'
+            f'</div>'
+            f'</div>'
+        )
+
+    load_split_rows_html = ""
+    for _t2, _max_h2 in [("cardio", 5.0), ("musculation", 5.0), ("mobilite", 3.0), ("sport_libre", 5.0)]:
+        _v2 = load_split[_t2]
+        _lbl2 = TYPE_DEFS[_t2]["label"]
+        _color2 = TYPE_DEFS[_t2]["color"]
+        _icon2 = TYPE_DEFS[_t2]["icon"]
+        _pct3 = min(100.0, _v2 / _max_h2 * 100)
+        load_split_rows_html += (
+            f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+            f'<span style="font-size:12px;width:18px;text-align:center">{_icon2}</span>'
+            f'<span style="font-size:11px;color:var(--muted);width:68px;flex-shrink:0">{escape(_lbl2)}</span>'
+            f'<div style="flex:1;height:4px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden">'
+            f'<div style="height:100%;width:{_pct3:.0f}%;background:{_color2};border-radius:2px;'
+            f'transition:width .8s ease"></div>'
+            f'</div>'
+            f'<span style="font-size:11px;font-weight:700;width:26px;text-align:right">{_v2:.1f}h</span>'
+            f'</div>'
+        )
 
     html = f"""<!DOCTYPE html>
 <html lang="fr">
@@ -654,18 +759,128 @@ def generate_html(
 
 <!-- ═══ PLANNING ═══ -->
 <div id="tab-plan" class="section">
-  <div class="card">
-    <div class="card-header">
-      <div class="week-nav">
-        <button class="week-nav-btn" onclick="prevWeek()">‹</button>
-        <span class="week-label" id="weekLabel"></span>
-        <button class="week-nav-btn" onclick="nextWeek()">›</button>
-        <button class="week-nav-btn" onclick="goToday()" style="font-size:11px;padding:6px 12px">Auj.</button>
+  <div class="grid-main">
+
+    <!-- ── Colonne gauche : calendrier + quick-add ── -->
+    <div class="stack">
+      <div class="card">
+        <div class="card-header">
+          <div class="week-nav">
+            <button class="week-nav-btn" onclick="prevWeek()">‹</button>
+            <span class="week-label" id="weekLabel"></span>
+            <button class="week-nav-btn" onclick="nextWeek()">›</button>
+            <button class="week-nav-btn" onclick="goToday()" style="font-size:11px;padding:6px 12px">Auj.</button>
+          </div>
+          <button onclick="openModal()" style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">+ Ajouter</button>
+        </div>
+        <div class="card-body">
+          <div class="week-wrap"><div class="week-grid" id="weekGrid"></div></div>
+        </div>
       </div>
-      <button onclick="openModal()" style="background:var(--accent);color:#fff;border:none;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer">+ Ajouter</button>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">⚡ Ajout rapide</span>
+          <span class="tag" style="font-size:10px;color:var(--muted)">clic → pré-remplit le formulaire</span>
+        </div>
+        <div class="card-body">
+          <div class="quick-templates">
+            <button class="qtpl" data-type="cardio" data-title="Run 30 min" data-dur="30">🏃 Run 30min</button>
+            <button class="qtpl" data-type="cardio" data-title="Run 10km tempo" data-dur="55">🏃 Run 10km</button>
+            <button class="qtpl" data-type="musculation" data-title="Musculation Full Body" data-dur="45">🏋️ Muscu 45min</button>
+            <button class="qtpl" data-type="mobilite" data-title="Yoga & Mobilité" data-dur="30">🧘 Yoga 30min</button>
+            <button class="qtpl" data-type="sport_libre" data-title="Tennis" data-dur="90">🎾 Tennis 90min</button>
+            <button class="qtpl" data-type="sport_libre" data-title="Wakeboard" data-dur="120">🏄 Wakeboard 2h</button>
+            <button class="qtpl" data-type="cardio" data-title="Vélo sortie" data-dur="60">🚴 Vélo 60min</button>
+            <button class="qtpl" data-type="mobilite" data-title="Récupération active" data-dur="20">🌊 Récup 20min</button>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="card-body">
-      <div class="week-wrap"><div class="week-grid" id="weekGrid"></div></div>
+
+    <!-- ── Colonne droite : cockpit ── -->
+    <div class="stack">
+
+      <!-- Cockpit semaine -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">📊 Cockpit semaine</span>
+          <span class="tag">{total_h:.1f}h total</span>
+        </div>
+        <div class="card-body">
+          {cockpit_categories_html}
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.07)">
+            <div class="flex-between mb8">
+              <span style="font-size:12px;font-weight:700">🎯 Objectif sport / semaine</span>
+              <span style="font-size:12px;color:var(--muted)">{goal_done:.1f}h / {goal_h:.1f}h</span>
+            </div>
+            <div style="height:8px;background:rgba(255,255,255,0.07);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:{goal_pct:.1f}%;background:{goal_fill_color};border-radius:4px;transition:width .8s ease"></div>
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin-top:6px">{goal_status_text}</div>
+          </div>
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.07)">
+            <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Répartition charge cette semaine</div>
+            {load_split_rows_html}
+          </div>
+        </div>
+      </div>
+
+      <!-- Apple Calendar sync -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">📅 Sync Apple Calendar</span>
+          <span class="badge {cal_badge_class}">{escape(cal_status)}</span>
+        </div>
+        <div class="card-body">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:10px">{pending_label}</div>
+          <button class="apple-sync-btn" onclick="pushToApple()">🍎 Pousser tâches locales vers Calendar</button>
+        </div>
+      </div>
+
+      <!-- Inbox idées & décisions -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">💡 Inbox idées &amp; décisions</span>
+          <select id="ideaFilter" onchange="renderIdeas()" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;color:var(--muted)">
+            <option value="all">Toutes</option>
+            <option value="inbox">Inbox</option>
+            <option value="planned">Planifiées</option>
+            <option value="done">Terminées</option>
+          </select>
+        </div>
+        <div class="card-body">
+          <div style="display:flex;gap:8px;margin-bottom:10px">
+            <input id="ideaText" type="text" placeholder="Nouvelle idée ou décision..." onkeydown="if(event.key==='Enter')addIdea()" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text);font-family:inherit;outline:none">
+            <button onclick="addIdea()" style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:14px;font-weight:700;cursor:pointer">+</button>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+            <select id="ideaType" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:11px;color:var(--muted);flex:1;min-width:90px">
+              <option value="travail">💼 Travail</option>
+              <option value="cardio">🏃 Cardio</option>
+              <option value="musculation">🏋️ Muscu</option>
+              <option value="apprentissage">📚 Appr.</option>
+              <option value="sport_libre">🎾 Sport</option>
+              <option value="autre">🧩 Autre</option>
+            </select>
+            <select id="ideaMethod" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:11px;color:var(--muted);flex:1;min-width:100px">
+              <option value="eisenhower">Eisenhower</option>
+              <option value="abcde">ABCDE</option>
+              <option value="moscow">MoSCoW</option>
+              <option value="pomodoro">Pomodoro</option>
+            </select>
+            <select id="ideaImpact" style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:11px;color:var(--muted)">
+              <option value="5">Impact 5★</option>
+              <option value="4">4★</option>
+              <option value="3" selected>3★</option>
+              <option value="2">2★</option>
+              <option value="1">1★</option>
+            </select>
+          </div>
+          <div id="ideaList" style="max-height:280px;overflow-y:auto"></div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -896,9 +1111,96 @@ async function loadEvents() {{
   }} catch(e) {{ renderWeek(); }}
 }}
 
+// ─── Quick-add templates ─────────────────────────────────────
+document.querySelectorAll('.qtpl').forEach(btn => {{
+  btn.addEventListener('click', () => {{
+    document.getElementById('formType').value = btn.dataset.type || 'cardio';
+    document.getElementById('formTitle').value = btn.dataset.title || '';
+    document.getElementById('formDuration').value = btn.dataset.dur || '60';
+    document.getElementById('formDate').value = TODAY;
+    document.getElementById('formTime').value = '09:00';
+    document.getElementById('modalOverlay').classList.add('open');
+    setTimeout(() => document.getElementById('formTitle').focus(), 80);
+  }});
+}});
+
+// ─── Apple Calendar push ─────────────────────────────────────
+async function pushToApple() {{
+  const btn = document.querySelector('.apple-sync-btn');
+  if (btn) btn.textContent = '⏳ Synchronisation…';
+  try {{
+    await apiFetch('POST', '/api/planner/tasks/batch', {{sync_apple: true, tasks: []}});
+    if (btn) btn.textContent = '✅ Synchronisation lancée !';
+    setTimeout(() => {{ if (btn) btn.textContent = '🍎 Pousser tâches locales vers Calendar'; }}, 3000);
+  }} catch(err) {{
+    if (btn) btn.textContent = '🍎 Pousser tâches locales vers Calendar';
+    alert('ℹ️ Serveur cockpit non actif — lance start_cockpit.sh pour activer la sync');
+  }}
+}}
+
+// ─── Ideas inbox ─────────────────────────────────────────────
+const IDEAS_KEY = 'performos_ideas_v1';
+function loadIdeas() {{ try {{ return JSON.parse(localStorage.getItem(IDEAS_KEY)||'[]'); }} catch(e) {{ return []; }} }}
+function saveIdeas(ideas) {{ try {{ localStorage.setItem(IDEAS_KEY, JSON.stringify(ideas)); }} catch(e) {{}} }}
+const TYPE_COLORS_MAP = {type_defs_js};
+
+function addIdea() {{
+  const text = (document.getElementById('ideaText').value||'').trim();
+  if (!text) return;
+  const type = document.getElementById('ideaType').value;
+  const method = document.getElementById('ideaMethod').value;
+  const impact = parseInt(document.getElementById('ideaImpact').value)||3;
+  const ideas = loadIdeas();
+  ideas.unshift({{id: Date.now(), text, type, method, impact, status: 'inbox', createdAt: new Date().toISOString()}});
+  saveIdeas(ideas);
+  document.getElementById('ideaText').value = '';
+  renderIdeas();
+}}
+
+function deleteIdea(id) {{
+  saveIdeas(loadIdeas().filter(i => i.id !== id));
+  renderIdeas();
+}}
+
+function toggleIdeaDone(id) {{
+  const ideas = loadIdeas();
+  const idea = ideas.find(i => i.id === id);
+  if (idea) idea.status = idea.status === 'done' ? 'inbox' : 'done';
+  saveIdeas(ideas);
+  renderIdeas();
+}}
+
+function renderIdeas() {{
+  const filterEl = document.getElementById('ideaFilter');
+  const filter = filterEl ? filterEl.value : 'all';
+  const list = document.getElementById('ideaList');
+  if (!list) return;
+  let ideas = loadIdeas();
+  if (filter !== 'all') ideas = ideas.filter(i => i.status === filter);
+  if (!ideas.length) {{
+    list.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:16px 0;text-align:center">Aucune idée · Ajoute ta première !</div>';
+    return;
+  }}
+  const ML = {{eisenhower:'Eisenhower',abcde:'ABCDE',moscow:'MoSCoW',pomodoro:'Pomodoro'}};
+  list.innerHTML = ideas.map(i => {{
+    const col = (TYPE_COLORS_MAP[i.type]||TYPE_COLORS_MAP['autre']||{{}}).color || '#6b7280';
+    const done = i.status === 'done';
+    const safeText = String(i.text||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const stars = '★'.repeat(Math.min(5, Math.max(1, i.impact||1)));
+    return `<div class="idea-item" style="${{done?'opacity:.5':''}}">
+      <span class="idea-dot" style="background:${{col}}"></span>
+      <span class="idea-text" style="${{done?'text-decoration:line-through':''}}">${{safeText}}</span>
+      <span class="idea-meta">${{ML[i.method]||''}} ${{stars}}</span>
+      <button class="idea-del" onclick="toggleIdeaDone(${{i.id}})" title="${{done?'Rouvrir':'Marquer fait'}}">${{done?'↺':'✓'}}</button>
+      <button class="idea-del" onclick="deleteIdea(${{i.id}})" title="Supprimer">×</button>
+    </div>`;
+  }}).join('');
+}}
+
 document.addEventListener('DOMContentLoaded', () => {{
   renderWeek();
   loadEvents();
+  renderIdeas();
   setInterval(() => {{ const el=document.getElementById('sync-time'); if(el) el.textContent=new Date().toTimeString().slice(0,5); }}, 60000);
 }});
 </script>
