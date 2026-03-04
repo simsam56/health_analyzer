@@ -70,6 +70,51 @@ GARMIN_TYPE_MAP = {
     "other":                "Other",
 }
 
+# ─────────────────────────────────────────────────────────────────
+# MAPPING CATÉGORIE EXERCICE GARMIN → MUSCLE
+# ─────────────────────────────────────────────────────────────────
+GARMIN_EX_CATEGORY_TO_MUSCLE = {
+    # Pecs
+    "BENCH_PRESS":        ("Pecs", "Pecs Moyen"),
+    "CHEST_PRESS":        ("Pecs", "Pecs Moyen"),
+    "FLY":                ("Pecs", "Pecs Moyen"),
+    "PUSH_UP":            ("Pecs", "Pecs Bas"),
+    # Dos
+    "ROW":                ("Dos", "Rhomboïdes"),
+    "PULL_UP":            ("Dos", "Grand Dorsal"),
+    "LAT_PULLDOWN":       ("Dos", "Grand Dorsal"),
+    "DEADLIFT":           ("Dos", "Lombaires"),
+    "HYPEREXTENSION":     ("Dos", "Lombaires"),
+    # Épaules
+    "SHOULDER_PRESS":     ("Épaules", "Faisceau Antérieur"),
+    "LATERAL_RAISE":      ("Épaules", "Faisceau Latéral"),
+    "FRONT_RAISE":        ("Épaules", "Faisceau Antérieur"),
+    "FACE_PULL":          ("Épaules", "Faisceau Postérieur"),
+    "SHRUG":              ("Épaules", "Trapèzes"),
+    "UPRIGHT_ROW":        ("Épaules", "Faisceau Latéral"),
+    # Biceps
+    "CURL":               ("Biceps", "Biceps Brachial"),
+    # Triceps
+    "TRICEPS_EXTENSION":  ("Triceps", "Chef Long"),
+    "DIP":                ("Triceps", "Chef Long"),
+    # Jambes
+    "SQUAT":              ("Jambes", "Quadriceps"),
+    "LUNGE":              ("Jambes", "Quadriceps"),
+    "LEG_PRESS":          ("Jambes", "Quadriceps"),
+    "LEG_EXTENSION":      ("Jambes", "Quadriceps"),
+    "LEG_CURL":           ("Jambes", "Ischio-Jambiers"),
+    "HIP_THRUST":         ("Jambes", "Fessiers"),
+    "CALF_RAISE":         ("Jambes", "Mollets"),
+    # Core
+    "PLANK":              ("Core", "Gainage"),
+    "CORE":               ("Core", "Abdominaux"),
+    "SUSPENSION":         ("Core", "Gainage"),
+    "CRUNCH":             ("Core", "Abdominaux"),
+    "SIT_UP":             ("Core", "Abdominaux"),
+    "RUSSIAN_TWIST":      ("Core", "Obliques"),
+    "LEG_RAISE":          ("Core", "Abdominaux Bas"),
+}
+
 
 def canonical_key(act_type: str, started_at: str, duration_s) -> str:
     t8  = act_type[:8].lower().replace(" ", "_")
@@ -202,6 +247,254 @@ def fetch_recent_activities(
 
     print(f"   → {len(parsed)} activités Garmin Connect ({start_date} → aujourd'hui)")
     return parsed
+
+
+# ─────────────────────────────────────────────────────────────────
+# EXERCISES / MUSCULATION (Garmin activity_exercise_sets)
+# ─────────────────────────────────────────────────────────────────
+def _title_from_token(token: str | None) -> str | None:
+    if not token:
+        return None
+    return str(token).replace("_", " ").strip().title()
+
+
+def _resolve_muscle_from_category(category: str | None, ex_name: str | None) -> tuple[str, str]:
+    cat = str(category or "").upper().strip()
+    if cat in GARMIN_EX_CATEGORY_TO_MUSCLE:
+        return GARMIN_EX_CATEGORY_TO_MUSCLE[cat]
+
+    key = f"{cat} {str(ex_name or '').upper()}"
+
+    # Fallback par mots-clés quand Garmin envoie des catégories non mappées
+    if any(k in key for k in ("ROW", "PULL_UP", "PULLDOWN", "PULL DOWN", "DEADLIFT", "HYPEREXTENSION")):
+        return "Dos", "Rhomboïdes"
+    if any(k in key for k in ("SQUAT", "LUNGE", "LEG", "CALF", "GLUTE", "HIP_THRUST")):
+        return "Jambes", "Quadriceps"
+    if any(k in key for k in ("PLANK", "CORE", "CRUNCH", "SIT_UP", "RUSSIAN", "TWIST", "LEG_RAISE")):
+        return "Core", "Abdominaux"
+    if any(k in key for k in ("CURL", "CHIN_UP")):
+        return "Biceps", "Biceps Brachial"
+    if any(k in key for k in ("TRICEPS", "DIP", "SKULL")):
+        return "Triceps", "Chef Long"
+    if any(k in key for k in ("SHOULDER", "LATERAL", "FRONT_RAISE", "SHRUG", "FACE_PULL", "UPRIGHT_ROW")):
+        return "Épaules", "Faisceau Latéral"
+    if any(k in key for k in ("BENCH", "CHEST", "FLY", "PUSH_UP")):
+        return "Pecs", "Pecs Moyen"
+
+    return "Inconnu", "Inconnu"
+
+
+def _normalize_weight_kg(value) -> float | None:
+    if value is None:
+        return None
+    try:
+        w = float(value)
+    except (TypeError, ValueError):
+        return None
+    if w <= 0:
+        return None
+    # Heuristique: très grandes valeurs probablement en grammes
+    if w > 350:
+        w = w / 1000.0
+    return round(w, 3)
+
+
+def _pick_best_exercise(exercises) -> dict:
+    if not isinstance(exercises, list) or not exercises:
+        return {"category": None, "name": None}
+    try:
+        best = max(exercises, key=lambda e: float((e or {}).get("probability") or 0))
+        if not isinstance(best, dict):
+            return {"category": None, "name": None}
+        return {
+            "category": best.get("category"),
+            "name": best.get("name"),
+        }
+    except Exception:
+        return {"category": None, "name": None}
+
+
+def _find_activity_db_id(conn: sqlite3.Connection, activity: dict) -> int | None:
+    cursor = conn.cursor()
+    row = cursor.execute(
+        "SELECT id FROM activities WHERE source='garmin_connect' AND source_id=?",
+        (activity.get("source_id"),),
+    ).fetchone()
+    if row:
+        return row[0]
+    row = cursor.execute(
+        "SELECT id FROM activities WHERE canonical_key=?",
+        (activity.get("canonical_key"),),
+    ).fetchone()
+    return row[0] if row else None
+
+
+def _upsert_strength_session_from_garmin_sets(
+    conn: sqlite3.Connection,
+    activity_db_id: int,
+    activity: dict,
+    garmin_sets: list[dict],
+) -> tuple[bool, int]:
+    # Conserver seulement les sets actifs comme dans le pipeline FIT.
+    active_sets = [s for s in garmin_sets if str(s.get("setType", "")).upper() == "ACTIVE"]
+    if not active_sets:
+        return False, 0
+
+    parsed_sets = []
+    for i, s in enumerate(active_sets, start=1):
+        best = _pick_best_exercise(s.get("exercises"))
+        ex_cat = str(best.get("category") or "").upper().strip() or None
+        ex_name_token = best.get("name")
+        ex_name = _title_from_token(ex_name_token) or _title_from_token(ex_cat) or "Unknown"
+        mg, sub = _resolve_muscle_from_category(ex_cat, ex_name_token)
+
+        reps = s.get("repetitionCount")
+        try:
+            reps = int(reps) if reps is not None else None
+        except (TypeError, ValueError):
+            reps = None
+
+        duration = s.get("duration")
+        try:
+            duration_s = float(duration) if duration is not None else None
+        except (TypeError, ValueError):
+            duration_s = None
+
+        parsed_sets.append({
+            "started_at": str(s.get("startTime") or activity.get("started_at") or "")[:19] or None,
+            "exercise_name": ex_name,
+            "exercise_category": (ex_cat or "unknown").lower(),
+            "muscle_group": mg,
+            "muscle_subgroup": sub,
+            "set_index": i,
+            "set_type": "active",
+            "reps": reps,
+            "duration_s": duration_s,
+            "weight_kg": _normalize_weight_kg(s.get("weight")),
+        })
+
+    total_reps = sum(x["reps"] or 0 for x in parsed_sets)
+
+    cursor = conn.cursor()
+    existing = cursor.execute(
+        "SELECT id FROM strength_sessions WHERE activity_id=?",
+        (activity_db_id,),
+    ).fetchone()
+
+    created = False
+    if existing:
+        session_id = existing[0]
+        cursor.execute(
+            """
+            UPDATE strength_sessions
+            SET started_at=?, workout_name=?, duration_s=?, total_sets=?, total_reps=?, source=?
+            WHERE id=?
+            """,
+            (
+                activity.get("started_at"),
+                activity.get("name"),
+                activity.get("duration_s"),
+                len(parsed_sets),
+                total_reps,
+                "garmin_connect",
+                session_id,
+            ),
+        )
+        cursor.execute("DELETE FROM exercise_sets WHERE session_id=?", (session_id,))
+    else:
+        cursor.execute(
+            """
+            INSERT INTO strength_sessions
+              (activity_id, started_at, workout_name, duration_s, total_sets, total_reps, source)
+            VALUES (?,?,?,?,?,?,?)
+            """,
+            (
+                activity_db_id,
+                activity.get("started_at"),
+                activity.get("name"),
+                activity.get("duration_s"),
+                len(parsed_sets),
+                total_reps,
+                "garmin_connect",
+            ),
+        )
+        session_id = cursor.lastrowid
+        created = True
+
+    ins_sets = 0
+    for s in parsed_sets:
+        cursor.execute(
+            """
+            INSERT INTO exercise_sets
+              (session_id, started_at, exercise_name, exercise_category,
+               muscle_group, muscle_subgroup, set_index, set_type,
+               reps, duration_s, weight_kg)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                session_id,
+                s["started_at"],
+                s["exercise_name"],
+                s["exercise_category"],
+                s["muscle_group"],
+                s["muscle_subgroup"],
+                s["set_index"],
+                s["set_type"],
+                s["reps"],
+                s["duration_s"],
+                s["weight_kg"],
+            ),
+        )
+        ins_sets += 1
+
+    return created, ins_sets
+
+
+def fetch_and_insert_strength_sets(
+    client,
+    conn: sqlite3.Connection,
+    activities: list[dict],
+) -> tuple[int, int]:
+    """
+    Pour chaque activité force/training Garmin, récupère les exercise sets
+    et persiste en strength_sessions + exercise_sets.
+    """
+    sessions_created = 0
+    sets_inserted = 0
+
+    strength_acts = [a for a in activities if a.get("type") == "Strength Training"]
+    if not strength_acts:
+        return sessions_created, sets_inserted
+
+    for a in strength_acts:
+        source_id = a.get("source_id")
+        if not source_id:
+            continue
+        try:
+            payload = client.get_activity_exercise_sets(int(source_id))
+        except Exception:
+            continue
+
+        garmin_sets = payload.get("exerciseSets", []) if isinstance(payload, dict) else []
+        if not garmin_sets:
+            continue
+
+        activity_db_id = _find_activity_db_id(conn, a)
+        if not activity_db_id:
+            continue
+
+        created, ins_sets = _upsert_strength_session_from_garmin_sets(
+            conn=conn,
+            activity_db_id=activity_db_id,
+            activity=a,
+            garmin_sets=garmin_sets,
+        )
+        if created:
+            sessions_created += 1
+        sets_inserted += ins_sets
+
+    conn.commit()
+    return sessions_created, sets_inserted
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -391,7 +684,11 @@ def run(
     ins_a, skip_a = insert_activities(conn, activities)
     print(f"   ✅ Activities : {ins_a} insérées, {skip_a} doublons")
 
-    # 2. Métriques santé
+    # 2. Sets musculation (si disponibles)
+    sess_new, sets_ins = fetch_and_insert_strength_sets(client, conn, activities)
+    print(f"   ✅ Musculation Garmin : {sess_new} séances créées, {sets_ins} sets importés")
+
+    # 3. Métriques santé
     metrics = fetch_health_metrics(client, days=days)
     ins_m = insert_health_metrics(conn, metrics)
     print(f"   ✅ Métriques santé : {ins_m} insérées")
@@ -402,6 +699,8 @@ def run(
         "activities_fetched":  len(activities),
         "activities_inserted": ins_a,
         "activities_skipped":  skip_a,
+        "strength_sessions_inserted": sess_new,
+        "exercise_sets_inserted": sets_ins,
         "metrics_inserted":    ins_m,
     }
 
