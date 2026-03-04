@@ -362,9 +362,57 @@ body {
 .top {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   margin-bottom: 12px;
+}
+.brand-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.totem {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  border: 1px solid #d8e4f3;
+  background: radial-gradient(circle at 30% 30%, #fff9e6 0%, #ffe8bf 55%, #ffd5a3 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+}
+.totem::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 16px;
+  border: 1px dashed #f59e0b88;
+  animation: spinSlow 9s linear infinite;
+}
+.totem .animal {
+  font-size: 26px;
+  animation: floatTotem 2.2s ease-in-out infinite;
+}
+.totem.wiggle .animal {
+  animation: wiggle .42s ease;
+}
+@keyframes floatTotem {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes wiggle {
+  0% { transform: rotate(0deg); }
+  25% { transform: rotate(-10deg); }
+  50% { transform: rotate(10deg); }
+  75% { transform: rotate(-6deg); }
+  100% { transform: rotate(0deg); }
 }
 .brand h1 {
   margin: 0;
@@ -378,11 +426,41 @@ body {
 }
 .top-right {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: flex-end;
   gap: 8px;
 }
-.badges { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.hero-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+  gap: 8px;
+  flex: 1;
+  max-width: 620px;
+}
+.hero-card {
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hero-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+.hero-icon.health { background: #ecfdf5; }
+.hero-icon.work { background: #eff6ff; }
+.hero-icon.social { background: #fff1f2; }
+.hero-meta { display: flex; flex-direction: column; gap: 1px; }
+.hero-label { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; font-weight: 700; }
+.hero-value { font-size: 13px; font-weight: 700; color: #0f172a; }
 .badge {
   background: #fff;
   border: 1px solid var(--line);
@@ -391,9 +469,12 @@ body {
   font-size: 11px;
   font-weight: 600;
   color: var(--muted);
+  cursor: pointer;
+  transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease;
 }
 .badge.ok { color: #15803d; border-color: #bbf7d0; background: #f0fdf4; }
 .badge.warn { color: #92400e; border-color: #fde68a; background: #fffbeb; }
+.badge:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(15, 23, 42, .08); }
 .quick-sync {
   display: inline-flex;
   align-items: center;
@@ -624,13 +705,7 @@ body {
 }
 .quick-row {
   display: grid;
-  grid-template-columns: 1fr 130px;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.quick-row-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr 92px;
+  grid-template-columns: 1fr 180px 110px;
   gap: 8px;
 }
 .idea-board-head {
@@ -678,12 +753,6 @@ body {
 .decision-col[data-lane="non_urgent"] { background: #f8fafc; border-color: #e2e8f0; }
 .decision-col[data-lane="done"] { background: #f0fdf4; border-color: #bbf7d0; }
 .decision-lane { min-height: 108px; }
-.idea-list {
-  max-height: 300px;
-  overflow: auto;
-  border-top: 1px solid #eef2f7;
-  padding-top: 8px;
-}
 .idea-item {
   border: 1px solid #e9eef4;
   border-radius: 12px;
@@ -975,6 +1044,12 @@ input:focus, select:focus {
   padding: 8px 10px;
   cursor: pointer;
 }
+.btn-soft.primary {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+  font-weight: 700;
+}
 .toast-wrap {
   position: fixed;
   right: 16px;
@@ -1019,32 +1094,55 @@ input:focus, select:focus {
   .split-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 680px) {
-  .quick-row, .quick-row-2, .decision-grid { grid-template-columns: 1fr; }
+  .quick-row, .decision-grid { grid-template-columns: 1fr; }
   .stat-grid { grid-template-columns: 1fr 1fr; }
   .health-grid { grid-template-columns: 1fr 1fr; }
   .top { align-items: flex-start; flex-direction: column; gap: 8px; }
-  .top-right { align-items: flex-start; }
-  .badges { justify-content: flex-start; }
+  .top-right { align-items: flex-start; flex-wrap: wrap; }
+  .hero-strip { max-width: 100%; width: 100%; grid-template-columns: 1fr; }
 }
 </style>
 </head>
 <body>
 <div class="app">
   <div class="top">
-    <div class="brand">
-      <h1>Pilotage</h1>
-      <p>__TODAY__ · __NOW__</p>
+    <div class="brand-wrap">
+      <div class="totem" id="totemPet" title="Totem du jour">
+        <div class="animal">🦊</div>
+      </div>
+      <div class="brand">
+        <h1>Pilotage</h1>
+        <p>__TODAY__ · __NOW__</p>
+      </div>
+    </div>
+    <div class="hero-strip">
+      <div class="hero-card">
+        <span class="hero-icon health">💚</span>
+        <div class="hero-meta">
+          <span class="hero-label">Santé</span>
+          <span class="hero-value" id="heroHealth">__HEALTH_STATUS__</span>
+        </div>
+      </div>
+      <div class="hero-card">
+        <span class="hero-icon work">💼</span>
+        <div class="hero-meta">
+          <span class="hero-label">Travail</span>
+          <span class="hero-value" id="heroWork">—</span>
+        </div>
+      </div>
+      <div class="hero-card">
+        <span class="hero-icon social">🤝</span>
+        <div class="hero-meta">
+          <span class="hero-label">Social</span>
+          <span class="hero-value" id="heroSocial">—</span>
+        </div>
+      </div>
     </div>
     <div class="top-right">
       <div class="quick-sync">
-        <span class="badge __CAL_BADGE_CLASS__">Calendar: __CAL_STATUS__</span>
+        <button class="badge __CAL_BADGE_CLASS__" id="calendarBadgeBtn">Apple Calendar · __CAL_STATUS__</button>
         <button class="btn-soft" id="openCmdBtn">⌘K</button>
-        <button class="btn-soft" id="pushPendingTopBtn">Pousser local</button>
-      </div>
-      <div class="badges">
-        <span class="badge">Readiness __WBS__/100</span>
-        <span class="badge">Sommeil __SLEEP_H__h</span>
-        <span class="badge">Objectif __GOAL_DONE__ / __GOAL_TARGET__h</span>
+        <button class="btn-soft primary" id="pushPendingTopBtn">Sync tâches</button>
       </div>
     </div>
   </div>
@@ -1062,7 +1160,7 @@ input:focus, select:focus {
         <h3>Planning hebdomadaire</h3>
         <div class="toolbar">
           <button class="btn" id="prevWeek">← Semaine précédente</button>
-          <div class="week-label" id="weekLabel">__WEEK_START__</div>
+          <div class="week-label" id="weekLabel">Semaine</div>
           <button class="btn" id="nextWeek">Semaine suivante →</button>
         </div>
         <div class="week-wrap">
@@ -1073,22 +1171,12 @@ input:focus, select:focus {
       <div class="planning-secondary">
         <div class="card">
           <div class="idea-board-head">
-            <h3 style="margin:0;">Brainstorm & triage des idées</h3>
-            <select id="ideaFilter" style="max-width:160px;">
-              <option value="all">Toutes</option>
-              <option value="urgent">Urgentes</option>
-              <option value="planifier">Planifier</option>
-              <option value="non_urgent">Non urgentes</option>
-              <option value="done">Terminées</option>
-            </select>
+            <h3 style="margin:0;">Idée</h3>
           </div>
 
           <div class="quick-ideas">
             <div class="quick-row">
               <input id="ideaText" type="text" placeholder="Ex: Lancer offre IA PME avec page LinkedIn + 2 RDV test" />
-              <button class="btn-primary" id="addIdeaBtn">Ajouter idée</button>
-            </div>
-            <div class="quick-row-2">
               <select id="ideaType">
                 <option value="travail">Travail</option>
                 <option value="cardio">Cardio</option>
@@ -1099,43 +1187,12 @@ input:focus, select:focus {
                 <option value="relationnel">Relationnel</option>
                 <option value="autre">Autre</option>
               </select>
-              <select id="ideaMethod">
-                <option value="eisenhower">Eisenhower</option>
-                <option value="abcde">ABCDE</option>
-                <option value="moscow">MoSCoW</option>
-                <option value="one_three_five">1-3-5</option>
-                <option value="pomodoro">Pomodoro</option>
-                <option value="time_blocking">Blocage du temps</option>
-              </select>
-              <select id="ideaImpact">
-                <option value="5">Impact 5/5</option>
-                <option value="4">Impact 4/5</option>
-                <option value="3" selected>Impact 3/5</option>
-                <option value="2">Impact 2/5</option>
-                <option value="1">Impact 1/5</option>
-              </select>
-              <select id="ideaUrgency">
-                <option value="urgent">Urgence haute</option>
-                <option value="planifier" selected>À planifier</option>
-                <option value="non_urgent">Non urgent</option>
-              </select>
-              <select id="ideaEffort">
-                <option value="1">Effort 1/5</option>
-                <option value="2">Effort 2/5</option>
-                <option value="3" selected>Effort 3/5</option>
-                <option value="4">Effort 4/5</option>
-                <option value="5">Effort 5/5</option>
-              </select>
+              <button class="btn-primary" id="addIdeaBtn">Ajouter</button>
             </div>
-            <div class="sync-actions" style="margin-top:10px;">
-              <button class="btn-mini primary" id="quickPomodoroBtn">+ Focus Pomodoro 25 min</button>
-            </div>
-            <div class="muted" style="font-size:11px; margin-top:8px;">Astuce: glisse-dépose les cartes entre colonnes pour trier instantanément.</div>
           </div>
 
           <div style="margin-top:10px;">
             <div class="decision-grid" id="decisionGrid"></div>
-            <div class="idea-list" id="ideaList"></div>
           </div>
         </div>
 
@@ -1298,14 +1355,8 @@ const API_TOKEN = __API_TOKEN_JS__;
 const CAL_SYNC_ENABLED = __CAL_SYNC_ENABLED__;
 let API_ENABLED = location.protocol.startsWith('http');
 const API_BASE = '/api/planner';
-const METHOD_LABELS = {
-  eisenhower: 'Eisenhower',
-  abcde: 'ABCDE',
-  moscow: 'MoSCoW',
-  one_three_five: '1-3-5',
-  pomodoro: 'Pomodoro',
-  time_blocking: 'Time Blocking',
-};
+const TOTEM_ANIMALS = ['🦊', '🦉', '🐼', '🐬', '🐺', '🦁', '🐯', '🦭'];
+const TOTEM_KEY = 'performos_totem_idx';
 
 let weekOffset = 0;
 let editingId = null;
@@ -1345,12 +1396,10 @@ function commandRegistry() {
   return [
     { label: 'Ajouter activité', key: 'A', run: () => openModal(null) },
     {
-      label: 'Ajouter idée urgente',
+      label: 'Nouvelle idée',
       key: 'I',
       run: () => {
         activateTab('planning');
-        const sel = document.getElementById('ideaUrgency');
-        if (sel) sel.value = 'urgent';
         const inp = document.getElementById('ideaText');
         if (inp) inp.focus();
       }
@@ -1407,6 +1456,34 @@ function openCmdk() {
   inp.value = '';
   renderCmdk('');
   setTimeout(() => inp.focus(), 0);
+}
+
+function initTotem() {
+  const root = document.getElementById('totemPet');
+  if (!root) return;
+  const animalNode = root.querySelector('.animal');
+  if (!animalNode) return;
+
+  let idx = Number(localStorage.getItem(TOTEM_KEY));
+  if (!Number.isFinite(idx) || idx < 0) {
+    const d = new Date();
+    idx = (d.getDay() + d.getDate()) % TOTEM_ANIMALS.length;
+  }
+
+  const apply = () => {
+    animalNode.textContent = TOTEM_ANIMALS[idx % TOTEM_ANIMALS.length];
+  };
+  apply();
+
+  root.addEventListener('click', () => {
+    idx = (idx + 1) % TOTEM_ANIMALS.length;
+    localStorage.setItem(TOTEM_KEY, String(idx));
+    root.classList.remove('wiggle');
+    void root.offsetWidth;
+    root.classList.add('wiggle');
+    apply();
+    setTimeout(() => root.classList.remove('wiggle'), 420);
+  });
 }
 
 function parseIso(s) {
@@ -1566,10 +1643,10 @@ function addIdeaFromForm() {
     return;
   }
   const type = String((document.getElementById('ideaType') || {}).value || 'autre');
-  const method = String((document.getElementById('ideaMethod') || {}).value || 'eisenhower');
-  const impact = Number((document.getElementById('ideaImpact') || {}).value || 3);
-  const urgency = String((document.getElementById('ideaUrgency') || {}).value || 'planifier');
-  const effort = Number((document.getElementById('ideaEffort') || {}).value || 3);
+  const method = 'eisenhower';
+  const impact = 3;
+  const urgency = 'planifier';
+  const effort = 3;
 
   const rows = loadIdeas();
   rows.unshift({
@@ -1597,56 +1674,6 @@ function updateIdeaStatus(id, status) {
   });
   saveIdeas(rows);
   renderIdeas();
-}
-
-function deleteIdeaById(id) {
-  const rows = loadIdeas().filter((x) => x.id !== id);
-  saveIdeas(rows);
-  renderIdeas();
-}
-
-function planIdea(id) {
-  const rows = loadIdeas();
-  const it = rows.find((x) => x.id === id);
-  if (!it) return;
-  const now = new Date();
-  openModal(null, {
-    title: it.title,
-    type: it.type,
-    date: isoDate(now),
-    time: '09:00',
-    duration: methodDefaultDuration(it.method),
-    syncApple: true,
-  });
-  updateIdeaStatus(id, 'planifier');
-}
-
-async function quickPomodoroFromIdea(id) {
-  const rows = loadIdeas();
-  const it = rows.find((x) => x.id === id);
-  if (!it) return;
-  const now = new Date();
-  const start = new Date(now);
-  start.setMinutes(Math.ceil(start.getMinutes() / 5) * 5, 0, 0);
-  const end = addMin(start, 25);
-  const payload = {
-    title: '🎯 Focus 25m · ' + it.title,
-    type: it.type || 'travail',
-    category: (TYPE_DEFS[it.type] || TYPE_DEFS.autre).category,
-    icon: (TYPE_DEFS[it.type] || TYPE_DEFS.autre).icon,
-    color: (TYPE_DEFS[it.type] || TYPE_DEFS.autre).color,
-    start_at: toIsoNoMs(start),
-    end_at: toIsoNoMs(end),
-    source: 'local_ui',
-    task_date: isoDate(start),
-    task_time: hm(start) + ':00',
-    duration_min: 25,
-    sync_apple: true,
-  };
-  await createEvent(payload);
-  updateIdeaStatus(id, 'planifier');
-  await renderWeek();
-  showToast('Bloc Pomodoro ajouté au planning.', 'ok');
 }
 
 function getIdeaById(id) {
@@ -1678,33 +1705,6 @@ async function dropIdeaOnDay(ideaId, dateIso) {
   updateIdeaStatus(it.id, 'planifier');
   await renderWeek();
   showToast('Idée planifiée sur le planning.', 'ok');
-}
-
-function bindIdeaLaneButtons(root) {
-  root.querySelectorAll('[data-idea-plan]').forEach((btn) => {
-    btn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      planIdea(btn.getAttribute('data-idea-plan') || '');
-    });
-  });
-  root.querySelectorAll('[data-idea-pomo]').forEach((btn) => {
-    btn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      quickPomodoroFromIdea(btn.getAttribute('data-idea-pomo') || '');
-    });
-  });
-  root.querySelectorAll('[data-idea-done]').forEach((btn) => {
-    btn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      updateIdeaStatus(btn.getAttribute('data-idea-done') || '', 'done');
-    });
-  });
-  root.querySelectorAll('[data-idea-del]').forEach((btn) => {
-    btn.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      deleteIdeaById(btn.getAttribute('data-idea-del') || '');
-    });
-  });
 }
 
 function bindIdeaLaneSortables(root) {
@@ -1753,9 +1753,6 @@ function renderIdeas() {
     return String(b.created_at || '').localeCompare(String(a.created_at || ''));
   });
 
-  const filter = (document.getElementById('ideaFilter') || {}).value || 'all';
-  const filtered = rows.filter((x) => filter === 'all' ? true : x.status === filter);
-
   const buckets = { urgent: [], planifier: [], non_urgent: [], done: [] };
   rows.forEach((x) => {
     const lane = ideaLane(x);
@@ -1772,13 +1769,6 @@ function renderIdeas() {
         + '<div style="font-weight:600; margin-bottom:5px;">' + escapeHtml(x.title) + '</div>'
         + '<div style="display:flex; gap:5px; flex-wrap:wrap;">'
         + '<span class="pill">' + escapeHtml((TYPE_DEFS[x.type] || TYPE_DEFS.autre).label) + '</span>'
-        + '<span class="pill">I' + Number(x.impact || 3) + '/5</span>'
-        + '<span class="pill">E' + Number(x.effort || 3) + '/5</span>'
-        + '</div>'
-        + '<div class="idea-actions">'
-        + '<button class="btn-mini primary" data-idea-plan="' + x.id + '">Planifier</button>'
-        + '<button class="btn-mini" data-idea-pomo="' + x.id + '">+25m</button>'
-        + '<button class="btn-mini success" data-idea-done="' + x.id + '">Fait</button>'
         + '</div>'
         + '</div>'
       )).join('') || '<div class="muted" style="font-size:11px;">—</div>';
@@ -1791,68 +1781,12 @@ function renderIdeas() {
     };
     decisionGrid.innerHTML =
       laneHtml('urgent', 'Urgent') +
-      laneHtml('planifier', 'Planifier') +
+      laneHtml('planifier', 'À planifier') +
       laneHtml('non_urgent', 'Non urgent') +
       laneHtml('done', 'Terminé');
-    bindIdeaLaneButtons(decisionGrid);
     bindIdeaLaneSortables(decisionGrid);
     bindIdeaDraggables(decisionGrid);
   }
-
-  const list = document.getElementById('ideaList');
-  if (!list) return;
-  if (!filtered.length) {
-    list.innerHTML = '<div class="muted" style="font-size:12px;">Aucune idée pour ce filtre.</div>';
-    return;
-  }
-
-  list.innerHTML = filtered.map((x) => {
-    const lane = ideaLane(x);
-    const score = ideaScore(x).toFixed(1);
-    const laneLabel = lane === 'urgent' ? 'Urgent' : lane === 'planifier' ? 'Planifier' : lane === 'non_urgent' ? 'Non urgent' : 'Terminé';
-    const method = METHOD_LABELS[x.method] || x.method;
-    return (
-      '<div class="idea-item idea-draggable ' + (x.status === 'done' ? 'done' : '') + '" data-idea-id="' + x.id + '">'
-      + '<div class="idea-top"><div class="idea-title">' + escapeHtml(x.title) + '</div>'
-      + '<div class="pill">Score ' + score + '</div></div>'
-      + '<div class="idea-meta">'
-      + '<span class="pill">' + escapeHtml((TYPE_DEFS[x.type] || TYPE_DEFS.autre).label) + '</span>'
-      + '<span class="pill">' + escapeHtml(method) + '</span>'
-      + '<span class="pill">Impact ' + Number(x.impact || 3) + '/5</span>'
-      + '<span class="pill">Effort ' + Number(x.effort || 3) + '/5</span>'
-      + '<span class="pill">' + laneLabel + '</span>'
-      + '</div>'
-      + '<div class="idea-actions">'
-      + '<button class="btn-mini" data-idea-urgent="' + x.id + '">Urgent</button>'
-      + '<button class="btn-mini primary" data-idea-plan="' + x.id + '">Planifier</button>'
-      + '<button class="btn-mini" data-idea-nonurgent="' + x.id + '">Non urgent</button>'
-      + '<button class="btn-mini" data-idea-pomo="' + x.id + '">+25m</button>'
-      + '<button class="btn-mini success" data-idea-done="' + x.id + '">Fait</button>'
-      + '<button class="btn-mini" data-idea-del="' + x.id + '">Supprimer</button>'
-      + '</div>'
-      + '</div>'
-    );
-  }).join('');
-
-  list.querySelectorAll('[data-idea-plan]').forEach((btn) => {
-    btn.addEventListener('click', () => planIdea(btn.getAttribute('data-idea-plan') || ''));
-  });
-  list.querySelectorAll('[data-idea-urgent]').forEach((btn) => {
-    btn.addEventListener('click', () => updateIdeaStatus(btn.getAttribute('data-idea-urgent') || '', 'urgent'));
-  });
-  list.querySelectorAll('[data-idea-nonurgent]').forEach((btn) => {
-    btn.addEventListener('click', () => updateIdeaStatus(btn.getAttribute('data-idea-nonurgent') || '', 'non_urgent'));
-  });
-  list.querySelectorAll('[data-idea-pomo]').forEach((btn) => {
-    btn.addEventListener('click', () => quickPomodoroFromIdea(btn.getAttribute('data-idea-pomo') || ''));
-  });
-  list.querySelectorAll('[data-idea-done]').forEach((btn) => {
-    btn.addEventListener('click', () => updateIdeaStatus(btn.getAttribute('data-idea-done') || '', 'done'));
-  });
-  list.querySelectorAll('[data-idea-del]').forEach((btn) => {
-    btn.addEventListener('click', () => deleteIdeaById(btn.getAttribute('data-idea-del') || ''));
-  });
-  bindIdeaDraggables(list);
 }
 
 function uidForBase(ev, idx) {
@@ -2180,7 +2114,7 @@ async function renderWeek() {
   const start = addDays(baseStart, weekOffset * 7);
   const end = addDays(start, 7);
 
-  document.getElementById('weekLabel').textContent = isoDate(start) + ' → ' + isoDate(addDays(end, -1));
+  document.getElementById('weekLabel').textContent = 'Semaine';
 
   let allEvents = [];
   if (API_ENABLED) {
@@ -2206,6 +2140,23 @@ async function renderWeek() {
     const id = String(ev.id || '');
     return id.startsWith('task:') && !ev.calendar_uid;
   }).length;
+  const calBadgeBtn = document.getElementById('calendarBadgeBtn');
+  if (calBadgeBtn) {
+    calBadgeBtn.classList.remove('ok', 'warn');
+    if (!CAL_SYNC_ENABLED) {
+      calBadgeBtn.classList.add('warn');
+      calBadgeBtn.textContent = 'Apple Calendar · indisponible';
+      calBadgeBtn.title = 'Accès non disponible depuis ce contexte';
+    } else if (pendingAll > 0) {
+      calBadgeBtn.classList.add('warn');
+      calBadgeBtn.textContent = 'Apple Calendar · ' + pendingAll + ' à sync';
+      calBadgeBtn.title = 'Clique pour pousser les tâches en attente';
+    } else {
+      calBadgeBtn.classList.add('ok');
+      calBadgeBtn.textContent = 'Apple Calendar · à jour';
+      calBadgeBtn.title = 'Synchronisation Apple Calendar OK';
+    }
+  }
   const pushTopBtn = document.getElementById('pushPendingTopBtn');
   if (pushTopBtn) {
     pushTopBtn.disabled = pendingAll <= 0;
@@ -2218,6 +2169,18 @@ async function renderWeek() {
   const total = durations.sante + durations.travail + durations.relationnel + durations.apprentissage + durations.autre;
   const focusKey = Object.keys(durations).sort((a, b) => (durations[b] || 0) - (durations[a] || 0))[0] || 'autre';
   const focusLabel = CATEGORY_LABELS[focusKey] || focusKey;
+  const workH = durations.travail || 0;
+  const socialH = durations.relationnel || 0;
+  const heroWork = document.getElementById('heroWork');
+  const heroSocial = document.getElementById('heroSocial');
+  if (heroWork) {
+    const status = workH < 4 ? 'Léger' : (workH <= 28 ? 'Bon' : 'Chargé');
+    heroWork.textContent = status + ' · ' + workH.toFixed(1) + 'h';
+  }
+  if (heroSocial) {
+    const status = socialH < 1 ? 'À booster' : (socialH <= 8 ? 'Bon' : 'Dense');
+    heroSocial.textContent = status + ' · ' + socialH.toFixed(1) + 'h';
+  }
 
   document.getElementById('sum-sante').textContent = durations.sante.toFixed(1);
   document.getElementById('sum-total').textContent = total.toFixed(1);
@@ -2402,8 +2365,19 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('goalTarget').textContent = GOAL_TARGET.toFixed(1) + 'h';
+  initTotem();
   if (!CAL_SYNC_ENABLED) {
     showToast('Apple Calendar non connecté dans ce contexte.', 'warn');
+  }
+  const calBadgeBtn = document.getElementById('calendarBadgeBtn');
+  if (calBadgeBtn) {
+    calBadgeBtn.addEventListener('click', () => {
+      if (!CAL_SYNC_ENABLED) {
+        showToast('Apple Calendar indisponible ici.', 'warn');
+        return;
+      }
+      pushPendingApple();
+    });
   }
   const pushTopBtn = document.getElementById('pushPendingTopBtn');
   if (pushTopBtn) {
@@ -2418,20 +2392,6 @@ window.addEventListener('DOMContentLoaded', () => {
         ev.preventDefault();
         addIdeaFromForm();
       }
-    });
-  }
-  const ideaFilter = document.getElementById('ideaFilter');
-  if (ideaFilter) ideaFilter.addEventListener('change', renderIdeas);
-  const quickPomodoroBtn = document.getElementById('quickPomodoroBtn');
-  if (quickPomodoroBtn) {
-    quickPomodoroBtn.addEventListener('click', () => {
-      openModal(null, {
-        title: '🎯 Focus 25m',
-        type: 'travail',
-        duration: 25,
-        time: '09:00',
-        syncApple: true,
-      });
     });
   }
   renderWeek();
