@@ -339,6 +339,62 @@ def sync_apple_calendar(
     }
 
 
+def diagnose_apple_calendar(db_path: str | Path | None = None) -> dict:
+    """Return lightweight diagnostics for Apple Calendar integration."""
+    info = {
+        "enabled": False,
+        "error": None,
+        "platform": sys.platform,
+        "eventkit": "unknown",
+        "permission": "unknown",
+        "calendars_count": 0,
+        "default_calendar": None,
+        "probe_events_synced": None,
+    }
+
+    if sys.platform != "darwin":
+        info["error"] = "apple_calendar_macos_only"
+        return info
+
+    try:
+        from EventKit import EKEntityTypeEvent  # type: ignore
+    except Exception:
+        info["eventkit"] = "unavailable"
+        info["error"] = "eventkit_unavailable"
+        return info
+
+    info["eventkit"] = "ok"
+    store, entity_type, err = _get_store_and_access()
+    if err:
+        info["permission"] = "denied"
+        info["error"] = err
+        return info
+
+    info["permission"] = "granted"
+    try:
+        calendars = list(store.calendarsForEntityType_(entity_type or EKEntityTypeEvent) or [])
+        info["calendars_count"] = len(calendars)
+        default_cal = store.defaultCalendarForNewEvents()
+        info["default_calendar"] = str(default_cal.title()) if default_cal else None
+    except Exception as e:
+        info["error"] = str(e)
+        return info
+
+    if db_path:
+        try:
+            probe = sync_apple_calendar(db_path=db_path, days_ahead=2)
+            info["probe_events_synced"] = int(probe.get("events_synced", 0) or 0)
+            if probe.get("enabled"):
+                info["enabled"] = True
+            else:
+                info["error"] = probe.get("error")
+        except Exception as e:
+            info["error"] = str(e)
+    else:
+        info["enabled"] = True
+    return info
+
+
 def get_upcoming_events(db_path: str | Path, days_ahead: int = 21, limit: int = 40) -> list[dict]:
     """Return upcoming agenda events for dashboard display."""
     conn = sqlite3.connect(str(db_path))

@@ -1111,7 +1111,7 @@ input:focus, select:focus {
         <div class="animal">🦊</div>
       </div>
       <div class="brand">
-        <h1>Pilotage</h1>
+        <h1>Simsam</h1>
         <p>__TODAY__ · __NOW__</p>
       </div>
     </div>
@@ -1120,7 +1120,7 @@ input:focus, select:focus {
         <span class="hero-icon health">💚</span>
         <div class="hero-meta">
           <span class="hero-label">Santé</span>
-          <span class="hero-value" id="heroHealth">__HEALTH_STATUS__</span>
+          <span class="hero-value" id="heroHealth">__READINESS_GLOBAL__/100</span>
         </div>
       </div>
       <div class="hero-card">
@@ -1140,7 +1140,7 @@ input:focus, select:focus {
     </div>
     <div class="top-right">
       <div class="quick-sync">
-        <button class="badge __CAL_BADGE_CLASS__" id="calendarBadgeBtn">Apple Calendar · __CAL_STATUS__</button>
+        <button class="badge __CAL_BADGE_CLASS__" id="calendarBadgeBtn">Santé semaine · --/100</button>
         <button class="btn-soft" id="openCmdBtn">⌘K</button>
         <button class="btn-soft primary" id="pushPendingTopBtn">Sync tâches</button>
       </div>
@@ -1351,6 +1351,7 @@ const STORAGE_KEY = 'performos_planner_v1';
 const IDEAS_KEY = 'performos_idea_inbox_v2';
 const WEEK_START_ISO = '__WEEK_START__';
 const GOAL_TARGET = __GOAL_TARGET_NUM__;
+const READINESS_GLOBAL = __READINESS_GLOBAL_NUM__;
 const API_TOKEN = __API_TOKEN_JS__;
 const CAL_SYNC_ENABLED = __CAL_SYNC_ENABLED__;
 let API_ENABLED = location.protocol.startsWith('http');
@@ -1404,6 +1405,7 @@ function commandRegistry() {
         if (inp) inp.focus();
       }
     },
+    { label: 'Debug Apple Calendar', key: 'D', run: () => debugAppleCalendar() },
     { label: 'Synchroniser Apple Calendar', key: 'S', run: () => pushPendingApple() },
     { label: 'Aller à Santé', key: '1', run: () => activateTab('sante') },
     { label: 'Aller à Travail', key: '2', run: () => activateTab('travail') },
@@ -1979,6 +1981,37 @@ async function pushPendingApple() {
   }
 }
 
+async function debugAppleCalendar() {
+  if (!API_ENABLED) {
+    showToast('Debug calendrier disponible uniquement en mode serveur (--serve).', 'warn');
+    return;
+  }
+  try {
+    const r = await fetch(API_BASE + '/calendar/debug', {
+      method: 'GET',
+      headers: apiHeaders(),
+    });
+    if (!r.ok) throw new Error('debug_failed');
+    const out = await r.json();
+    const d = out.debug || {};
+    alert([
+      'Debug Apple Calendar',
+      'enabled: ' + String(!!d.enabled),
+      'error: ' + String(d.error || '-'),
+      'platform: ' + String(d.platform || '-'),
+      'eventkit: ' + String(d.eventkit || '-'),
+      'permission: ' + String(d.permission || '-'),
+      'calendars_count: ' + String(d.calendars_count || 0),
+      'default_calendar: ' + String(d.default_calendar || '-'),
+      'probe_events_synced: ' + String(d.probe_events_synced ?? '-'),
+    ].join('\n'));
+    if (d.error) showToast('Debug calendrier: ' + d.error, 'warn');
+    else showToast('Debug calendrier OK.', 'ok');
+  } catch (_) {
+    showToast('Impossible de lancer le debug calendrier.', 'err');
+  }
+}
+
 async function moveEventToDate(uid, newDateIso) {
   const ev = findCurrentEvent(uid) || mergedEvents().find(x => x._uid === uid);
   if (!ev) return;
@@ -2140,23 +2173,6 @@ async function renderWeek() {
     const id = String(ev.id || '');
     return id.startsWith('task:') && !ev.calendar_uid;
   }).length;
-  const calBadgeBtn = document.getElementById('calendarBadgeBtn');
-  if (calBadgeBtn) {
-    calBadgeBtn.classList.remove('ok', 'warn');
-    if (!CAL_SYNC_ENABLED) {
-      calBadgeBtn.classList.add('warn');
-      calBadgeBtn.textContent = 'Apple Calendar · indisponible';
-      calBadgeBtn.title = 'Accès non disponible depuis ce contexte';
-    } else if (pendingAll > 0) {
-      calBadgeBtn.classList.add('warn');
-      calBadgeBtn.textContent = 'Apple Calendar · ' + pendingAll + ' à sync';
-      calBadgeBtn.title = 'Clique pour pousser les tâches en attente';
-    } else {
-      calBadgeBtn.classList.add('ok');
-      calBadgeBtn.textContent = 'Apple Calendar · à jour';
-      calBadgeBtn.title = 'Synchronisation Apple Calendar OK';
-    }
-  }
   const pushTopBtn = document.getElementById('pushPendingTopBtn');
   if (pushTopBtn) {
     pushTopBtn.disabled = pendingAll <= 0;
@@ -2191,9 +2207,23 @@ async function renderWeek() {
   const goalDone = durations.sante;
   const goalLeft = Math.max(0, GOAL_TARGET - goalDone);
   const goalPct = Math.min(100, GOAL_TARGET ? (goalDone / GOAL_TARGET) * 100 : 0);
+  const healthWeekScore = Math.round(Math.max(0, Math.min(100, (goalPct * 0.65) + (READINESS_GLOBAL * 0.35))));
   document.getElementById('goalDone').textContent = goalDone.toFixed(1) + 'h';
   document.getElementById('goalLeft').textContent = goalLeft.toFixed(1);
   document.getElementById('goalFill').style.width = goalPct.toFixed(1) + '%';
+  const calBadgeBtn = document.getElementById('calendarBadgeBtn');
+  if (calBadgeBtn) {
+    calBadgeBtn.classList.remove('ok', 'warn');
+    if (healthWeekScore >= 70) calBadgeBtn.classList.add('ok');
+    else calBadgeBtn.classList.add('warn');
+    calBadgeBtn.textContent = 'Santé semaine · ' + healthWeekScore + '/100';
+    const syncState = !CAL_SYNC_ENABLED
+      ? 'Apple Calendar indisponible (permission/contexte).'
+      : pendingAll > 0
+        ? pendingAll + ' tâche(s) locale(s) à synchroniser.'
+        : 'Apple Calendar à jour.';
+    calBadgeBtn.title = syncState + ' Clique pour debug.';
+  }
 
   const days = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
   const grid = document.getElementById('weekGrid');
@@ -2372,11 +2402,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const calBadgeBtn = document.getElementById('calendarBadgeBtn');
   if (calBadgeBtn) {
     calBadgeBtn.addEventListener('click', () => {
-      if (!CAL_SYNC_ENABLED) {
-        showToast('Apple Calendar indisponible ici.', 'warn');
-        return;
-      }
-      pushPendingApple();
+      debugAppleCalendar();
     });
   }
   const pushTopBtn = document.getElementById('pushPendingTopBtn');
@@ -2408,6 +2434,7 @@ window.addEventListener('DOMContentLoaded', () => {
         "__CAL_BADGE_CLASS__": "ok" if cal_enabled else "warn",
         "__PENDING_SYNC_LABEL__": pending_sync_label,
         "__CAL_SYNC_ENABLED__": "true" if cal_enabled else "false",
+        "__READINESS_GLOBAL_NUM__": f"{readiness_global:.1f}",
         "__WBS__": f"{wbs:.0f}",
         "__WBS_LABEL__": str(wbs_label),
         "__READINESS_GLOBAL__": f"{readiness_global:.0f}",
