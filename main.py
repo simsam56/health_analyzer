@@ -174,6 +174,65 @@ def _compute_data_quality(conn: sqlite3.Connection) -> dict:
     }
 
 
+def _compute_progress_series(conn: sqlite3.Connection) -> dict:
+    """Séries longues simplifiées pour la page Progression."""
+    training_hours_weekly = [dict(r) for r in conn.execute(
+        """
+        SELECT strftime('%Y-W%W', started_at) AS label,
+               ROUND(SUM(COALESCE(duration_s,0))/3600.0, 2) AS value
+        FROM activities
+        WHERE started_at IS NOT NULL
+        GROUP BY label
+        ORDER BY label
+        """
+    ).fetchall()]
+
+    running_km_weekly = [dict(r) for r in conn.execute(
+        """
+        SELECT strftime('%Y-W%W', started_at) AS label,
+               ROUND(SUM(COALESCE(distance_m,0))/1000.0, 2) AS value
+        FROM activities
+        WHERE type='Running' AND distance_m > 0
+        GROUP BY label
+        ORDER BY label
+        """
+    ).fetchall()]
+
+    est_10k_weekly = [dict(r) for r in conn.execute(
+        """
+        SELECT
+          strftime('%Y-W%W', started_at) AS label,
+          ROUND(
+            (
+              (SUM(COALESCE(duration_s,0))/60.0) /
+              NULLIF((SUM(COALESCE(distance_m,0))/1000.0), 0)
+            ) * 10.0
+          , 2) AS value
+        FROM activities
+        WHERE type='Running' AND distance_m > 0 AND duration_s > 0
+        GROUP BY label
+        HAVING SUM(distance_m) >= 3000
+        ORDER BY label
+        """
+    ).fetchall()]
+
+    vo2max_series = [dict(r) for r in conn.execute(
+        """
+        SELECT date AS label, ROUND(value, 2) AS value
+        FROM health_metrics
+        WHERE metric='vo2max' AND value IS NOT NULL
+        ORDER BY date
+        """
+    ).fetchall()]
+
+    return {
+        "training_hours_weekly": training_hours_weekly,
+        "running_km_weekly": running_km_weekly,
+        "est_10k_weekly": est_10k_weekly,
+        "vo2max_series": vo2max_series,
+    }
+
+
 def deduplicate_activities(db_path: Path) -> int:
     """
     Supprime les doublons inter-sources (type + date + durée arrondie 5 min),
@@ -460,6 +519,7 @@ def main():
         "SELECT COUNT(*) FROM activities WHERE source='garmin_connect'"
     ).fetchone()[0] > 0
     data_quality = _compute_data_quality(conn)
+    progress_series = _compute_progress_series(conn)
 
     agenda_events = []
     if not args.no_calendar:
@@ -488,6 +548,7 @@ def main():
     training["calendar_sync"] = calendar_sync
     training["agenda_events"] = agenda_events
     training["data_quality"] = data_quality
+    training["progress"] = progress_series
     training["pilotage"] = {
         "events": planner_events,
         "week_start": str(week_start),
