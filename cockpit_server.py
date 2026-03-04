@@ -133,6 +133,8 @@ class CockpitHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/planner/calendar/debug":
+            if not self._auth_or_401():
+                return
             self._send_json(200, {"ok": True, "debug": diagnose_apple_calendar(db_path=self.db_path)})
             return
 

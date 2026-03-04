@@ -277,13 +277,7 @@ def generate_html(
         recent_html = '<div class="muted">Aucune activité récente.</div>'
 
     cal_enabled = bool(calendar_sync.get("enabled"))
-    cal_status = "Connecté" if cal_enabled else f"Indispo ({calendar_sync.get('error', 'n/a')})"
     pending_sync = int(calendar_sync.get("pending_tasks", 0) or 0)
-    pending_sync_label = (
-        f"{pending_sync} tâche(s) locale(s) à pousser vers Apple Calendar"
-        if pending_sync > 0 else
-        "Aucune tâche locale en attente de synchronisation"
-    )
 
     # Recommendations
     recommendations = []
@@ -1352,6 +1346,8 @@ const IDEAS_KEY = 'performos_idea_inbox_v2';
 const WEEK_START_ISO = '__WEEK_START__';
 const GOAL_TARGET = __GOAL_TARGET_NUM__;
 const READINESS_GLOBAL = __READINESS_GLOBAL_NUM__;
+const HEALTH_WEEK_GOAL_WEIGHT = 0.65;
+const HEALTH_WEEK_READINESS_WEIGHT = 0.35;
 const API_TOKEN = __API_TOKEN_JS__;
 const CAL_SYNC_ENABLED = __CAL_SYNC_ENABLED__;
 let API_ENABLED = location.protocol.startsWith('http');
@@ -2142,6 +2138,11 @@ function renderCategoryBars(durations) {
   wrap.innerHTML = html;
 }
 
+function computeHealthWeekScore(goalPct) {
+  const v = (goalPct * HEALTH_WEEK_GOAL_WEIGHT) + (READINESS_GLOBAL * HEALTH_WEEK_READINESS_WEIGHT);
+  return Math.round(Math.max(0, Math.min(100, v)));
+}
+
 async function renderWeek() {
   const baseStart = startOfWeek(parseIso(WEEK_START_ISO) || new Date());
   const start = addDays(baseStart, weekOffset * 7);
@@ -2207,7 +2208,7 @@ async function renderWeek() {
   const goalDone = durations.sante;
   const goalLeft = Math.max(0, GOAL_TARGET - goalDone);
   const goalPct = Math.min(100, GOAL_TARGET ? (goalDone / GOAL_TARGET) * 100 : 0);
-  const healthWeekScore = Math.round(Math.max(0, Math.min(100, (goalPct * 0.65) + (READINESS_GLOBAL * 0.35))));
+  const healthWeekScore = computeHealthWeekScore(goalPct);
   document.getElementById('goalDone').textContent = goalDone.toFixed(1) + 'h';
   document.getElementById('goalLeft').textContent = goalLeft.toFixed(1);
   document.getElementById('goalFill').style.width = goalPct.toFixed(1) + '%';
@@ -2430,9 +2431,7 @@ window.addEventListener('DOMContentLoaded', () => {
     repl = {
         "__TODAY__": today,
         "__NOW__": now,
-        "__CAL_STATUS__": cal_status,
         "__CAL_BADGE_CLASS__": "ok" if cal_enabled else "warn",
-        "__PENDING_SYNC_LABEL__": pending_sync_label,
         "__CAL_SYNC_ENABLED__": "true" if cal_enabled else "false",
         "__READINESS_GLOBAL_NUM__": f"{readiness_global:.1f}",
         "__WBS__": f"{wbs:.0f}",
