@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse, unquote
 
 from analytics import planner
-from integrations.apple_calendar import sync_apple_calendar
+from integrations.apple_calendar import diagnose_apple_calendar, sync_apple_calendar
 
 
 def _json_bytes(obj: dict | list) -> bytes:
@@ -130,6 +130,11 @@ class CockpitHandler(BaseHTTPRequestHandler):
 
         if path == "/api/planner/health":
             self._send_json(200, {"ok": True, "status": "up"})
+            return
+
+        if path == "/api/planner/calendar/debug":
+            debug = diagnose_apple_calendar(db_path=self.db_path)
+            self._send_json(200, {"ok": True, "debug": debug})
             return
 
         if path == "/api/planner/agent/capabilities":
