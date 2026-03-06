@@ -1267,12 +1267,6 @@ input:focus, select:focus {
 
 /* ─── SYNC BTN & DEBUG ───────────────────────────────────────── */
 .top-actions { display:flex; align-items:center; gap:8px; }
-.sync-btn-compact { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border:1px solid rgba(255,255,255,0.10); background:rgba(255,255,255,0.05); border-radius:10px; font-size:11px; font-weight:700; cursor:pointer; color:var(--text); transition:background .15s; white-space:nowrap; }
-.sync-btn-compact:hover { background:rgba(255,255,255,0.10); }
-.sync-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
-.sync-dot.ok { background:#22c55e; }
-.sync-dot.warn { background:#f59e0b; }
-.sync-dot.err { background:#ef4444; }
 .btn-icon { width:34px; height:34px; border:1px solid rgba(255,255,255,0.10); background:rgba(255,255,255,0.05); border-radius:10px; display:inline-flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px; transition:background .15s, transform .12s; color:var(--text); }
 .btn-icon:hover { background:rgba(255,255,255,0.12); transform:scale(1.08); }
 
@@ -1337,17 +1331,6 @@ input:focus, select:focus {
 .top-cockpit .brand-zone { display:flex; align-items:center; gap:10px; }
 .top-cockpit .brand-zone h1 { font-size:22px; margin:0; letter-spacing:-0.03em; font-weight:800; }
 .top-cockpit .brand-zone .sub { margin:2px 0 0; color:var(--muted); font-size:11px; }
-.kpi-strip { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.kpi-pill { display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--surface-1); border:1px solid var(--line); border-radius:var(--radius-sm); min-width:90px; transition:border-color .15s, background .15s; }
-.kpi-pill:hover { border-color:var(--border-hover); background:var(--surface-2); }
-.kpi-pill .kp-icon { font-size:16px; }
-.kpi-pill .kp-body { display:flex; flex-direction:column; gap:1px; }
-.kpi-pill .kp-label { font-size:9px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); font-weight:700; }
-.kpi-pill .kp-value { font-size:16px; font-weight:800; letter-spacing:-0.02em; line-height:1.1; }
-.kpi-pill .kp-trend { font-size:10px; font-weight:600; }
-.kpi-pill .kp-trend.up { color:var(--green); }
-.kpi-pill .kp-trend.down { color:var(--red); }
-.kpi-pill .kp-trend.flat { color:var(--muted); }
 
 /* ─── INDICATOR STRIP v4 (replaces hero-rings) ───────────────── */
 .indicator-strip { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
@@ -1446,7 +1429,7 @@ input:focus, select:focus {
           <span class="apple-cal-label">Calendrier Apple</span>
           <span class="apple-cal-sub" id="appleCalSub">__SYNC_BADGE_LABEL__</span>
         </div>
-        <span class="apple-cal-spinner" id="appleCalSpinner">⟳</span>
+        <span class="apple-cal-spinner" id="appleCalSpinner" style="display:none">⟳</span>
       </button>
       <button class="btn-icon" id="debugPanelBtn" title="Debug PerformOS">🐛</button>
       <button class="badge __CAL_BADGE_CLASS__" id="calendarBadgeBtn" style="display:none"></button>
@@ -1693,9 +1676,6 @@ const API_TOKEN = __API_TOKEN_JS__;
 const CAL_SYNC_ENABLED = __CAL_SYNC_ENABLED__;
 let API_ENABLED = location.protocol.startsWith('http');
 const API_BASE = '/api/planner';
-const TOTEM_ANIMALS = ['🦊', '🦉', '🐼', '🐬', '🐺', '🦁', '🐯', '🦭'];
-const TOTEM_KEY = 'performos_totem_idx';
-
 // Domain colors and icons
 const DOM_COLORS = {
   sport:'#22c55e', yoga:'#a78bfa', travail:'#3b82f6',
@@ -1715,44 +1695,44 @@ let _workChart = null;
 let _socialChart = null;
 
 function escapeHtml(v) {
-  return String(v||’’).replace(/&/g,’&amp;’).replace(/</g,’&lt;’).replace(/>/g,’&gt;’).replace(/"/g,’&quot;’).replace(/’/g,’&#039;’);
+  return String(v||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 }
 
 function showToast(message, kind) {
-  const wrap = document.getElementById(‘toastWrap’);
+  const wrap = document.getElementById('toastWrap');
   if (!wrap) return;
-  const el = document.createElement(‘div’);
-  el.className = ‘toast ‘ + (kind || ‘ok’);
+  const el = document.createElement('div');
+  el.className = 'toast ' + (kind || 'ok');
   el.textContent = message;
   wrap.appendChild(el);
-  setTimeout(() => { el.style.opacity = ‘0’; el.style.transform = ‘translateY(-4px)’; setTimeout(() => el.remove(), 220); }, 3200);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(-4px)'; setTimeout(() => el.remove(), 220); }, 3200);
 }
 
-function parseIso(s) { if (!s) return null; const x = new Date(String(s).replace(‘ ‘,’T’)); return Number.isNaN(x.getTime()) ? null : x; }
+function parseIso(s) { if (!s) return null; const x = new Date(String(s).replace(' ','T')); return Number.isNaN(x.getTime()) ? null : x; }
 function toIsoNoMs(d) { return d.toISOString().slice(0,19); }
 function addMin(d,m) { return new Date(d.getTime()+m*60000); }
 function startOfWeek(b) { const d=new Date(b); const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day); d.setHours(0,0,0,0); return d; }
 function addDays(d,n) { const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 function isoDate(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function hm(d) { return String(d.getHours()).padStart(2,’0’)+’:’+String(d.getMinutes()).padStart(2,’0’); }
-function shortDateFr(d) { return String(d.getDate()).padStart(2,’0’)+’/’+String(d.getMonth()+1).padStart(2,’0’); }
+function hm(d) { return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+function shortDateFr(d) { return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0'); }
 function domainColor(cat) { return DOM_COLORS[cat]||DOM_COLORS.autre; }
-function domainIcon(cat) { return DOM_ICONS[cat]||’🧩’; }
+function domainIcon(cat) { return DOM_ICONS[cat]||'🧩'; }
 
 function inferTypeFromEvent(ev) {
   if (ev.type && TYPE_DEFS[ev.type]) return ev.type;
-  const text = ((ev.title||’’)+’ ‘+(ev.category||’’)).toLowerCase();
-  if (/muscu|strength|gym|full body/.test(text)) return ‘musculation’;
-  if (/yoga|mobil|stretch|pilates/.test(text)) return ‘yoga’;
-  if (/run|course|cardio|10km|trail/.test(text)) return ‘cardio’;
-  if (/tennis|golf|swim|natation|sport/.test(text)) return ‘sport_libre’;
-  const c = ev.category||’’;
-  if (c===’travail’) return ‘travail’;
-  if (c===’formation’||c===’apprentissage’) return ‘formation’;
-  if (c===’social’||c===’relationnel’) return ‘social’;
-  if (c===’yoga’) return ‘yoga’;
-  if (c===’sport’||c===’sante’) return ‘cardio’;
-  return ‘autre’;
+  const text = ((ev.title||'')+' '+(ev.category||'')).toLowerCase();
+  if (/muscu|strength|gym|full body/.test(text)) return 'musculation';
+  if (/yoga|mobil|stretch|pilates/.test(text)) return 'yoga';
+  if (/run|course|cardio|10km|trail/.test(text)) return 'cardio';
+  if (/tennis|golf|swim|natation|sport/.test(text)) return 'sport_libre';
+  const c = ev.category||'';
+  if (c==='travail') return 'travail';
+  if (c==='formation'||c==='apprentissage') return 'formation';
+  if (c==='social'||c==='relationnel') return 'social';
+  if (c==='yoga') return 'yoga';
+  if (c==='sport'||c==='sante') return 'cardio';
+  return 'autre';
 }
 
 function eventDurationMin(ev) {
@@ -1762,68 +1742,70 @@ function eventDurationMin(ev) {
 }
 
 function apiHeaders() {
-  const h={‘Content-Type’:’application/json’};
-  if (API_TOKEN) h[‘X-PerformOS-Token’]=API_TOKEN;
+  const h={'Content-Type':'application/json'};
+  if (API_TOKEN) h['X-PerformOS-Token']=API_TOKEN;
   return h;
 }
 
 // ─── Sync status UI ───────────────────────────────────────────────────────────
 function updateSyncUI(connected, lastTime, error) {
-  const dot=document.getElementById(‘syncDotBig’);
-  const txt=document.getElementById(‘syncStatusText’);
-  const ts=document.getElementById(‘syncLastTime’);
+  const dot=document.getElementById('syncDotBig');
+  const txt=document.getElementById('syncStatusText');
+  const ts=document.getElementById('syncLastTime');
   if (!dot) return;
-  dot.className=’sync-dot-big ‘+(error?’err’:connected?’ok’:’off’);
-  txt.textContent=error?’Erreur sync’:connected?’Apple connecté’:’Apple non connecté’;
-  if (lastTime && ts) ts.textContent=’· ‘+lastTime;
-  updateAppleCalStatus(error?’error’:connected?’ok’:’idle’, lastTime||null);
+  dot.className='sync-dot-big '+(error?'err':connected?'ok':'off');
+  txt.textContent=error?'Erreur sync':connected?'Apple connecté':'Apple non connecté';
+  if (lastTime && ts) ts.textContent='· '+lastTime;
+  updateAppleCalStatus(error?'error':connected?'ok':'idle', lastTime||null);
 }
 
 // ─── Apple Calendar status (top bar) ──────────────────────────────────────────
 function updateAppleCalStatus(state, time) {
-  const btn=document.getElementById(‘appleCalBtn’);
-  const sub=document.getElementById(‘appleCalSub’);
-  const spinner=document.getElementById(‘appleCalSpinner’);
+  const btn=document.getElementById('appleCalBtn');
+  const sub=document.getElementById('appleCalSub');
+  const spinner=document.getElementById('appleCalSpinner');
   if(!btn) return;
-  btn.className=’apple-cal-status’;
-  if(state===’syncing’){
-    btn.classList.add(‘syncing’);
-    if(sub) sub.textContent=’Synchronisation…’;
-  } else if(state===’ok’){
-    btn.classList.add(‘ok’);
-    if(sub) sub.textContent=’Connecté · ‘+(time||’’);
-  } else if(state===’error’){
-    btn.classList.add(‘error’);
-    if(sub) sub.textContent=’Erreur de synchro’;
+  btn.className='apple-cal-status';
+  if(spinner) spinner.style.display='none';
+  if(state==='syncing'){
+    btn.classList.add('syncing');
+    if(sub) sub.textContent='Synchronisation…';
+    if(spinner) spinner.style.display='inline';
+  } else if(state==='ok'){
+    btn.classList.add('ok');
+    if(sub) sub.textContent='Connecté · '+(time||'');
+  } else if(state==='error'){
+    btn.classList.add('error');
+    if(sub) sub.textContent='Erreur de synchro';
   } else {
-    if(sub) sub.textContent=CAL_SYNC_ENABLED?’Connecté’:’Non connecté’;
+    if(sub) sub.textContent=CAL_SYNC_ENABLED?'Connecté':'Non connecté';
   }
 }
 
 // ─── Donut répartition semaine ─────────────────────────────────────────────────
 let _weekDonut=null;
 function renderWeekDonut(dur) {
-  const cv=document.getElementById(‘weekDonutChart’);
-  if(!cv||typeof Chart===’undefined’) return;
+  const cv=document.getElementById('weekDonutChart');
+  if(!cv||typeof Chart==='undefined') return;
   if(_weekDonut){_weekDonut.destroy();_weekDonut=null;}
   const cats=[
-    {k:’sport’,   label:’Sport’,     color:’#22c55e’},
-    {k:’travail’, label:’Travail’,   color:’#3b82f6’},
-    {k:’social’,  label:’Social’,    color:’#ec4899’},
-    {k:’formation’,label:’Formation’,color:’#f59e0b’},
-    {k:’yoga’,    label:’Yoga’,      color:’#a78bfa’},
-    {k:’autre’,   label:’Autre’,     color:’#64748b’},
+    {k:'sport',   label:'Sport',     color:'#22c55e'},
+    {k:'travail', label:'Travail',   color:'#3b82f6'},
+    {k:'social',  label:'Social',    color:'#ec4899'},
+    {k:'formation',label:'Formation',color:'#f59e0b'},
+    {k:'yoga',    label:'Yoga',      color:'#a78bfa'},
+    {k:'autre',   label:'Autre',     color:'#64748b'},
   ];
   const total=Object.values(dur).reduce((a,b)=>a+(b||0),0);
   const data=cats.map(c=>Math.max(0,dur[c.k]||0));
   const hasData=data.some(v=>v>0);
   _weekDonut=new Chart(cv,{
-    type:’doughnut’,
+    type:'doughnut',
     data:{
       labels:cats.map(c=>c.label),
       datasets:[{
         data:hasData?data:[1],
-        backgroundColor:hasData?cats.map(c=>c.color):[‘rgba(255,255,255,0.06)’],
+        backgroundColor:hasData?cats.map(c=>c.color):['rgba(255,255,255,0.06)'],
         borderWidth:0,hoverOffset:4
       }]
     },
@@ -1832,34 +1814,34 @@ function renderWeekDonut(dur) {
       plugins:{
         legend:{display:false},
         tooltip:{callbacks:{label:ctx=>{
-          if(!hasData) return ‘Aucune donnée’;
+          if(!hasData) return 'Aucune donnée';
           const pct=total>0?((ctx.raw/total)*100).toFixed(0):0;
-          return ctx.label+’ · ‘+(ctx.raw||0).toFixed(1)+’h · ‘+pct+’%’;
+          return ctx.label+' · '+(ctx.raw||0).toFixed(1)+'h · '+pct+'%';
         }}}
       },
-      cutout:’62%’
+      cutout:'62%'
     }
   });
-  const leg=document.getElementById(‘donutLegend’);
+  const leg=document.getElementById('donutLegend');
   if(leg){
     const rows=cats.filter(c=>(dur[c.k]||0)>0.01).map(c=>`<div class="donut-leg-row"><span class="donut-leg-dot" style="background:${c.color}"></span><span class="donut-leg-label">${c.label}</span><span class="donut-leg-val">${(dur[c.k]||0).toFixed(1)}h</span></div>`);
-    leg.innerHTML=rows.length?rows.join(‘’):’<div style="font-size:10px;color:var(--muted)">Aucune donnée</div>’;
+    leg.innerHTML=rows.length?rows.join(''):'<div style="font-size:10px;color:var(--muted)">Aucune donnée</div>';
   }
 }
 
 // ─── Mascot ───────────────────────────────────────────────────────────────────
 function initMascot() {
-  const m=document.getElementById(‘mascot’); if(!m) return;
-  m.addEventListener(‘click’,()=>{
-    m.classList.remove(‘bounce’);
+  const m=document.getElementById('mascot'); if(!m) return;
+  m.addEventListener('click',()=>{
+    m.classList.remove('bounce');
     void m.offsetWidth; // force reflow
-    m.classList.add(‘bounce’);
-    setTimeout(()=>m.classList.remove(‘bounce’),520);
+    m.classList.add('bounce');
+    setTimeout(()=>m.classList.remove('bounce'),520);
   });
 }
 
 // ─── Category durations ───────────────────────────────────────────────────────
-function normCat(c) { return {sante:’sport’,relationnel:’social’,apprentissage:’formation’}[c]||c; }
+function normCat(c) { return {sante:'sport',relationnel:'social',apprentissage:'formation'}[c]||c; }
 
 function categoryDurations(events) {
   const out={sport:0,yoga:0,travail:0,formation:0,social:0,autre:0};
@@ -1867,95 +1849,95 @@ function categoryDurations(events) {
     const s=parseIso(ev.start_at), e=parseIso(ev.end_at);
     if(!s||!e) return;
     const h=Math.max(0,(e-s)/3600000);
-    const cat=normCat(ev.category||’autre’);
+    const cat=normCat(ev.category||'autre');
     out[cat]=(out[cat]||0)+h;
   });
   return out;
 }
 
 function updateMiniIndicators(dur) {
-  const fmt=v=>v.toFixed(1)+’h’;
+  const fmt=v=>v.toFixed(1)+'h';
   const el=id=>document.getElementById(id);
-  if(el(‘mini-sport’))     el(‘mini-sport’).textContent=fmt(dur.sport||0);
-  if(el(‘mini-yoga’))      el(‘mini-yoga’).textContent=fmt(dur.yoga||0);
-  if(el(‘mini-travail’))   el(‘mini-travail’).textContent=fmt(dur.travail||0);
-  if(el(‘mini-formation’)) el(‘mini-formation’).textContent=fmt(dur.formation||0);
-  if(el(‘heroWork’))       el(‘heroWork’).textContent=fmt(dur.travail||0);
-  if(el(‘heroSocial’))     el(‘heroSocial’).textContent=fmt(dur.social||0);
-  if(el(‘sum-sante’))      el(‘sum-sante’).textContent=(dur.sport||0).toFixed(1);
-  if(el(‘sum-total’))      el(‘sum-total’).textContent=Object.values(dur).reduce((a,b)=>a+b,0).toFixed(1);
+  if(el('mini-sport'))     el('mini-sport').textContent=fmt(dur.sport||0);
+  if(el('mini-yoga'))      el('mini-yoga').textContent=fmt(dur.yoga||0);
+  if(el('mini-travail'))   el('mini-travail').textContent=fmt(dur.travail||0);
+  if(el('mini-formation')) el('mini-formation').textContent=fmt(dur.formation||0);
+  if(el('heroWork'))       el('heroWork').textContent=fmt(dur.travail||0);
+  if(el('heroSocial'))     el('heroSocial').textContent=fmt(dur.social||0);
+  if(el('sum-sante'))      el('sum-sante').textContent=(dur.sport||0).toFixed(1);
+  if(el('sum-total'))      el('sum-total').textContent=Object.values(dur).reduce((a,b)=>a+b,0).toFixed(1);
   renderWeekDonut(dur);
 }
 
 // ─── API calls ────────────────────────────────────────────────────────────────
 async function fetchApiEvents(startIso, endIso) {
-  const r=await fetch(API_BASE+’/events?start=’+encodeURIComponent(startIso)+’&end=’+encodeURIComponent(endIso));
-  if(!r.ok) throw new Error(‘events_api’);
+  const r=await fetch(API_BASE+'/events?start='+encodeURIComponent(startIso)+'&end='+encodeURIComponent(endIso));
+  if(!r.ok) throw new Error('events_api');
   const d=await r.json();
-  return (d.events||[]).map((ev,i)=>({...ev,_uid:String(ev.id||ev.task_id||’api:’+i)}));
+  return (d.events||[]).map((ev,i)=>({...ev,_uid:String(ev.id||ev.task_id||'api:'+i)}));
 }
 
 async function fetchBoardTasks() {
-  const r=await fetch(API_BASE+’/board’);
-  if(!r.ok) throw new Error(‘board_api’);
+  const r=await fetch(API_BASE+'/board');
+  if(!r.ok) throw new Error('board_api');
   const d=await r.json();
   return (d.tasks||[]);
 }
 
 async function apiCreateTask(payload) {
-  const r=await fetch(API_BASE+’/tasks’,{method:’POST’,headers:apiHeaders(),body:JSON.stringify(payload)});
-  if(!r.ok) throw new Error(‘create_failed’);
+  const r=await fetch(API_BASE+'/tasks',{method:'POST',headers:apiHeaders(),body:JSON.stringify(payload)});
+  if(!r.ok) throw new Error('create_failed');
   return r.json();
 }
 
 async function apiUpdateTask(taskId, payload) {
-  const r=await fetch(API_BASE+’/tasks/’+taskId,{method:’PATCH’,headers:apiHeaders(),body:JSON.stringify(payload)});
-  if(!r.ok) throw new Error(‘update_failed’);
+  const r=await fetch(API_BASE+'/tasks/'+taskId,{method:'PATCH',headers:apiHeaders(),body:JSON.stringify(payload)});
+  if(!r.ok) throw new Error('update_failed');
   return r.json();
 }
 
 async function apiDeleteTask(taskId) {
-  const r=await fetch(API_BASE+’/tasks/’+taskId,{method:’DELETE’,headers:apiHeaders()});
-  if(!r.ok) throw new Error(‘delete_failed’);
+  const r=await fetch(API_BASE+'/tasks/'+taskId,{method:'DELETE',headers:apiHeaders()});
+  if(!r.ok) throw new Error('delete_failed');
   return r.json();
 }
 
 // ─── Sync Apple Calendar ──────────────────────────────────────────────────────
 async function syncAll() {
-  updateAppleCalStatus(‘syncing’);
-  const btn=document.getElementById(‘syncBtn’);
-  if(btn){btn.disabled=true;btn.textContent=’⟳ Sync…’;}
+  updateAppleCalStatus('syncing');
+  const btn=document.getElementById('syncBtn');
+  if(btn){btn.disabled=true;btn.textContent='⟳ Sync…';}
   try {
-    const r=await fetch(API_BASE+’/calendar/sync’,{method:’POST’,headers:apiHeaders(),body:’{}’});
+    const r=await fetch(API_BASE+'/calendar/sync',{method:'POST',headers:apiHeaders(),body:'{}'});
     const d=await r.json();
     if(d.ok){
-      const now=new Date().toLocaleTimeString(‘fr-FR’,{hour:’2-digit’,minute:’2-digit’});
+      const now=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
       updateSyncUI(true,now,null);
-      updateAppleCalStatus(‘ok’,now);
-      if(d.events) currentEvents=d.events.map((ev,i)=>({...ev,_uid:String(ev.id||’api:’+i)}));
+      updateAppleCalStatus('ok',now);
+      if(d.events) currentEvents=d.events.map((ev,i)=>({...ev,_uid:String(ev.id||'api:'+i)}));
       if(d.board)  currentBoard=d.board;
       await renderWeek(); renderBoard();
-      showToast(‘Synchronisation Apple Calendar OK.’,’ok’);
+      showToast('Synchronisation Apple Calendar OK.','ok');
     }
-  } catch(e){ updateSyncUI(false,null,true); updateAppleCalStatus(‘error’); showToast(‘Impossible de synchroniser.’,’err’); }
-  finally { if(btn){btn.disabled=false;btn.textContent=’⟳ Synchroniser’;} }
+  } catch(e){ updateSyncUI(false,null,true); updateAppleCalStatus('error'); showToast('Impossible de synchroniser.','err'); }
+  finally { if(btn){btn.disabled=false;btn.textContent='⟳ Synchroniser';} }
 }
 
 // ─── Local state fallback ─────────────────────────────────────────────────────
-function loadState() { try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||’{}’);}catch(_){return{};} }
+function loadState() { try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');}catch(_){return{};} }
 
 function mergedEvents() {
   const state=loadState(); const ov=state.overrides||{}; const custom=state.custom||[];
   const base=BASE_EVENTS.map((ev,i)=>{
-    const uid=’b:’+(ev.id||i); const o=ov[uid]||{};
+    const uid='b:'+(ev.id||i); const o=ov[uid]||{};
     if(o.deleted) return null; return {...ev,...o,_uid:uid};
   }).filter(Boolean);
-  return base.concat(custom.map(ev=>({...ev,_uid:ev._uid||’c:’+Date.now()})));
+  return base.concat(custom.map(ev=>({...ev,_uid:ev._uid||'c:'+Date.now()})));
 }
 
 function setEventLocal(uid,payload) {
   const state=loadState(); state.overrides=state.overrides||{}; state.custom=state.custom||[];
-  if(uid.startsWith(‘c:’)) state.custom=state.custom.map(ev=>ev._uid===uid?{...ev,...payload}:ev);
+  if(uid.startsWith('c:')) state.custom=state.custom.map(ev=>ev._uid===uid?{...ev,...payload}:ev);
   else state.overrides[uid]={...(state.overrides[uid]||{}),...payload};
   localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
 }
@@ -1965,7 +1947,7 @@ function findCurrentEvent(uid) { return currentEvents.find(e=>e._uid===uid); }
 
 function getTaskId(ev) {
   if(ev.task_id) return ev.task_id;
-  if(ev.id && String(ev.id).startsWith(‘task:’)) return parseInt(String(ev.id).split(‘:’)[1]);
+  if(ev.id && String(ev.id).startsWith('task:')) return parseInt(String(ev.id).split(':')[1]);
   return null;
 }
 
@@ -1974,10 +1956,10 @@ async function updateEvent(uid, payload) {
   if(API_ENABLED) {
     try {
       const tid=getTaskId(ev);
-      if(tid) { const out=await apiUpdateTask(tid,{...payload,sync_apple:true}); if(out.events) currentEvents=out.events.map((e,i)=>({...e,_uid:String(e.id||’api:’+i)})); if(out.board) currentBoard=out.board; return; }
-      if(ev.calendar_uid||(ev.id&&String(ev.id).startsWith(‘apple:’))) {
+      if(tid) { const out=await apiUpdateTask(tid,{...payload,sync_apple:true}); if(out.events) currentEvents=out.events.map((e,i)=>({...e,_uid:String(e.id||'api:'+i)})); if(out.board) currentBoard=out.board; return; }
+      if(ev.calendar_uid||(ev.id&&String(ev.id).startsWith('apple:'))) {
         const cu=ev.calendar_uid||String(ev.id).slice(6);
-        await fetch(API_BASE+’/apple/’+encodeURIComponent(cu),{method:’PATCH’,headers:apiHeaders(),body:JSON.stringify(payload)});
+        await fetch(API_BASE+'/apple/'+encodeURIComponent(cu),{method:'PATCH',headers:apiHeaders(),body:JSON.stringify(payload)});
         return;
       }
     } catch(_){API_ENABLED=false;}
@@ -1990,7 +1972,7 @@ async function removeEvent(uid) {
   if(API_ENABLED) {
     try {
       const tid=getTaskId(ev);
-      if(tid){ const out=await apiDeleteTask(tid); if(out.events) currentEvents=out.events.map((e,i)=>({...e,_uid:String(e.id||’api:’+i)})); if(out.board) currentBoard=out.board; return; }
+      if(tid){ const out=await apiDeleteTask(tid); if(out.events) currentEvents=out.events.map((e,i)=>({...e,_uid:String(e.id||'api:'+i)})); if(out.board) currentBoard=out.board; return; }
     } catch(_){API_ENABLED=false;}
   }
   setEventLocal(uid,{deleted:true});
@@ -1998,40 +1980,40 @@ async function removeEvent(uid) {
 
 // ─── Schedule / Unschedule ────────────────────────────────────────────────────
 async function scheduleTaskOnDate(taskId, dateIso) {
-  const start=new Date(dateIso+’T09:00:00’); const end=addMin(start,60);
+  const start=new Date(dateIso+'T09:00:00'); const end=addMin(start,60);
   const task=currentBoard.find(t=>(t.task_id||t.id)==taskId)||{};
-  const lastBucket=task.triage_status||’a_planifier’;
+  const lastBucket=task.triage_status||'a_planifier';
   try {
     const out=await apiUpdateTask(taskId,{scheduled:true,scheduled_date:dateIso,scheduled_start:toIsoNoMs(start),scheduled_end:toIsoNoMs(end),start_at:toIsoNoMs(start),end_at:toIsoNoMs(end),last_bucket_before_scheduling:lastBucket,sync_apple:true});
-    if(out.events) currentEvents=out.events.map((e,i)=>({...e,_uid:String(e.id||’api:’+i)}));
+    if(out.events) currentEvents=out.events.map((e,i)=>({...e,_uid:String(e.id||'api:'+i)}));
     if(out.board)  currentBoard=out.board;
-    showToast(‘Tâche planifiée.’,’ok’);
-  } catch(e){ showToast(‘Impossible de planifier.’,’err’); }
+    showToast('Tâche planifiée.','ok');
+  } catch(e){ showToast('Impossible de planifier.','err'); }
 }
 
 async function unscheduleTask(taskId, lastBucket) {
   try {
-    const out=await apiUpdateTask(taskId,{scheduled:false,scheduled_date:null,scheduled_start:null,scheduled_end:null,start_at:’’,end_at:’’,triage_status:lastBucket||’a_planifier’,sync_apple:true});
-    if(out.events) currentEvents=out.events.map((e,i)=>({...e,_uid:String(e.id||’api:’+i)}));
+    const out=await apiUpdateTask(taskId,{scheduled:false,scheduled_date:null,scheduled_start:null,scheduled_end:null,start_at:'',end_at:'',triage_status:lastBucket||'a_planifier',sync_apple:true});
+    if(out.events) currentEvents=out.events.map((e,i)=>({...e,_uid:String(e.id||'api:'+i)}));
     if(out.board)  currentBoard=out.board;
-    showToast(‘Tâche retirée du planning.’,’ok’);
-  } catch(e){ showToast(‘Impossible de retirer.’,’err’); }
+    showToast('Tâche retirée du planning.','ok');
+  } catch(e){ showToast('Impossible de retirer.','err'); }
 }
 
 // ─── Board task actions ───────────────────────────────────────────────────────
 async function addBoardTask() {
-  const textEl=document.getElementById(‘taskText’);
-  const domEl=document.getElementById(‘taskDomain’);
-  const title=String((textEl&&textEl.value)||’’).trim();
-  if(!title){showToast(‘Saisis un titre.’,’warn’);return;}
-  const category=(domEl&&domEl.value)||’autre’;
+  const textEl=document.getElementById('taskText');
+  const domEl=document.getElementById('taskDomain');
+  const title=String((textEl&&textEl.value)||'').trim();
+  if(!title){showToast('Saisis un titre.','warn');return;}
+  const category=(domEl&&domEl.value)||'autre';
   try {
-    const out=await apiCreateTask({title,category,triage_status:’a_determiner’,scheduled:false,sync_apple:false});
+    const out=await apiCreateTask({title,category,triage_status:'a_determiner',scheduled:false,sync_apple:false});
     if(out.board) currentBoard=out.board;
-    else currentBoard.push({task_id:out.created?.task_id,title,category,triage_status:’a_determiner’,scheduled:false});
-    if(textEl) textEl.value=’’;
-    renderBoard(); showToast(‘Tâche ajoutée dans À déterminer.’,’ok’);
-  } catch(e){ showToast(‘Impossible de créer la tâche.’,’err’); }
+    else currentBoard.push({task_id:out.created?.task_id,title,category,triage_status:'a_determiner',scheduled:false});
+    if(textEl) textEl.value='';
+    renderBoard(); showToast('Tâche ajoutée dans À déterminer.','ok');
+  } catch(e){ showToast('Impossible de créer la tâche.','err'); }
 }
 
 async function updateTaskTriage(taskId, triageStatus) {
@@ -2040,29 +2022,29 @@ async function updateTaskTriage(taskId, triageStatus) {
     if(out.board) currentBoard=out.board;
     else currentBoard=currentBoard.map(t=>((t.task_id||t.id)==taskId)?{...t,triage_status:triageStatus}:t);
     renderBoard();
-  } catch(e){ showToast(‘Impossible de mettre à jour.’,’err’); }
+  } catch(e){ showToast('Impossible de mettre à jour.','err'); }
 }
 
 async function terminateTask(taskId) {
   try {
-    const out=await apiUpdateTask(taskId,{triage_status:’termine’,scheduled:false});
+    const out=await apiUpdateTask(taskId,{triage_status:'termine',scheduled:false});
     if(out.board) currentBoard=out.board;
-    renderBoard(); showToast(‘Tâche terminée ✓’,’ok’);
-  } catch(e){ showToast(‘Impossible de terminer.’,’err’); }
+    renderBoard(); showToast('Tâche terminée ✓','ok');
+  } catch(e){ showToast('Impossible de terminer.','err'); }
 }
 
 async function deleteBoardTask(taskId) {
-  if(!confirm(‘Supprimer cette tâche ?’)) return;
+  if(!confirm('Supprimer cette tâche ?')) return;
   try {
     const out=await apiDeleteTask(taskId);
     if(out.board) currentBoard=out.board;
     else currentBoard=currentBoard.filter(t=>(t.task_id||t.id)!=taskId);
-    renderBoard(); showToast(‘Tâche supprimée.’,’ok’);
-  } catch(e){ showToast(‘Impossible de supprimer.’,’err’); }
+    renderBoard(); showToast('Tâche supprimée.','ok');
+  } catch(e){ showToast('Impossible de supprimer.','err'); }
 }
 
 async function planFromBoard(taskId) {
-  const dt=prompt(‘Date de planification (YYYY-MM-DD) :’,isoDate(new Date()));
+  const dt=prompt('Date de planification (YYYY-MM-DD) :',isoDate(new Date()));
   if(!dt||!/^\d{4}-\d{2}-\d{2}$/.test(dt)) return;
   await scheduleTaskOnDate(taskId,dt);
   await renderWeek(); renderBoard();
@@ -2070,17 +2052,17 @@ async function planFromBoard(taskId) {
 
 // ─── Render board ─────────────────────────────────────────────────────────────
 const TRIAGE_COLS=[
-  {key:’a_determiner’,label:’À déterminer’,color:’#94a3b8’},
-  {key:’urgent’,      label:’Urgent’,       color:’#ef4444’},
-  {key:’a_planifier’, label:’À planifier’,  color:’#3b82f6’},
-  {key:’non_urgent’,  label:’Non urgent’,   color:’#64748b’},
-  {key:’termine’,     label:’Terminé’,      color:’#22c55e’},
+  {key:'a_determiner',label:'À déterminer',color:'#94a3b8'},
+  {key:'urgent',      label:'Urgent',       color:'#ef4444'},
+  {key:'a_planifier', label:'À planifier',  color:'#3b82f6'},
+  {key:'non_urgent',  label:'Non urgent',   color:'#64748b'},
+  {key:'termine',     label:'Terminé',      color:'#22c55e'},
 ];
 
 // ─── Quick form inline pour ajout jour ────────────────────────────────────────
 function showDayQuickForm(col, dateIso) {
-  document.querySelectorAll(‘.day-quick-form’).forEach(f=>f.remove());
-  const form=document.createElement(‘div’); form.className=’day-quick-form’;
+  document.querySelectorAll('.day-quick-form').forEach(f=>f.remove());
+  const form=document.createElement('div'); form.className='day-quick-form';
   form.innerHTML=`<input class="day-quick-input" type="text" placeholder="Titre de la tâche…" />`
     +`<select class="day-quick-select">`
     +`<option value="travail">💼 Travail</option>`
@@ -2094,90 +2076,90 @@ function showDayQuickForm(col, dateIso) {
     +`<button class="day-quick-submit">✓ Ajouter</button>`
     +`<button class="day-quick-cancel">✕</button>`
     +`</div>`;
-  const firstEvent=col.querySelector(‘.event’);
+  const firstEvent=col.querySelector('.event');
   if(firstEvent) col.insertBefore(form,firstEvent); else col.appendChild(form);
-  const inp=form.querySelector(‘.day-quick-input’); inp.focus();
+  const inp=form.querySelector('.day-quick-input'); inp.focus();
   async function submit(){
     const title=inp.value.trim(); if(!title){inp.focus();return;}
-    const domain=form.querySelector(‘.day-quick-select’).value;
-    const s2=new Date(dateIso+’T09:00:00’); const e2=addMin(s2,60);
+    const domain=form.querySelector('.day-quick-select').value;
+    const s2=new Date(dateIso+'T09:00:00'); const e2=addMin(s2,60);
     form.remove();
     try{
-      const out=await apiCreateTask({title,category:domain,triage_status:’a_planifier’,scheduled:true,
+      const out=await apiCreateTask({title,category:domain,triage_status:'a_planifier',scheduled:true,
         scheduled_date:dateIso,scheduled_start:toIsoNoMs(s2),scheduled_end:toIsoNoMs(e2),
         start_at:toIsoNoMs(s2),end_at:toIsoNoMs(e2),sync_apple:true});
       if(out.board) currentBoard=out.board;
-      showToast(‘Tâche ajoutée — ‘+dateIso,’ok’); await renderWeek();
-    }catch(_){showToast(‘Impossible de créer.’,’err’);}
+      showToast('Tâche ajoutée — '+dateIso,'ok'); await renderWeek();
+    }catch(_){showToast('Impossible de créer.','err');}
   }
-  form.querySelector(‘.day-quick-submit’).addEventListener(‘click’,submit);
-  form.querySelector(‘.day-quick-cancel’).addEventListener(‘click’,()=>form.remove());
-  inp.addEventListener(‘keydown’,ev=>{if(ev.key===’Enter’){ev.preventDefault();submit();}if(ev.key===’Escape’)form.remove();});
+  form.querySelector('.day-quick-submit').addEventListener('click',submit);
+  form.querySelector('.day-quick-cancel').addEventListener('click',()=>form.remove());
+  inp.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();submit();}if(ev.key==='Escape')form.remove();});
 }
 
 function renderBoard() {
-  const grid=document.getElementById(‘boardGrid’); if(!grid) return;
+  const grid=document.getElementById('boardGrid'); if(!grid) return;
   const buckets={}; TRIAGE_COLS.forEach(c=>{buckets[c.key]=[];});
-  (currentBoard||[]).forEach(t=>{const ts=t.triage_status||’a_determiner’;if(buckets[ts])buckets[ts].push(t);});
+  (currentBoard||[]).forEach(t=>{const ts=t.triage_status||'a_determiner';if(buckets[ts])buckets[ts].push(t);});
 
   grid.innerHTML=TRIAGE_COLS.map(col=>{
     const items=buckets[col.key]||[];
     const cardsHtml=items.length===0
-      ?’<div class="board-col-empty">—</div>’
+      ?'<div class="board-col-empty">—</div>'
       :items.map(t=>{
-          const tid=t.task_id||t.id||’’;
-          const cat=t.category||’autre’; const color=domainColor(cat); const icon=domainIcon(cat);
-          const isDone=col.key===’termine’;
+          const tid=t.task_id||t.id||'';
+          const cat=t.category||'autre'; const color=domainColor(cat); const icon=domainIcon(cat);
+          const isDone=col.key==='termine';
           return `<div class="board-card" draggable="true" data-task-id="${escapeHtml(String(tid))}" data-triage="${col.key}" style="border-left-color:${color};">
-            <div class="bc-title">${escapeHtml(t.title||’Tâche’)}</div>
+            <div class="bc-title">${escapeHtml(t.title||'Tâche')}</div>
             <div class="bc-domain" style="color:${color}">${icon} ${escapeHtml(CATEGORY_LABELS[cat]||cat)}</div>
             <div class="bc-actions">
-              ${!isDone?`<button class="bc-btn" onclick="planFromBoard(${tid})">📅 Planifier</button>`:’’}
-              ${!isDone?`<button class="bc-btn" onclick="terminateTask(${tid})">✓</button>`:’’}
+              ${!isDone?`<button class="bc-btn" onclick="planFromBoard(${tid})">📅 Planifier</button>`:''}
+              ${!isDone?`<button class="bc-btn" onclick="terminateTask(${tid})">✓</button>`:''}
               <button class="bc-btn danger" onclick="deleteBoardTask(${tid})">✕</button>
             </div>
           </div>`;
-        }).join(‘’);
+        }).join('');
     return `<div class="board-col" data-triage="${col.key}"
-      ondragover="event.preventDefault();this.classList.add(‘drop-target’)"
-      ondragleave="this.classList.remove(‘drop-target’)"
-      ondrop="handleBoardDrop(event,’${col.key}’)">
+      ondragover="event.preventDefault();this.classList.add('drop-target')"
+      ondragleave="this.classList.remove('drop-target')"
+      ondrop="handleBoardDrop(event,'${col.key}')">
       <div class="board-col-header">
         <span class="board-col-title" style="color:${col.color}">${col.label}</span>
         <span class="board-col-count">${items.length}</span>
       </div>
       <div class="board-lane" data-triage="${col.key}">${cardsHtml}</div>
     </div>`;
-  }).join(‘’);
+  }).join('');
 
   // Bind drag events
-  grid.querySelectorAll(‘.board-card[data-task-id]’).forEach(card=>{
-    card.addEventListener(‘dragstart’,ev=>{
-      card.classList.add(‘dragging’);
-      ev.dataTransfer.setData(‘application/x-board-task’,card.dataset.taskId);
-      ev.dataTransfer.setData(‘text/plain’,’board:’+card.dataset.taskId);
-      ev.dataTransfer.effectAllowed=’move’;
+  grid.querySelectorAll('.board-card[data-task-id]').forEach(card=>{
+    card.addEventListener('dragstart',ev=>{
+      card.classList.add('dragging');
+      ev.dataTransfer.setData('application/x-board-task',card.dataset.taskId);
+      ev.dataTransfer.setData('text/plain','board:'+card.dataset.taskId);
+      ev.dataTransfer.effectAllowed='move';
     });
-    card.addEventListener(‘dragend’,()=>card.classList.remove(‘dragging’));
+    card.addEventListener('dragend',()=>card.classList.remove('dragging'));
   });
 
   // Sortable between columns
-  if(typeof Sortable!==’undefined’){
-    grid.querySelectorAll(‘.board-lane’).forEach(lane=>{
-      if(lane.dataset.sortableBound===’1’) return;
+  if(typeof Sortable!=='undefined'){
+    grid.querySelectorAll('.board-lane').forEach(lane=>{
+      if(lane.dataset.sortableBound==='1') return;
       Sortable.create(lane,{
-        group:’performos-board’, animation:160, draggable:’.board-card’, ghostClass:’dragging’,
+        group:'performos-board', animation:160, draggable:'.board-card', ghostClass:'dragging',
         onEnd:evt=>{const tid=evt.item&&evt.item.dataset.taskId; const to=evt.to&&evt.to.dataset.triage; if(tid&&to) updateTaskTriage(tid,to);}
       });
-      lane.dataset.sortableBound=’1’;
+      lane.dataset.sortableBound='1';
     });
   }
 }
 
 function handleBoardDrop(ev, targetTriage) {
   ev.preventDefault();
-  document.querySelectorAll(‘.board-col’).forEach(c=>c.classList.remove(‘drop-target’));
-  const tid=ev.dataTransfer.getData(‘application/x-board-task’);
+  document.querySelectorAll('.board-col').forEach(c=>c.classList.remove('drop-target'));
+  const tid=ev.dataTransfer.getData('application/x-board-task');
   if(tid&&targetTriage) updateTaskTriage(tid,targetTriage);
 }
 
@@ -2189,11 +2171,11 @@ async function computeAndRenderTrendCharts(currentWeekEvents) {
   const weeks=[];
   for(let w=3;w>=0;w--){
     const wStart=new Date(thisMonday.getTime()-w*MS_WEEK); const wEnd=new Date(wStart.getTime()+MS_WEEK);
-    const label=w===0?’Cette sem.’:’S-’+w;
+    const label=w===0?'Cette sem.':'S-'+w;
     if(w===0){
-      weeks.push({label,work:sumHoursForCat(currentWeekEvents,’travail’),social:sumHoursForCat(currentWeekEvents,’social’)});
+      weeks.push({label,work:sumHoursForCat(currentWeekEvents,'travail'),social:sumHoursForCat(currentWeekEvents,'social')});
     } else {
-      try{const wEvts=await fetchApiEvents(wStart.toISOString(),wEnd.toISOString()); weeks.push({label,work:sumHoursForCat(wEvts,’travail’),social:sumHoursForCat(wEvts,’social’)});}
+      try{const wEvts=await fetchApiEvents(wStart.toISOString(),wEnd.toISOString()); weeks.push({label,work:sumHoursForCat(wEvts,'travail'),social:sumHoursForCat(wEvts,'social')});}
       catch(_){weeks.push({label,work:0,social:0});}
     }
   }
@@ -2201,32 +2183,32 @@ async function computeAndRenderTrendCharts(currentWeekEvents) {
 }
 
 function sumHoursForCat(evts,cat) {
-  return evts.reduce((acc,ev)=>{const c=normCat(ev.category||’’); if(c===cat) acc+=(eventDurationMin(ev)||0)/60; return acc;},0);
+  return evts.reduce((acc,ev)=>{const c=normCat(ev.category||''); if(c===cat) acc+=(eventDurationMin(ev)||0)/60; return acc;},0);
 }
 
 function renderWorkTrendChart(wd) {
-  const cv=document.getElementById(‘workTrendChart’); if(!cv||typeof Chart===’undefined’) return;
+  const cv=document.getElementById('workTrendChart'); if(!cv||typeof Chart==='undefined') return;
   if(_workChart){_workChart.destroy();_workChart=null;}
-  _workChart=new Chart(cv,{type:’line’,data:{labels:wd.map(w=>w.label),datasets:[{data:wd.map(w=>+(w.work||0).toFixed(1)),borderColor:’#3b82f6’,backgroundColor:’rgba(59,130,246,.12)’,borderWidth:2,pointRadius:3,fill:true,tension:0.35}]},options:{responsive:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:’#64748b’,font:{size:10}},grid:{color:’rgba(255,255,255,.05)’}},y:{ticks:{color:’#64748b’,font:{size:10}},grid:{color:’rgba(255,255,255,.05)’},beginAtZero:true}}}});
+  _workChart=new Chart(cv,{type:'line',data:{labels:wd.map(w=>w.label),datasets:[{data:wd.map(w=>+(w.work||0).toFixed(1)),borderColor:'#3b82f6',backgroundColor:'rgba(59,130,246,.12)',borderWidth:2,pointRadius:3,fill:true,tension:0.35}]},options:{responsive:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#64748b',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'}},y:{ticks:{color:'#64748b',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'},beginAtZero:true}}}});
 }
 
 function renderSocialTrendChart(wd) {
-  const cv=document.getElementById(‘socialTrendChart’); if(!cv||typeof Chart===’undefined’) return;
+  const cv=document.getElementById('socialTrendChart'); if(!cv||typeof Chart==='undefined') return;
   if(_socialChart){_socialChart.destroy();_socialChart=null;}
-  _socialChart=new Chart(cv,{type:’line’,data:{labels:wd.map(w=>w.label),datasets:[{data:wd.map(w=>+(w.social||0).toFixed(1)),borderColor:’#ec4899’,backgroundColor:’rgba(236,72,153,.12)’,borderWidth:2,pointRadius:3,fill:true,tension:0.35}]},options:{responsive:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:’#64748b’,font:{size:10}},grid:{color:’rgba(255,255,255,.05)’}},y:{ticks:{color:’#64748b’,font:{size:10}},grid:{color:’rgba(255,255,255,.05)’},beginAtZero:true}}}});
+  _socialChart=new Chart(cv,{type:'line',data:{labels:wd.map(w=>w.label),datasets:[{data:wd.map(w=>+(w.social||0).toFixed(1)),borderColor:'#ec4899',backgroundColor:'rgba(236,72,153,.12)',borderWidth:2,pointRadius:3,fill:true,tension:0.35}]},options:{responsive:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#64748b',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'}},y:{ticks:{color:'#64748b',font:{size:10}},grid:{color:'rgba(255,255,255,.05)'},beginAtZero:true}}}});
 }
 
 // ─── Calendar week ────────────────────────────────────────────────────────────
 async function renderWeek() {
   const baseStart=startOfWeek(parseIso(WEEK_START_ISO)||new Date());
   const start=addDays(baseStart,weekOffset*7); const end=addDays(start,7);
-  const days=[‘Lun’,’Mar’,’Mer’,’Jeu’,’Ven’,’Sam’,’Dim’];
-  const lbl=document.getElementById(‘weekLabel’);
-  if(lbl) lbl.textContent=shortDateFr(start)+’ – ‘+shortDateFr(addDays(end,-1));
+  const days=['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
+  const lbl=document.getElementById('weekLabel');
+  if(lbl) lbl.textContent=shortDateFr(start)+' – '+shortDateFr(addDays(end,-1));
 
   let allEvents=[];
   if(API_ENABLED){
-    try { allEvents=await fetchApiEvents(isoDate(start)+’T00:00:00’,isoDate(addDays(end,1))+’T00:00:00’); }
+    try { allEvents=await fetchApiEvents(isoDate(start)+'T00:00:00',isoDate(addDays(end,1))+'T00:00:00'); }
     catch(_){ API_ENABLED=false; allEvents=mergedEvents(); }
   } else { allEvents=mergedEvents(); }
 
@@ -2236,68 +2218,68 @@ async function renderWeek() {
   const dur=categoryDurations(events); updateMiniIndicators(dur);
 
   // Travail section
-  const wfl=document.getElementById(‘workFocusHrs’); if(wfl) wfl.textContent=(dur.travail||0).toFixed(1)+’h’;
-  const wtl=document.getElementById(‘workTasksList’);
+  const wfl=document.getElementById('workFocusHrs'); if(wfl) wfl.textContent=(dur.travail||0).toFixed(1)+'h';
+  const wtl=document.getElementById('workTasksList');
   if(wtl){
-    const we=events.filter(ev=>normCat(ev.category||’’)===’travail’).sort((a,b)=>parseIso(a.start_at)-parseIso(b.start_at));
-    wtl.innerHTML=we.length===0?’<div class="muted" style="font-size:12px">Aucune tâche travail.</div>’:we.slice(0,8).map(ev=>{const s=parseIso(ev.start_at);return ‘<div class="event" style="border-left-color:#3b82f6"><div class="event-title">💼 ‘+escapeHtml(ev.title||’Travail’)+’</div><div class="event-meta"><span>’+(s?hm(s):’—‘)+’</span></div></div>’;}).join(‘’);
+    const we=events.filter(ev=>normCat(ev.category||'')==='travail').sort((a,b)=>parseIso(a.start_at)-parseIso(b.start_at));
+    wtl.innerHTML=we.length===0?'<div class="muted" style="font-size:12px">Aucune tâche travail.</div>':we.slice(0,8).map(ev=>{const s=parseIso(ev.start_at);return '<div class="event" style="border-left-color:#3b82f6"><div class="event-title">💼 '+escapeHtml(ev.title||'Travail')+'</div><div class="event-meta"><span>'+(s?hm(s):'—')+'</span></div></div>';}).join('');
   }
 
   // Social section
   const now=new Date();
-  const su=document.getElementById(‘socialUpcoming’); if(su) su.textContent=events.filter(ev=>{const s=parseIso(ev.start_at);return s&&s>=now&&normCat(ev.category||’’)===’social’;}).length;
-  const sel=document.getElementById(‘socialEventsList’);
+  const su=document.getElementById('socialUpcoming'); if(su) su.textContent=events.filter(ev=>{const s=parseIso(ev.start_at);return s&&s>=now&&normCat(ev.category||'')==='social';}).length;
+  const sel=document.getElementById('socialEventsList');
   if(sel){
-    const re=events.filter(ev=>normCat(ev.category||’’)===’social’).sort((a,b)=>parseIso(a.start_at)-parseIso(b.start_at));
-    sel.innerHTML=re.length===0?’<div class="muted" style="font-size:12px">Aucun événement social.</div>’:re.slice(0,8).map(ev=>{const s=parseIso(ev.start_at);return ‘<div class="event" style="border-left-color:#ec4899"><div class="event-title">💬 ‘+escapeHtml(ev.title||’Social’)+’</div><div class="event-meta"><span>’+(s?hm(s):’—‘)+’</span></div></div>’;}).join(‘’);
+    const re=events.filter(ev=>normCat(ev.category||'')==='social').sort((a,b)=>parseIso(a.start_at)-parseIso(b.start_at));
+    sel.innerHTML=re.length===0?'<div class="muted" style="font-size:12px">Aucun événement social.</div>':re.slice(0,8).map(ev=>{const s=parseIso(ev.start_at);return '<div class="event" style="border-left-color:#ec4899"><div class="event-title">💬 '+escapeHtml(ev.title||'Social')+'</div><div class="event-meta"><span>'+(s?hm(s):'—')+'</span></div></div>';}).join('');
   }
 
   computeAndRenderTrendCharts(events);
 
-  const grid=document.getElementById(‘weekGrid’); if(!grid) return; grid.innerHTML=’’;
+  const grid=document.getElementById('weekGrid'); if(!grid) return; grid.innerHTML='';
   for(let i=0;i<7;i++){
     const d=addDays(start,i); const dateIso=isoDate(d); const isToday=dateIso===isoDate(new Date());
-    const col=document.createElement(‘div’); col.className=’day-col’+(isToday?’ today’:’’); col.dataset.date=dateIso;
-    const head=document.createElement(‘div’); head.className=’day-head’;
-    head.innerHTML=’<span>’+days[i]+’ ‘+shortDateFr(d)+(isToday?’ <span class="today-badge">Auj.</span>’:’’)+’</span>’
-      +’<button class="day-add" data-date="’+dateIso+’" title="Ajouter ici">+</button>’;
+    const col=document.createElement('div'); col.className='day-col'+(isToday?' today':''); col.dataset.date=dateIso;
+    const head=document.createElement('div'); head.className='day-head';
+    head.innerHTML='<span>'+days[i]+' '+shortDateFr(d)+(isToday?' <span class="today-badge">Auj.</span>':'')+'</span>'
+      +'<button class="day-add" data-date="'+dateIso+'" title="Ajouter ici">+</button>';
     col.appendChild(head);
 
     // Drop zone pour tâches du board
-    col.addEventListener(‘dragover’,ev=>{ev.preventDefault();col.classList.add(‘drop-target’);});
-    col.addEventListener(‘dragleave’,()=>col.classList.remove(‘drop-target’));
-    col.addEventListener(‘drop’,async ev=>{
-      ev.preventDefault(); col.classList.remove(‘drop-target’);
-      const boardTaskId=ev.dataTransfer.getData(‘application/x-board-task’);
+    col.addEventListener('dragover',ev=>{ev.preventDefault();col.classList.add('drop-target');});
+    col.addEventListener('dragleave',()=>col.classList.remove('drop-target'));
+    col.addEventListener('drop',async ev=>{
+      ev.preventDefault(); col.classList.remove('drop-target');
+      const boardTaskId=ev.dataTransfer.getData('application/x-board-task');
       if(boardTaskId){await scheduleTaskOnDate(boardTaskId,dateIso);await renderWeek();renderBoard();return;}
-      const uid=ev.dataTransfer.getData(‘text/plain’);
-      if(uid&&!uid.startsWith(‘board:’)){await moveEventToDate(uid,dateIso);await renderWeek();}
+      const uid=ev.dataTransfer.getData('text/plain');
+      if(uid&&!uid.startsWith('board:')){await moveEventToDate(uid,dateIso);await renderWeek();}
     });
 
     const dayEvents=events.filter(ev=>{const s=parseIso(ev.start_at);return s&&isoDate(s)===dateIso;}).sort((a,b)=>parseIso(a.start_at)-parseIso(b.start_at));
-    if(!dayEvents.length){const emp=document.createElement(‘div’);emp.className=’muted’;emp.style.fontSize=’12px’;emp.textContent=’—‘;col.appendChild(emp);}
+    if(!dayEvents.length){const emp=document.createElement('div');emp.className='muted';emp.style.fontSize='12px';emp.textContent='—';col.appendChild(emp);}
 
     dayEvents.forEach(ev=>{
-      const cat=normCat(ev.category||’autre’); const color=domainColor(cat); const icon=domainIcon(cat);
+      const cat=normCat(ev.category||'autre'); const color=domainColor(cat); const icon=domainIcon(cat);
       const s=parseIso(ev.start_at); const e=parseIso(ev.end_at);
       const dur2=Math.max(5,Math.round(((e||s)-(s||e))/60000));
-      const card=document.createElement(‘div’); card.className=’event’; card.draggable=true; card.style.borderLeftColor=color;
-      card.innerHTML=’<div class="event-title">’+icon+’ ‘+escapeHtml(ev.title||’Événement’)+’</div>’
-        +’<div class="event-meta"><span>’+(s?hm(s):’—‘)+’ · ‘+dur2+’min</span>’
-        +’<button class="event-x" title="Retirer du planning">←</button>’
-        +’<button class="event-del" title="Supprimer">✕</button></div>’;
-      card.addEventListener(‘dragstart’,evd=>{card.classList.add(‘dragging’);evd.dataTransfer.setData(‘text/plain’,ev._uid);});
-      card.addEventListener(‘dragend’,()=>card.classList.remove(‘dragging’));
-      card.querySelector(‘.event-x’).addEventListener(‘click’,async evx=>{
+      const card=document.createElement('div'); card.className='event'; card.draggable=true; card.style.borderLeftColor=color;
+      card.innerHTML='<div class="event-title">'+icon+' '+escapeHtml(ev.title||'Événement')+'</div>'
+        +'<div class="event-meta"><span>'+(s?hm(s):'—')+' · '+dur2+'min</span>'
+        +'<button class="event-x" title="Retirer du planning">←</button>'
+        +'<button class="event-del" title="Supprimer">✕</button></div>';
+      card.addEventListener('dragstart',evd=>{card.classList.add('dragging');evd.dataTransfer.setData('text/plain',ev._uid);});
+      card.addEventListener('dragend',()=>card.classList.remove('dragging'));
+      card.querySelector('.event-x').addEventListener('click',async evx=>{
         evx.stopPropagation();
         const tid=getTaskId(ev);
-        if(!tid){showToast(‘Cet événement Apple ne peut pas être retiré du planning.’,’warn’);return;}
+        if(!tid){showToast('Cet événement Apple ne peut pas être retiré du planning.','warn');return;}
         await unscheduleTask(tid,ev.last_bucket_before_scheduling);
         await renderWeek(); renderBoard();
       });
-      card.querySelector(‘.event-del’).addEventListener(‘click’,async evd=>{
+      card.querySelector('.event-del').addEventListener('click',async evd=>{
         evd.stopPropagation();
-        if(!confirm(‘Supprimer ?’)) return;
+        if(!confirm('Supprimer ?')) return;
         await removeEvent(ev._uid); await renderWeek(); renderBoard();
       });
       col.appendChild(card);
@@ -2306,9 +2288,9 @@ async function renderWeek() {
   }
 
   // Bouton "+" sur chaque jour
-  grid.querySelectorAll(‘.day-add’).forEach(btn=>{
-    btn.addEventListener(‘click’,()=>{
-      const dayCol=btn.closest(‘.day-col’);
+  grid.querySelectorAll('.day-add').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const dayCol=btn.closest('.day-col');
       if(dayCol) showDayQuickForm(dayCol, btn.dataset.date);
     });
   });
@@ -2317,45 +2299,45 @@ async function renderWeek() {
 async function moveEventToDate(uid, newDateIso) {
   const ev=findCurrentEvent(uid); if(!ev) return;
   const s=parseIso(ev.start_at); const e=parseIso(ev.end_at); if(!s||!e) return;
-  const dur=e-s; const ms=new Date(newDateIso+’T’+hm(s)+’:00’); const me=new Date(ms.getTime()+dur);
+  const dur=e-s; const ms=new Date(newDateIso+'T'+hm(s)+':00'); const me=new Date(ms.getTime()+dur);
   await updateEvent(uid,{start_at:toIsoNoMs(ms),end_at:toIsoNoMs(me),scheduled_start:toIsoNoMs(ms),scheduled_end:toIsoNoMs(me),scheduled_date:newDateIso});
 }
 
 // ─── Debug panel ──────────────────────────────────────────────────────────────
 function toggleDebugPanel() {
-  const panel=document.getElementById(‘debugPanel’); if(!panel) return;
-  panel.classList.toggle(‘open’);
-  const da=document.getElementById(‘dbgApi’); if(da) da.textContent=API_ENABLED?API_BASE:’local storage’;
-  const de=document.getElementById(‘dbgEvents’); if(de) de.textContent=currentEvents.length;
+  const panel=document.getElementById('debugPanel'); if(!panel) return;
+  panel.classList.toggle('open');
+  const da=document.getElementById('dbgApi'); if(da) da.textContent=API_ENABLED?API_BASE:'local storage';
+  const de=document.getElementById('dbgEvents'); if(de) de.textContent=currentEvents.length;
 }
 
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 function activateTab(tabId) {
-  document.querySelectorAll(‘.tab’).forEach(t=>t.classList.remove(‘active’));
-  const te=document.querySelector(‘.tab[data-tab="’+tabId+’"]’); if(te) te.classList.add(‘active’);
-  document.querySelectorAll(‘.section’).forEach(s=>s.classList.remove(‘active’));
-  const se=document.getElementById(‘sec-’+tabId); if(se) se.classList.add(‘active’);
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  const te=document.querySelector('.tab[data-tab="'+tabId+'"]'); if(te) te.classList.add('active');
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  const se=document.getElementById('sec-'+tabId); if(se) se.classList.add('active');
   window.scrollTo(0,0);
 }
 
 // ─── Rings animation ──────────────────────────────────────────────────────────
 function initRings() {
-  document.querySelectorAll(‘.ic-fill’).forEach(el=>{
-    const target=el.style.width||’0%’; el.style.transition=’none’; el.style.width=’0%’;
+  document.querySelectorAll('.ic-fill').forEach(el=>{
+    const target=el.style.width||'0%'; el.style.transition='none'; el.style.width='0%';
     void el.getBoundingClientRect();
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{el.style.transition=’width .8s cubic-bezier(0.4,0,0.2,1)’;el.style.width=target;}));
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{el.style.transition='width .8s cubic-bezier(0.4,0,0.2,1)';el.style.width=target;}));
   });
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
-window.addEventListener(‘DOMContentLoaded’, () => {
-  document.querySelectorAll(‘.tab’).forEach(t=>t.addEventListener(‘click’,()=>activateTab(t.dataset.tab)));
-  const prev=document.getElementById(‘prevWeek’); if(prev) prev.addEventListener(‘click’,()=>{weekOffset-=1;renderWeek();});
-  const next=document.getElementById(‘nextWeek’); if(next) next.addEventListener(‘click’,()=>{weekOffset+=1;renderWeek();});
-  const dbg=document.getElementById(‘debugPanelBtn’); if(dbg) dbg.addEventListener(‘click’,toggleDebugPanel);
-  const addBtn=document.getElementById(‘addTaskBtn’); if(addBtn) addBtn.addEventListener(‘click’,addBoardTask);
-  const taskInput=document.getElementById(‘taskText’);
-  if(taskInput) taskInput.addEventListener(‘keydown’,ev=>{if(ev.key===’Enter’){ev.preventDefault();addBoardTask();}});
+window.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>activateTab(t.dataset.tab)));
+  const prev=document.getElementById('prevWeek'); if(prev) prev.addEventListener('click',()=>{weekOffset-=1;renderWeek();});
+  const next=document.getElementById('nextWeek'); if(next) next.addEventListener('click',()=>{weekOffset+=1;renderWeek();});
+  const dbg=document.getElementById('debugPanelBtn'); if(dbg) dbg.addEventListener('click',toggleDebugPanel);
+  const addBtn=document.getElementById('addTaskBtn'); if(addBtn) addBtn.addEventListener('click',addBoardTask);
+  const taskInput=document.getElementById('taskText');
+  if(taskInput) taskInput.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();addBoardTask();}});
 
   updateSyncUI(CAL_SYNC_ENABLED,null,false);
 
@@ -2364,7 +2346,7 @@ window.addEventListener(‘DOMContentLoaded’, () => {
     renderBoard();
     await renderWeek();
     initRings(); initMascot();
-    if(!CAL_SYNC_ENABLED) showToast(‘Apple Calendar non connecté.’,’warn’);
+    if(!CAL_SYNC_ENABLED) showToast('Apple Calendar non connecté.','warn');
   })();
 });
 </script>
