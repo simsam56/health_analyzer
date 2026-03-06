@@ -1296,8 +1296,8 @@ input:focus, select:focus {
 .week-wrap { overflow-x:auto; }
 .day-col { min-height:400px; background:rgba(255,255,255,0.025); border:1px solid rgba(255,255,255,0.07); border-radius:12px; padding:8px; flex:1; min-width:110px; }
 .day-head { font-size:11px; font-weight:700; color:var(--muted); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
-.event { border-left:3px solid #9ca3af; background:rgba(255,255,255,0.05); border-top:1px solid rgba(255,255,255,0.07); border-right:1px solid rgba(255,255,255,0.04); border-bottom:1px solid rgba(255,255,255,0.04); border-radius:8px; padding:6px 8px; margin-bottom:5px; cursor:grab; transition:transform .15s, box-shadow .15s, background .15s; }
-.event:hover { transform:translateY(-2px); box-shadow:0 4px 14px rgba(0,0,0,.3); background:rgba(255,255,255,0.09); }
+.event { border-left:3px solid #9ca3af; background:rgba(255,255,255,0.05); border-top:1px solid rgba(255,255,255,0.07); border-right:1px solid rgba(255,255,255,0.04); border-bottom:1px solid rgba(255,255,255,0.04); border-radius:8px; padding:6px 8px; margin-bottom:5px; cursor:grab; transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease, background .15s; }
+.event:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(0,0,0,.35); background:rgba(255,255,255,0.09); }
 .event-title { font-size:11px; font-weight:700; line-height:1.3; color:var(--text); }
 .event-meta { display:flex; align-items:center; gap:6px; margin-top:3px; flex-wrap:wrap; }
 .event-cat-pill { display:inline-flex; align-items:center; border-radius:4px; padding:1px 5px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
@@ -1322,8 +1322,10 @@ input:focus, select:focus {
 
 /* ─── MISC OVERRIDES ─────────────────────────────────────────── */
 .tabs { display:flex; gap:5px; margin-bottom:14px; background:rgba(255,255,255,0.04); padding:4px; border-radius:14px; border:1px solid rgba(255,255,255,0.08); width:fit-content; }
-.tab { border:none; background:transparent; border-radius:10px; padding:7px 14px; font-size:13px; font-weight:600; cursor:pointer; color:var(--muted); transition:all .15s; }
+.tab { border:none; background:transparent; border-radius:10px; padding:7px 14px; font-size:13px; font-weight:600; cursor:pointer; color:var(--muted); transition:all .15s; position:relative; }
+.tab::after { content:''; position:absolute; bottom:-1px; left:50%; width:0; height:2px; background:var(--accent); border-radius:2px; transition:width .25s cubic-bezier(0.4,0,0.2,1), left .25s cubic-bezier(0.4,0,0.2,1); }
 .tab.active { background:rgba(255,255,255,0.10); color:var(--text); box-shadow:0 2px 6px rgba(0,0,0,.2); }
+.tab.active::after { width:100%; left:0; }
 .tab:hover:not(.active) { color:var(--text); }
 
 /* ─── TOP-COCKPIT v4 ────────────────────────────────────────── */
@@ -1334,7 +1336,8 @@ input:focus, select:focus {
 
 /* ─── INDICATOR STRIP v4 (replaces hero-rings) ───────────────── */
 .indicator-strip { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
-.indicator-card { flex:1; min-width:220px; display:flex; flex-direction:column; gap:8px; padding:14px 16px; background:var(--surface-0); border:1px solid var(--line); border-radius:var(--radius-lg); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); }
+.indicator-card { flex:1; min-width:220px; display:flex; flex-direction:column; gap:8px; padding:14px 16px; background:var(--surface-0); border:1px solid var(--line); border-radius:var(--radius-lg); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); transition:border-color .15s, background .15s; }
+.indicator-card:hover { border-color:var(--border-hover); background:rgba(255,255,255,0.08); }
 .indicator-card .ic-top { display:flex; align-items:center; justify-content:space-between; }
 .indicator-card .ic-label { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--text-secondary); }
 .indicator-card .ic-label .ic-icon { font-size:16px; }
@@ -1357,7 +1360,8 @@ input:focus, select:focus {
 
 /* ─── PILOTAGE MINI INDICATORS ───────────────────────────────── */
 .pilotage-mini-strip { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; }
-.pilotage-mini { display:flex; align-items:center; gap:8px; padding:10px 14px; background:var(--surface-0); border:1px solid var(--line); border-radius:var(--radius-sm); font-size:12px; font-weight:700; min-width:120px; flex:1; }
+.pilotage-mini { display:flex; align-items:center; gap:8px; padding:10px 14px; background:var(--surface-0); border:1px solid var(--line); border-radius:var(--radius-sm); font-size:12px; font-weight:700; min-width:120px; flex:1; transition:border-color .15s, background .15s, transform .15s ease; }
+.pilotage-mini:hover { border-color:var(--border-hover); background:rgba(255,255,255,0.08); transform:translateY(-1px); }
 .pilotage-mini .pm-icon { font-size:18px; }
 .pilotage-mini .pm-body { display:flex; flex-direction:column; gap:2px; }
 .pilotage-mini .pm-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
@@ -1387,8 +1391,8 @@ input:focus, select:focus {
 .board-col-title { font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; }
 .board-col-count { font-size:11px; font-weight:700; padding:2px 7px; border-radius:99px; background:rgba(255,255,255,.07); }
 .board-lane { min-height:60px; display:flex; flex-direction:column; gap:6px; }
-.board-card { background:var(--surface-1); border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:var(--radius-sm); padding:8px 10px; cursor:grab; position:relative; transition:box-shadow .15s, transform .1s; }
-.board-card:hover { box-shadow:0 2px 10px rgba(0,0,0,.25); transform:translateY(-1px); }
+.board-card { background:var(--surface-1); border:1px solid var(--line); border-left:3px solid var(--accent); border-radius:var(--radius-sm); padding:8px 10px; cursor:grab; position:relative; transition:transform .15s ease, box-shadow .15s ease; }
+.board-card:hover { box-shadow:0 6px 20px rgba(0,0,0,.35); transform:translateY(-2px); }
 .board-card.dragging { opacity:.45; }
 .board-card .bc-title { font-size:12px; font-weight:700; margin-bottom:4px; line-height:1.3; word-break:break-word; }
 .board-card .bc-domain { font-size:10px; font-weight:700; margin-bottom:4px; }
@@ -1715,6 +1719,16 @@ function startOfWeek(b) { const d=new Date(b); const day=(d.getDay()+6)%7; d.set
 function addDays(d,n) { const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 function isoDate(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function hm(d) { return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+function relativeTime(isoStr) {
+  if (!isoStr) return '';
+  const d = typeof isoStr === 'string' ? new Date(isoStr) : isoStr;
+  if (isNaN(d)) return isoStr;
+  const diff = Math.floor((Date.now() - d) / 1000);
+  if (diff < 60) return "\u00e0 l'instant";
+  if (diff < 3600) return 'il y a ' + Math.floor(diff/60) + ' min';
+  if (diff < 86400) return 'il y a ' + Math.floor(diff/3600) + 'h';
+  return 'il y a ' + Math.floor(diff/86400) + 'j';
+}
 function shortDateFr(d) { return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0'); }
 function domainColor(cat) { return DOM_COLORS[cat]||DOM_COLORS.autre; }
 function domainIcon(cat) { return DOM_ICONS[cat]||'🧩'; }
@@ -1773,12 +1787,12 @@ function updateAppleCalStatus(state, time) {
     if(spinner) spinner.style.display='inline';
   } else if(state==='ok'){
     btn.classList.add('ok');
-    if(sub) sub.textContent='Connecté · '+(time||'');
+    if(sub) sub.textContent='Sync · '+relativeTime(time);
   } else if(state==='error'){
     btn.classList.add('error');
     if(sub) sub.textContent='Erreur de synchro';
   } else {
-    if(sub) sub.textContent=CAL_SYNC_ENABLED?'Connecté':'Non connecté';
+    if(sub) sub.textContent=CAL_SYNC_ENABLED?'Connect\u00e9':'Non connect\u00e9';
   }
 }
 
@@ -2342,6 +2356,8 @@ window.addEventListener('DOMContentLoaded', () => {
   updateSyncUI(CAL_SYNC_ENABLED,null,false);
 
   (async()=>{
+    const boardGrid = document.getElementById('boardGrid');
+    if (boardGrid) boardGrid.innerHTML = '<div style="padding:20px;color:var(--muted);font-size:12px;text-align:center">Chargement\u2026</div>';
     try{ if(API_ENABLED) currentBoard=await fetchBoardTasks(); } catch(_){}
     renderBoard();
     await renderWeek();
