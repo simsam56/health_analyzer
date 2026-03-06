@@ -15,7 +15,8 @@ python3 -m pip install fitparse garminconnect python-dotenv pyobjc-framework-Eve
 ```bash
 bash start_cockpit.sh
 ```
-Puis, dans l'UI, bouton `Pousser tâches locales` pour rattraper les tâches non encore envoyées vers Apple Calendar.
+Ouvre automatiquement le navigateur sur la page **Pilotage** (board tâches + calendrier + sync Apple Calendar).
+Utiliser le bouton **⟳ Synchroniser** dans l'UI pour déclencher une sync Apple Calendar bidirectionnelle.
 
 - Run complet (parse + dédup + dashboard + agenda):
 ```bash

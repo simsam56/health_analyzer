@@ -13,6 +13,7 @@ from urllib.parse import parse_qs, urlparse, unquote
 
 from analytics import planner
 from integrations.apple_calendar import diagnose_apple_calendar, sync_apple_calendar
+from pipeline.schema import migrate_db, get_connection
 
 
 def _json_bytes(obj: dict | list) -> bytes:
@@ -128,6 +129,11 @@ class CockpitHandler(BaseHTTPRequestHandler):
             self._send_json(200, {"ok": True, "events": events})
             return
 
+        if path == "/api/planner/board":
+            tasks = planner.get_board_tasks_db(self.db_path)
+            self._send_json(200, {"ok": True, "tasks": tasks})
+            return
+
         if path == "/api/planner/health":
             self._send_json(200, {"ok": True, "status": "up"})
             return
@@ -175,54 +181,68 @@ class CockpitHandler(BaseHTTPRequestHandler):
         if path == "/api/planner/tasks":
             if not self._auth_or_401():
                 return
-            title = str(body.get("title") or "").strip() or "Activité"
+            title = str(body.get("title") or "").strip() or "Tâche"
             title = title[:120]
             task_type = str(body.get("type") or "autre")
             type_map = {
-                "cardio": "sante",
-                "musculation": "sante",
-                "mobilite": "sante",
-                "sport_libre": "sante",
-                "travail": "travail",
-                "apprentissage": "apprentissage",
-                "relationnel": "relationnel",
-                "autre": "autre",
+                "cardio": "sport", "musculation": "sport", "mobilite": "yoga",
+                "sport_libre": "sport", "travail": "travail",
+                "apprentissage": "formation", "formation": "formation",
+                "relationnel": "social", "social": "social",
+                "yoga": "yoga", "autre": "autre",
             }
             category = planner.normalize_category(body.get("category") or type_map.get(task_type, "autre"))
-
-            start_at = body.get("start_at")
-            end_at = body.get("end_at")
-            if not start_at or not end_at:
-                task_date = str(body.get("task_date") or body.get("date") or date.today())
-                task_time = str(body.get("task_time") or body.get("time") or "09:00:00")
-                dur = int(body.get("duration_min") or body.get("duration") or 60)
-                start_at, end_at = planner.parse_task_datetime(task_date, task_time, dur)
-            ok, err = self._validate_event_bounds(str(start_at), str(end_at))
-            if not ok:
-                self._send_json(400, {"ok": False, "error": err})
-                return
-
-            sync_apple = bool(body.get("sync_apple", True))
-            calendar_name = body.get("calendar_name")
+            triage_status = planner.normalize_triage_status(body.get("triage_status"))
             notes = body.get("notes")
             if notes is not None:
                 notes = str(notes)[:5000]
+
+            start_at = body.get("start_at") or body.get("scheduled_start")
+            end_at = body.get("end_at") or body.get("scheduled_end")
+            scheduled = bool(body.get("scheduled", False))
+            scheduled_date = body.get("scheduled_date")
+            last_bucket = body.get("last_bucket_before_scheduling")
+
+            # Si dates fournies via date+heure
+            if not start_at and body.get("task_date"):
+                task_date = str(body.get("task_date") or date.today())
+                task_time = str(body.get("task_time") or body.get("time") or "09:00:00")
+                dur = int(body.get("duration_min") or body.get("duration") or 60)
+                start_at, end_at = planner.parse_task_datetime(task_date, task_time, dur)
+                scheduled = True
+
+            # Validation si planifié avec dates
+            if start_at and end_at:
+                ok_bounds, err = self._validate_event_bounds(str(start_at), str(end_at))
+                if not ok_bounds:
+                    self._send_json(400, {"ok": False, "error": err})
+                    return
+
+            sync_apple = bool(body.get("sync_apple", bool(start_at)))
+            calendar_name = body.get("calendar_name")
 
             created = planner.add_task(
                 db_path=self.db_path,
                 title=title,
                 category=category,
-                start_at=str(start_at),
-                end_at=str(end_at),
+                start_at=str(start_at) if start_at else None,
+                end_at=str(end_at) if end_at else None,
                 notes=notes,
                 sync_to_apple=sync_apple,
                 apple_calendar_name=calendar_name,
+                triage_status=triage_status,
+                scheduled=scheduled,
+                scheduled_date=scheduled_date or (str(start_at)[:10] if start_at else None),
+                scheduled_start=str(start_at) if start_at else None,
+                scheduled_end=str(end_at) if end_at else None,
+                last_bucket_before_scheduling=last_bucket,
             )
             if sync_apple:
                 self._sync_calendar_soft()
 
             events = self._read_events()
-            self._send_json(201, {"ok": True, "created": created, "events": events})
+            board = planner.get_board_tasks_db(self.db_path)
+            self._send_json(201, {"ok": True, "created": created, "events": events, "board": board})
             return
 
         if path == "/api/planner/tasks/batch":
@@ -289,44 +309,53 @@ class CockpitHandler(BaseHTTPRequestHandler):
                 self._send_json(400, {"ok": False, "error": "invalid_task_id"})
                 return
 
-            # Read existing task for partial updates
-            conn = planner.connect_db(self.db_path)
-            row = conn.execute(
-                "SELECT id, title, category, start_at, end_at, notes FROM planner_tasks WHERE id=?",
-                (task_id,),
-            ).fetchone()
-            conn.close()
-            if not row:
-                self._send_json(404, {"ok": False, "error": "task_not_found"})
-                return
-
-            title = str(body.get("title") if body.get("title") is not None else row["title"])[:120]
-            category = planner.normalize_category(body.get("category") if body.get("category") is not None else row["category"])
-            start_at = str(body.get("start_at") if body.get("start_at") is not None else row["start_at"])
-            end_at = str(body.get("end_at") if body.get("end_at") is not None else row["end_at"])
-            notes = body.get("notes") if "notes" in body else row["notes"]
+            notes = body.get("notes") if "notes" in body else None
             if notes is not None:
                 notes = str(notes)[:5000]
+
             sync_apple = bool(body.get("sync_apple", True))
-            ok, err = self._validate_event_bounds(start_at, end_at)
-            if not ok:
-                self._send_json(400, {"ok": False, "error": err})
-                return
+
+            # Préparer les champs de planning
+            start_at     = body.get("start_at") or body.get("scheduled_start")
+            end_at       = body.get("end_at") or body.get("scheduled_end")
+            scheduled    = body.get("scheduled")
+            sch_date     = body.get("scheduled_date")
+            sch_start    = body.get("scheduled_start") or start_at
+            sch_end      = body.get("scheduled_end") or end_at
+            last_bucket  = body.get("last_bucket_before_scheduling")
+            triage_status = body.get("triage_status")
+
+            # Validation si dates fournies
+            if start_at and end_at:
+                ok_bounds, err = self._validate_event_bounds(str(start_at), str(end_at))
+                if not ok_bounds:
+                    self._send_json(400, {"ok": False, "error": err})
+                    return
 
             res = planner.update_task(
                 db_path=self.db_path,
                 task_id=task_id,
-                title=title,
-                category=category,
-                start_at=start_at,
-                end_at=end_at,
+                title=body.get("title"),
+                category=body.get("category"),
+                start_at=str(start_at) if start_at else None,
+                end_at=str(end_at) if end_at else None,
                 notes=notes,
                 sync_apple=sync_apple,
+                triage_status=triage_status,
+                scheduled=bool(scheduled) if scheduled is not None else None,
+                scheduled_date=sch_date or (str(start_at)[:10] if start_at else None),
+                scheduled_start=str(sch_start) if sch_start else None,
+                scheduled_end=str(sch_end) if sch_end else None,
+                last_bucket_before_scheduling=last_bucket,
             )
+            if not res.get("ok"):
+                self._send_json(404, {"ok": False, "error": res.get("error", "task_not_found")})
+                return
             if sync_apple:
                 self._sync_calendar_soft()
             events = self._read_events()
-            self._send_json(200, {"ok": bool(res.get("ok")), "result": res, "events": events})
+            board = planner.get_board_tasks_db(self.db_path)
+            self._send_json(200, {"ok": True, "result": res, "events": events, "board": board})
             return
 
         if path.startswith("/api/planner/apple/"):
@@ -367,7 +396,8 @@ class CockpitHandler(BaseHTTPRequestHandler):
             res = planner.delete_task(self.db_path, task_id=task_id, sync_apple=True)
             self._sync_calendar_soft()
             events = self._read_events()
-            self._send_json(200, {"ok": bool(res.get("ok")), "result": res, "events": events})
+            board = planner.get_board_tasks_db(self.db_path)
+            self._send_json(200, {"ok": bool(res.get("ok")), "result": res, "events": events, "board": board})
             return
 
         if path.startswith("/api/planner/apple/"):
@@ -394,6 +424,14 @@ def serve(
     CockpitHandler.dashboard_path = dashboard_path
     CockpitHandler.db_path = db_path
     CockpitHandler.api_token = api_token
+
+    # Migration DB au démarrage
+    try:
+        _conn = get_connection(db_path)
+        migrate_db(_conn)
+        _conn.close()
+    except Exception as _e:
+        print(f"⚠️  Migration DB: {_e}")
 
     candidate_ports = [port]
     if auto_port_fallback:

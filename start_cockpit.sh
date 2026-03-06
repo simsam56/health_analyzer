@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# start_cockpit.sh — lancement simple PerformOS Cockpit
+# start_cockpit.sh — lancement PerformOS Cockpit v5
 #
 # Usage:
 #   bash start_cockpit.sh
@@ -7,7 +7,8 @@
 #
 # Comportement:
 # - run rapide: skip parse local + Garmin 90j (smart-skip actif)
-# - ouvre automatiquement le navigateur
+# - ouvre automatiquement le navigateur sur la page Pilotage
+# - board tâches + calendrier hebdo + sync Apple Calendar bidirectionnelle
 # - garde les logs dans le terminal (Ctrl+C pour arrêter)
 
 set -euo pipefail
