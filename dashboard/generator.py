@@ -490,49 +490,59 @@ body {
   align-items: center;
   gap: 10px;
 }
-.totem {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  border: 1px solid #d8e4f3;
-  background: radial-gradient(circle at 30% 30%, #fff9e6 0%, #ffe8bf 55%, #ffd5a3 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  cursor: pointer;
-  user-select: none;
-}
-.totem::after {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: 16px;
-  border: 1px dashed #f59e0b88;
-  animation: spinSlow 9s linear infinite;
-}
-.totem .animal {
-  font-size: 26px;
-  animation: floatTotem 2.2s ease-in-out infinite;
-}
-.totem.wiggle .animal {
-  animation: wiggle .42s ease;
-}
-@keyframes floatTotem {
-  0%,100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
-}
-@keyframes spinSlow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-@keyframes wiggle {
-  0% { transform: rotate(0deg); }
-  25% { transform: rotate(-10deg); }
-  50% { transform: rotate(10deg); }
-  75% { transform: rotate(-6deg); }
-  100% { transform: rotate(0deg); }
-}
+/* ─── MASCOT 3D ─────────────────────────────────────────────── */
+.mascot { width:52px; height:52px; cursor:pointer; user-select:none; flex-shrink:0; }
+.mascot-body { width:100%; height:100%; background:radial-gradient(circle at 35% 30%,#c7d2fe,#6366f1 60%,#4338ca); border-radius:18px; display:flex; align-items:center; justify-content:center; animation:mascotBreathe 3.5s ease-in-out infinite; box-shadow:0 6px 20px rgba(99,102,241,.35); transition:box-shadow .2s; }
+.mascot:hover .mascot-body { box-shadow:0 8px 28px rgba(99,102,241,.5); }
+.mascot-face { display:flex; flex-direction:column; align-items:center; gap:5px; }
+.mascot-eyes { display:flex; gap:7px; }
+.mascot-eye { width:7px; height:7px; background:#fff; border-radius:50%; animation:mascotBlink 5s infinite; }
+.mascot-eye:nth-child(2) { animation-delay:.08s; }
+.mascot-mouth { width:12px; height:4px; border-bottom:2px solid rgba(255,255,255,.75); border-radius:0 0 8px 8px; }
+.mascot.bounce .mascot-body { animation:mascotBounce .5s ease forwards; }
+@keyframes mascotBreathe { 0%,100%{ transform:scale(1); } 50%{ transform:scale(1.04); } }
+@keyframes mascotBlink { 0%,93%,97%,100%{ transform:scaleY(1); } 95%{ transform:scaleY(0.1); } }
+@keyframes mascotBounce { 0%{ transform:scale(1) rotate(0deg); } 25%{ transform:scale(.88) rotate(-6deg); } 60%{ transform:scale(1.12) rotate(4deg); } 100%{ transform:scale(1) rotate(0deg); } }
+
+/* ─── APPLE CALENDAR STATUS ──────────────────────────────────── */
+.apple-cal-status { display:inline-flex; align-items:center; gap:8px; padding:7px 12px; border:1px solid var(--line); background:var(--surface-1); border-radius:var(--radius-sm); cursor:pointer; transition:background .15s, border-color .15s; text-align:left; font-family:inherit; color:var(--text); white-space:nowrap; }
+.apple-cal-status:hover { background:var(--surface-2); }
+.apple-cal-icon { font-size:16px; line-height:1; }
+.apple-cal-body { display:flex; flex-direction:column; gap:1px; }
+.apple-cal-label { font-size:11px; font-weight:700; color:var(--text); }
+.apple-cal-sub { font-size:10px; color:var(--muted); }
+.apple-cal-spinner { font-size:13px; display:none; }
+.apple-cal-status.ok { border-color:rgba(34,197,94,.3); background:rgba(34,197,94,.08); }
+.apple-cal-status.ok .apple-cal-label { color:#22c55e; }
+.apple-cal-status.error,.apple-cal-status.err { border-color:rgba(239,68,68,.3); background:rgba(239,68,68,.06); }
+.apple-cal-status.error .apple-cal-label,.apple-cal-status.err .apple-cal-label { color:#ef4444; }
+.apple-cal-status.warn { border-color:rgba(245,158,11,.3); background:rgba(245,158,11,.06); }
+.apple-cal-status.warn .apple-cal-label { color:#f59e0b; }
+.apple-cal-status.syncing { border-color:rgba(59,130,246,.3); background:rgba(59,130,246,.06); }
+.apple-cal-status.syncing .apple-cal-spinner { display:inline; animation:spin 1s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ─── DONUT RÉPARTITION ──────────────────────────────────────── */
+.donut-card { flex:none !important; min-width:auto !important; }
+.donut-canvas-wrap { display:flex; align-items:center; gap:10px; margin-top:6px; }
+.donut-legend { display:flex; flex-direction:column; gap:3px; flex:1; overflow:hidden; }
+.donut-leg-row { display:flex; align-items:center; gap:5px; font-size:10px; font-weight:600; }
+.donut-leg-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.donut-leg-label { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.donut-leg-val { color:var(--muted); }
+
+/* ─── FORMULAIRE INLINE JOUR "+" ─────────────────────────────── */
+.day-quick-form { background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-sm); padding:6px; display:flex; flex-direction:column; gap:5px; margin-bottom:6px; }
+.day-quick-input { background:var(--surface-0); border:1px solid var(--line); border-radius:6px; padding:5px 7px; font-size:11px; color:var(--text); width:100%; font-family:inherit; }
+.day-quick-input:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 2px rgba(59,130,246,.2); }
+.day-quick-select { background:var(--surface-0); border:1px solid var(--line); border-radius:6px; padding:4px 6px; font-size:10px; color:var(--text); font-family:inherit; width:100%; }
+.day-quick-actions { display:flex; gap:4px; }
+.day-quick-submit { flex:1; padding:4px 6px; background:#3b82f6; color:#fff; border:none; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; font-family:inherit; }
+.day-quick-submit:hover { background:#2563eb; }
+.day-quick-cancel { padding:4px 7px; background:transparent; color:var(--muted); border:1px solid var(--line); border-radius:5px; font-size:10px; cursor:pointer; font-family:inherit; }
+
+/* ─── TODAY BADGE ────────────────────────────────────────────── */
+.today-badge { display:inline-block; background:#3b82f6; color:#fff; border-radius:4px; font-size:9px; font-weight:800; padding:1px 5px; margin-left:4px; }
 .brand h1 {
   margin: 0;
   font-size: 30px;
@@ -1423,50 +1433,20 @@ input:focus, select:focus {
   <!-- ═══ TOP COCKPIT v4 ═══ -->
   <div class="top-cockpit">
     <div class="brand-zone">
-      <div class="totem" id="totemPet" title="Totem du jour"><div class="animal">🦊</div></div>
+      <div class="mascot" id="mascot" title="PerformOS"><div class="mascot-body"><div class="mascot-face"><div class="mascot-eyes"><div class="mascot-eye"></div><div class="mascot-eye"></div></div><div class="mascot-mouth"></div></div></div></div>
       <div>
         <h1>Simsam</h1>
         <p class="sub">__TODAY__ · __NOW__</p>
       </div>
     </div>
-    <div class="kpi-strip">
-      <div class="kpi-pill">
-        <span class="kp-icon">🫀</span>
-        <div class="kp-body">
-          <span class="kp-label">Santé</span>
-          <span class="kp-value" style="color:__RING_RECOVERY_COLOR__">__READINESS_GLOBAL__<span style="font-size:10px;font-weight:500;color:var(--muted)">/100</span></span>
-          <span class="kp-trend __HRV_TREND_CLASS__">__HRV_TREND_ARROW__ HRV __HRV_DELTA__ms</span>
-        </div>
-      </div>
-      <div class="kpi-pill">
-        <span class="kp-icon">🏃</span>
-        <div class="kp-body">
-          <span class="kp-label">Sport</span>
-          <span class="kp-value" style="color:var(--sante)">__GOAL_PCT_DISPLAY__%</span>
-          <span class="kp-trend flat">__GOAL_DONE__h / __GOAL_TARGET__h</span>
-        </div>
-      </div>
-      <div class="kpi-pill">
-        <span class="kp-icon">💼</span>
-        <div class="kp-body">
-          <span class="kp-label">Travail</span>
-          <span class="kp-value" style="color:var(--travail)" id="heroWork">__WORK_WEEK_H__h</span>
-          <span class="kp-trend flat">cette semaine</span>
-        </div>
-      </div>
-      <div class="kpi-pill">
-        <span class="kp-icon">💬</span>
-        <div class="kp-body">
-          <span class="kp-label">Social</span>
-          <span class="kp-value" style="color:var(--relationnel)" id="heroSocial">__SOCIAL_WEEK_H__h</span>
-          <span class="kp-trend flat">cette semaine</span>
-        </div>
-      </div>
-    </div>
     <div class="top-actions">
-      <button class="sync-btn-compact" id="pushPendingTopBtn" title="Synchroniser Apple Calendar">
-        <span class="sync-dot __SYNC_BADGE_CLASS__"></span>
-        <span id="syncBadgeLabel">__SYNC_BADGE_LABEL__</span>
+      <button class="apple-cal-status __SYNC_BADGE_CLASS__" id="appleCalBtn" onclick="syncAll()">
+        <span class="apple-cal-icon">📅</span>
+        <div class="apple-cal-body">
+          <span class="apple-cal-label">Calendrier Apple</span>
+          <span class="apple-cal-sub" id="appleCalSub">__SYNC_BADGE_LABEL__</span>
+        </div>
+        <span class="apple-cal-spinner" id="appleCalSpinner">⟳</span>
       </button>
       <button class="btn-icon" id="debugPanelBtn" title="Debug PerformOS">🐛</button>
       <button class="badge __CAL_BADGE_CLASS__" id="calendarBadgeBtn" style="display:none"></button>
@@ -1496,6 +1476,15 @@ input:focus, select:focus {
       </div>
       <div class="ic-bar"><div class="ic-fill" style="width:__WORK_WEEK_PCT__%;background:var(--travail)"></div></div>
     </div>
+    <div class="indicator-card donut-card">
+      <div class="ic-top">
+        <span class="ic-label"><span class="ic-icon">🎯</span> Répartition</span>
+      </div>
+      <div class="donut-canvas-wrap">
+        <canvas id="weekDonutChart" width="80" height="80" style="flex-shrink:0"></canvas>
+        <div class="donut-legend" id="donutLegend"><div style="font-size:10px;color:var(--muted)">Chargement…</div></div>
+      </div>
+    </div>
   </div>
 
   <div class="tabs">
@@ -1516,7 +1505,6 @@ input:focus, select:focus {
         <span id="syncLastTime" style="color:var(--muted);font-size:11px;"></span>
       </div>
       <button class="btn-sync" id="syncBtn" onclick="syncAll()">⟳ Synchroniser</button>
-      <button class="btn-icon" id="debugPanelBtn" title="Debug">🐛</button>
     </div>
 
     <!-- ═══ MINI INDICATEURS ═══ -->
@@ -1745,7 +1733,7 @@ function toIsoNoMs(d) { return d.toISOString().slice(0,19); }
 function addMin(d,m) { return new Date(d.getTime()+m*60000); }
 function startOfWeek(b) { const d=new Date(b); const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day); d.setHours(0,0,0,0); return d; }
 function addDays(d,n) { const x=new Date(d); x.setDate(x.getDate()+n); return x; }
-function isoDate(d) { return d.toISOString().slice(0,10); }
+function isoDate(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function hm(d) { return String(d.getHours()).padStart(2,’0’)+’:’+String(d.getMinutes()).padStart(2,’0’); }
 function shortDateFr(d) { return String(d.getDate()).padStart(2,’0’)+’/’+String(d.getMonth()+1).padStart(2,’0’); }
 function domainColor(cat) { return DOM_COLORS[cat]||DOM_COLORS.autre; }
@@ -1788,20 +1776,85 @@ function updateSyncUI(connected, lastTime, error) {
   dot.className=’sync-dot-big ‘+(error?’err’:connected?’ok’:’off’);
   txt.textContent=error?’Erreur sync’:connected?’Apple connecté’:’Apple non connecté’;
   if (lastTime && ts) ts.textContent=’· ‘+lastTime;
+  updateAppleCalStatus(error?’error’:connected?’ok’:’idle’, lastTime||null);
 }
 
-// ─── Totem ────────────────────────────────────────────────────────────────────
-function initTotem() {
-  const root=document.getElementById(‘totemPet’); if(!root) return;
-  const an=root.querySelector(‘.animal’); if(!an) return;
-  let idx=Number(localStorage.getItem(TOTEM_KEY));
-  if(!Number.isFinite(idx)||idx<0){const d=new Date();idx=(d.getDay()+d.getDate())%TOTEM_ANIMALS.length;}
-  an.textContent=TOTEM_ANIMALS[idx%TOTEM_ANIMALS.length];
-  root.addEventListener(‘click’,()=>{
-    idx=(idx+1)%TOTEM_ANIMALS.length; localStorage.setItem(TOTEM_KEY,String(idx));
-    root.classList.remove(‘wiggle’); void root.offsetWidth; root.classList.add(‘wiggle’);
-    an.textContent=TOTEM_ANIMALS[idx%TOTEM_ANIMALS.length];
-    setTimeout(()=>root.classList.remove(‘wiggle’),420);
+// ─── Apple Calendar status (top bar) ──────────────────────────────────────────
+function updateAppleCalStatus(state, time) {
+  const btn=document.getElementById(‘appleCalBtn’);
+  const sub=document.getElementById(‘appleCalSub’);
+  const spinner=document.getElementById(‘appleCalSpinner’);
+  if(!btn) return;
+  btn.className=’apple-cal-status’;
+  if(state===’syncing’){
+    btn.classList.add(‘syncing’);
+    if(sub) sub.textContent=’Synchronisation…’;
+  } else if(state===’ok’){
+    btn.classList.add(‘ok’);
+    if(sub) sub.textContent=’Connecté · ‘+(time||’’);
+  } else if(state===’error’){
+    btn.classList.add(‘error’);
+    if(sub) sub.textContent=’Erreur de synchro’;
+  } else {
+    if(sub) sub.textContent=CAL_SYNC_ENABLED?’Connecté’:’Non connecté’;
+  }
+}
+
+// ─── Donut répartition semaine ─────────────────────────────────────────────────
+let _weekDonut=null;
+function renderWeekDonut(dur) {
+  const cv=document.getElementById(‘weekDonutChart’);
+  if(!cv||typeof Chart===’undefined’) return;
+  if(_weekDonut){_weekDonut.destroy();_weekDonut=null;}
+  const cats=[
+    {k:’sport’,   label:’Sport’,     color:’#22c55e’},
+    {k:’travail’, label:’Travail’,   color:’#3b82f6’},
+    {k:’social’,  label:’Social’,    color:’#ec4899’},
+    {k:’formation’,label:’Formation’,color:’#f59e0b’},
+    {k:’yoga’,    label:’Yoga’,      color:’#a78bfa’},
+    {k:’autre’,   label:’Autre’,     color:’#64748b’},
+  ];
+  const total=Object.values(dur).reduce((a,b)=>a+(b||0),0);
+  const data=cats.map(c=>Math.max(0,dur[c.k]||0));
+  const hasData=data.some(v=>v>0);
+  _weekDonut=new Chart(cv,{
+    type:’doughnut’,
+    data:{
+      labels:cats.map(c=>c.label),
+      datasets:[{
+        data:hasData?data:[1],
+        backgroundColor:hasData?cats.map(c=>c.color):[‘rgba(255,255,255,0.06)’],
+        borderWidth:0,hoverOffset:4
+      }]
+    },
+    options:{
+      responsive:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>{
+          if(!hasData) return ‘Aucune donnée’;
+          const pct=total>0?((ctx.raw/total)*100).toFixed(0):0;
+          return ctx.label+’ · ‘+(ctx.raw||0).toFixed(1)+’h · ‘+pct+’%’;
+        }}}
+      },
+      cutout:’62%’
+    }
+  });
+  const leg=document.getElementById(‘donutLegend’);
+  if(leg){
+    const rows=cats.filter(c=>(dur[c.k]||0)>0.01).map(c=>`<div class="donut-leg-row"><span class="donut-leg-dot" style="background:${c.color}"></span><span class="donut-leg-label">${c.label}</span><span class="donut-leg-val">${(dur[c.k]||0).toFixed(1)}h</span></div>`);
+    leg.innerHTML=rows.length?rows.join(‘’):’<div style="font-size:10px;color:var(--muted)">Aucune donnée</div>’;
+  }
+}
+
+// ─── Mascot ───────────────────────────────────────────────────────────────────
+function initMascot() {
+  const m=document.getElementById(‘mascot’); if(!m) return;
+  m.addEventListener(‘click’,()=>{
+    m.classList.remove(‘bounce’);
+    void m.offsetWidth; // force reflow
+    m.classList.add(‘bounce’);
+    setTimeout(()=>m.classList.remove(‘bounce’),520);
   });
 }
 
@@ -1831,6 +1884,7 @@ function updateMiniIndicators(dur) {
   if(el(‘heroSocial’))     el(‘heroSocial’).textContent=fmt(dur.social||0);
   if(el(‘sum-sante’))      el(‘sum-sante’).textContent=(dur.sport||0).toFixed(1);
   if(el(‘sum-total’))      el(‘sum-total’).textContent=Object.values(dur).reduce((a,b)=>a+b,0).toFixed(1);
+  renderWeekDonut(dur);
 }
 
 // ─── API calls ────────────────────────────────────────────────────────────────
@@ -1868,6 +1922,7 @@ async function apiDeleteTask(taskId) {
 
 // ─── Sync Apple Calendar ──────────────────────────────────────────────────────
 async function syncAll() {
+  updateAppleCalStatus(‘syncing’);
   const btn=document.getElementById(‘syncBtn’);
   if(btn){btn.disabled=true;btn.textContent=’⟳ Sync…’;}
   try {
@@ -1876,12 +1931,13 @@ async function syncAll() {
     if(d.ok){
       const now=new Date().toLocaleTimeString(‘fr-FR’,{hour:’2-digit’,minute:’2-digit’});
       updateSyncUI(true,now,null);
+      updateAppleCalStatus(‘ok’,now);
       if(d.events) currentEvents=d.events.map((ev,i)=>({...ev,_uid:String(ev.id||’api:’+i)}));
       if(d.board)  currentBoard=d.board;
       await renderWeek(); renderBoard();
       showToast(‘Synchronisation Apple Calendar OK.’,’ok’);
     }
-  } catch(e){ updateSyncUI(false,null,true); showToast(‘Impossible de synchroniser.’,’err’); }
+  } catch(e){ updateSyncUI(false,null,true); updateAppleCalStatus(‘error’); showToast(‘Impossible de synchroniser.’,’err’); }
   finally { if(btn){btn.disabled=false;btn.textContent=’⟳ Synchroniser’;} }
 }
 
@@ -2020,6 +2076,44 @@ const TRIAGE_COLS=[
   {key:’non_urgent’,  label:’Non urgent’,   color:’#64748b’},
   {key:’termine’,     label:’Terminé’,      color:’#22c55e’},
 ];
+
+// ─── Quick form inline pour ajout jour ────────────────────────────────────────
+function showDayQuickForm(col, dateIso) {
+  document.querySelectorAll(‘.day-quick-form’).forEach(f=>f.remove());
+  const form=document.createElement(‘div’); form.className=’day-quick-form’;
+  form.innerHTML=`<input class="day-quick-input" type="text" placeholder="Titre de la tâche…" />`
+    +`<select class="day-quick-select">`
+    +`<option value="travail">💼 Travail</option>`
+    +`<option value="sport">🏃 Sport</option>`
+    +`<option value="yoga">🧘 Yoga</option>`
+    +`<option value="formation">📚 Formation</option>`
+    +`<option value="social">💬 Social</option>`
+    +`<option value="autre">🧩 Autre</option>`
+    +`</select>`
+    +`<div class="day-quick-actions">`
+    +`<button class="day-quick-submit">✓ Ajouter</button>`
+    +`<button class="day-quick-cancel">✕</button>`
+    +`</div>`;
+  const firstEvent=col.querySelector(‘.event’);
+  if(firstEvent) col.insertBefore(form,firstEvent); else col.appendChild(form);
+  const inp=form.querySelector(‘.day-quick-input’); inp.focus();
+  async function submit(){
+    const title=inp.value.trim(); if(!title){inp.focus();return;}
+    const domain=form.querySelector(‘.day-quick-select’).value;
+    const s2=new Date(dateIso+’T09:00:00’); const e2=addMin(s2,60);
+    form.remove();
+    try{
+      const out=await apiCreateTask({title,category:domain,triage_status:’a_planifier’,scheduled:true,
+        scheduled_date:dateIso,scheduled_start:toIsoNoMs(s2),scheduled_end:toIsoNoMs(e2),
+        start_at:toIsoNoMs(s2),end_at:toIsoNoMs(e2),sync_apple:true});
+      if(out.board) currentBoard=out.board;
+      showToast(‘Tâche ajoutée — ‘+dateIso,’ok’); await renderWeek();
+    }catch(_){showToast(‘Impossible de créer.’,’err’);}
+  }
+  form.querySelector(‘.day-quick-submit’).addEventListener(‘click’,submit);
+  form.querySelector(‘.day-quick-cancel’).addEventListener(‘click’,()=>form.remove());
+  inp.addEventListener(‘keydown’,ev=>{if(ev.key===’Enter’){ev.preventDefault();submit();}if(ev.key===’Escape’)form.remove();});
+}
 
 function renderBoard() {
   const grid=document.getElementById(‘boardGrid’); if(!grid) return;
@@ -2213,16 +2307,9 @@ async function renderWeek() {
 
   // Bouton "+" sur chaque jour
   grid.querySelectorAll(‘.day-add’).forEach(btn=>{
-    btn.addEventListener(‘click’,async()=>{
-      const title=prompt(‘Titre de la tâche pour le ‘+btn.dataset.date+’ :’);
-      if(!title||!title.trim()) return;
-      const domain=prompt(‘Domaine ? (travail/sport/yoga/formation/social/autre)’,’autre’)||’autre’;
-      const start2=new Date(btn.dataset.date+’T09:00:00’); const end2=addMin(start2,60);
-      try{
-        const out=await apiCreateTask({title:title.trim(),category:domain,triage_status:’a_planifier’,scheduled:true,scheduled_date:btn.dataset.date,scheduled_start:toIsoNoMs(start2),scheduled_end:toIsoNoMs(end2),start_at:toIsoNoMs(start2),end_at:toIsoNoMs(end2),sync_apple:true});
-        if(out.board) currentBoard=out.board;
-        showToast(‘Tâche ajoutée le ‘+btn.dataset.date,’ok’); await renderWeek();
-      } catch(e){showToast(‘Impossible de créer.’,’err’);}
+    btn.addEventListener(‘click’,()=>{
+      const dayCol=btn.closest(‘.day-col’);
+      if(dayCol) showDayQuickForm(dayCol, btn.dataset.date);
     });
   });
 }
@@ -2276,7 +2363,7 @@ window.addEventListener(‘DOMContentLoaded’, () => {
     try{ if(API_ENABLED) currentBoard=await fetchBoardTasks(); } catch(_){}
     renderBoard();
     await renderWeek();
-    initRings(); initTotem();
+    initRings(); initMascot();
     if(!CAL_SYNC_ENABLED) showToast(‘Apple Calendar non connecté.’,’warn’);
   })();
 });
