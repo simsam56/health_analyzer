@@ -1766,7 +1766,11 @@ function showToast(message, kind) {
 }
 
 function parseIso(s) { if (!s) return null; const x = new Date(String(s).replace(' ','T')); return Number.isNaN(x.getTime()) ? null : x; }
-function toIsoNoMs(d) { return d.toISOString().slice(0,19); }
+function toIsoNoMs(d) {
+  // Local ISO (pas UTC) pour éviter le décalage timezone
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')
+    +'T'+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');
+}
 function addMin(d,m) { return new Date(d.getTime()+m*60000); }
 function startOfWeek(b) { const d=new Date(b); const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day); d.setHours(0,0,0,0); return d; }
 function addDays(d,n) { const x=new Date(d); x.setDate(x.getDate()+n); return x; }
@@ -2426,7 +2430,7 @@ async function computeAndRenderTrendCharts(currentWeekEvents) {
     if(w===0){
       weeks.push({label,work:sumHoursForCat(currentWeekEvents,'travail'),social:sumHoursForCat(currentWeekEvents,'social')});
     } else {
-      try{const wEvts=await fetchApiEvents(wStart.toISOString(),wEnd.toISOString()); weeks.push({label,work:sumHoursForCat(wEvts,'travail'),social:sumHoursForCat(wEvts,'social')});}
+      try{const wEvts=await fetchApiEvents(toIsoNoMs(wStart),toIsoNoMs(wEnd)); weeks.push({label,work:sumHoursForCat(wEvts,'travail'),social:sumHoursForCat(wEvts,'social')});}
       catch(_){weeks.push({label,work:0,social:0});}
     }
   }
