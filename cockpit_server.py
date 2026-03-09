@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import mimetypes
-import sqlite3
 from datetime import date, timedelta, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -136,6 +135,45 @@ class CockpitHandler(BaseHTTPRequestHandler):
 
         if path == "/api/planner/health":
             self._send_json(200, {"ok": True, "status": "up"})
+            return
+
+        # Calendar endpoints
+        if path == "/api/calendar/status":
+            status = diagnose_apple_calendar(self.db_path)
+            self._send_json(200, {"ok": True, "calendar": status})
+            return
+
+        if path == "/api/calendar/events":
+            if not self._auth_or_401():
+                return
+            q = parse_qs(url.query)
+            days = int((q.get("days") or ["30"])[0])
+            events = self._get_calendar_events(days=days)
+            self._send_json(200, {"ok": True, "events": events})
+            return
+
+        if path == "/api/calendar/sync":
+            if not self._auth_or_401():
+                return
+            q = parse_qs(url.query)
+            days = int((q.get("days") or ["30"])[0])
+            result = sync_apple_calendar(db_path=self.db_path, days_ahead=days)
+            self._send_json(200, {"ok": result.get("enabled", False), "sync": result})
+            return
+
+        # Public endpoint — no auth needed — returns calendar permission state
+        if path == "/api/planner/calendar/status":
+            diag = diagnose_apple_calendar()  # no db_path for fast probe
+            permission = diag.get("permission", "unknown")
+            error = diag.get("error")
+            self._send_json(200, {
+                "ok": diag.get("enabled", False),
+                "permission": permission,
+                "error": error,
+                "eventkit": diag.get("eventkit", "unknown"),
+                "calendars_count": diag.get("calendars_count", 0),
+                "default_calendar": diag.get("default_calendar"),
+            })
             return
 
         if path == "/api/planner/calendar/debug":
@@ -275,9 +313,13 @@ class CockpitHandler(BaseHTTPRequestHandler):
         if path == "/api/planner/calendar/sync":
             if not self._auth_or_401():
                 return
-            self._sync_calendar_soft()
+            sync_result = {}
+            try:
+                sync_result = sync_apple_calendar(self.db_path, days_ahead=self.planner_window_days)
+            except Exception:
+                pass
             events = self._read_events()
-            self._send_json(200, {"ok": True, "events": events})
+            self._send_json(200, {"ok": True, "events": events, "sync": sync_result})
             return
 
         if path == "/api/planner/calendar/push":
@@ -290,6 +332,40 @@ class CockpitHandler(BaseHTTPRequestHandler):
             self._sync_calendar_soft()
             events = self._read_events()
             self._send_json(200, {"ok": bool(push.get("ok")), "result": push, "events": events})
+            return
+
+        # Direct calendar management endpoints
+        if path == "/api/calendar/create":
+            if not self._auth_or_401():
+                return
+            from integrations.apple_calendar import create_apple_calendar_event
+            title = str(body.get("title", "")).strip()
+            start_at = body.get("start_at")
+            end_at = body.get("end_at")
+            notes = body.get("notes")
+            location = body.get("location")
+            calendar_name = body.get("calendar_name")
+
+            if not title or not start_at or not end_at:
+                self._send_json(400, {"ok": False, "error": "missing_required_fields"})
+                return
+
+            result = create_apple_calendar_event(
+                title=title,
+                start_at=start_at,
+                end_at=end_at,
+                notes=notes,
+                location=location,
+                calendar_name=calendar_name
+            )
+
+            if result.get("enabled"):
+                # Re-sync pour mettre à jour la DB
+                sync_apple_calendar(db_path=self.db_path, days_ahead=30)
+                events = self._get_calendar_events()
+                self._send_json(201, {"ok": True, "created": result, "events": events})
+            else:
+                self._send_json(400, {"ok": False, "error": result.get("error", "creation_failed")})
             return
 
         self.send_error(404, "Not Found")
@@ -347,6 +423,7 @@ class CockpitHandler(BaseHTTPRequestHandler):
                 scheduled_start=str(sch_start) if sch_start else None,
                 scheduled_end=str(sch_end) if sch_end else None,
                 last_bucket_before_scheduling=last_bucket,
+                calendar_name=body.get("calendar_name"),
             )
             if not res.get("ok"):
                 self._send_json(404, {"ok": False, "error": res.get("error", "task_not_found")})
@@ -376,6 +453,17 @@ class CockpitHandler(BaseHTTPRequestHandler):
             self._sync_calendar_soft()
             events = self._read_events()
             self._send_json(200, {"ok": bool(res.get("enabled")), "result": res, "events": events})
+            return
+
+        # Calendar event modification
+        if path.startswith("/api/calendar/events/"):
+            if not self._auth_or_401():
+                return
+            event_uid = unquote(path.rsplit("/", 1)[-1])
+
+            # Pour l'instant, on ne permet que la modification via planner
+            # TODO: Implémenter modification directe d'événements calendrier
+            self._send_json(400, {"ok": False, "error": "modification_not_implemented"})
             return
 
         self.send_error(404, "Not Found")
@@ -411,6 +499,18 @@ class CockpitHandler(BaseHTTPRequestHandler):
             return
 
         self.send_error(404, "Not Found")
+
+    def _get_calendar_events(self, days: int = 30) -> list[dict]:
+        """Get calendar events from DB for the next N days."""
+        from integrations.apple_calendar import get_upcoming_events
+        try:
+            return get_upcoming_events(
+                db_path=self.db_path,
+                days_ahead=days,
+                limit=100
+            )
+        except Exception:
+            return []
 
 
 def serve(

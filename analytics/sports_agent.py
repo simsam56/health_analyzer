@@ -12,11 +12,10 @@ Analyses performed:
 from __future__ import annotations
 
 import sqlite3
-import math
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from collections import defaultdict
-from statistics import mean, stdev
+from statistics import mean
 
 
 # ─────────────────────────────────────────────────────────────────

@@ -15,6 +15,7 @@ CATEGORY_ALIASES = {
     "travail": "travail",
     "formation": "formation",
     "social": "social",
+    "lecon": "lecon",
     "autre": "autre",
     # Rétro-compat anciens noms
     "sante": "sport",
@@ -23,8 +24,8 @@ CATEGORY_ALIASES = {
     "relationnel": "social",
     "apprentissage": "formation",
     "learning": "formation",
-    "lecon": "formation",
-    "leçon": "formation",
+    "leçon": "lecon",
+    "lesson": "lecon",
     "work": "travail",
     "other": "autre",
 }
@@ -373,6 +374,7 @@ def update_task(
     scheduled_start: str | None = None,
     scheduled_end: str | None = None,
     last_bucket_before_scheduling: str | None = None,
+    calendar_name: str | None = None,
 ) -> dict:
     """Met à jour une tâche planner, et éventuellement son événement Apple lié."""
     conn = connect_db(db_path)
@@ -405,27 +407,47 @@ def update_task(
     source = row["source"] or "local"
     sync_error = None
 
-    if sync_apple and source == "apple_calendar" and calendar_uid and new_scheduled and new_sch_start and new_sch_end:
-        try:
-            from integrations.apple_calendar import update_apple_calendar_event
-            res = update_apple_calendar_event(
-                event_uid=calendar_uid,
-                title=new_title,
-                start_at=new_sch_start,
-                end_at=new_sch_end,
-                notes=new_notes,
-            )
-            if not res.get("enabled"):
-                sync_error = res.get("error")
-        except Exception as e:
-            sync_error = str(e)
+    if sync_apple and new_scheduled and new_sch_start and new_sch_end:
+        if source == "apple_calendar" and calendar_uid:
+            # Mettre à jour l'événement Apple existant
+            try:
+                from integrations.apple_calendar import update_apple_calendar_event
+                res = update_apple_calendar_event(
+                    event_uid=calendar_uid,
+                    title=new_title,
+                    start_at=new_sch_start,
+                    end_at=new_sch_end,
+                    notes=new_notes,
+                )
+                if not res.get("enabled"):
+                    sync_error = res.get("error")
+            except Exception as e:
+                sync_error = str(e)
+        elif not calendar_uid:
+            # Tâche locale sans événement Apple — créer l'événement maintenant
+            try:
+                from integrations.apple_calendar import create_apple_calendar_event
+                res = create_apple_calendar_event(
+                    title=new_title,
+                    start_at=new_sch_start,
+                    end_at=new_sch_end,
+                    notes=new_notes,
+                    calendar_name=calendar_name,
+                )
+                if res.get("enabled") and res.get("event_uid"):
+                    calendar_uid = res["event_uid"]
+                    source = "apple_calendar"
+                else:
+                    sync_error = res.get("error")
+            except Exception as e:
+                sync_error = str(e)
 
     cur.execute(
         """
         UPDATE planner_tasks
         SET title=?, category=?, start_at=?, end_at=?, notes=?, updated_at=?,
             triage_status=?, scheduled=?, scheduled_date=?, scheduled_start=?,
-            scheduled_end=?, last_bucket_before_scheduling=?
+            scheduled_end=?, last_bucket_before_scheduling=?, source=?, calendar_uid=?
         WHERE id=?
         """,
         (
@@ -441,6 +463,8 @@ def update_task(
             new_sch_start,
             new_sch_end,
             new_last_bkt,
+            source,
+            calendar_uid,
             int(task_id),
         ),
     )
@@ -451,6 +475,7 @@ def update_task(
         "task_id": int(task_id),
         "triage_status": new_ts,
         "scheduled": bool(new_scheduled),
+        "apple_uid": calendar_uid,
         "sync_error": sync_error,
     }
 
@@ -557,6 +582,10 @@ def sync_pending_tasks_to_apple(
             "failed": total,
             "error": str(e),
         }
+
+    # Calendrier par défaut : "Personnel" (privé) plutôt que "Calendrier" (partagé)
+    if not calendar_name:
+        calendar_name = "Personnel"
 
     for r in rows:
         res = create_apple_calendar_event(

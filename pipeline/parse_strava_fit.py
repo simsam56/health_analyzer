@@ -8,7 +8,6 @@ Structure FIT Garmin :
   - session message         : résumé activité
   - workout message         : nom de la séance (wkt_name)
 """
-import sys
 import gzip
 import sqlite3
 import csv
@@ -675,7 +674,7 @@ def run(
     conn.commit()
     conn.close()
 
-    print(f"\n✅ FIT Pipeline :")
+    print("\n✅ FIT Pipeline :")
     print(f"   Parsés    : {stats['parsed']}")
     print(f"   Insérés   : {stats['inserted']}")
     print(f"   Doublons  : {stats['skipped']}")

@@ -5,14 +5,17 @@ Sources : Apple Health (export.xml) + Strava (activities.csv)
 Génère un rapport HTML interactif chaque dimanche.
 """
 
-import pickle, json, math, sys, argparse, warnings
+import joblib
+import json
+import argparse
+import warnings
 from pathlib import Path
 from datetime import date, timedelta
 from collections import defaultdict
 
 import pandas as pd
 import numpy as np
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
 
 warnings.filterwarnings("ignore")
 
@@ -121,13 +124,16 @@ def parse_apple_health(path: Path):
                 t = st.get("type","")
                 if any(x in t for x in ("DistanceWalkingRunning","DistanceCycling","DistanceSwimming")):
                     d = sf(st.get("sum")); u = st.get("unit","km")
-                    if d > 0: w["distance_km"] = d * 1.60934 if u in ("mi","miles") else d
+                    if d > 0:
+                        w["distance_km"] = d * 1.60934 if u in ("mi","miles") else d
                 elif "ActiveEnergyBurned" in t:
                     c = sf(st.get("sum"))
-                    if c > 0 and w["calories"] == 0: w["calories"] = c
+                    if c > 0 and w["calories"] == 0:
+                        w["calories"] = c
                 elif "HeartRate" in t:
                     h = sf(st.get("average"))
-                    if h > 0: w["avg_hr"] = h
+                    if h > 0:
+                        w["avg_hr"] = h
             workouts.append(w); elem.clear()
         elif elem.tag == "Record":
             rt = elem.get("type","")
@@ -1209,7 +1215,7 @@ def main():
     out   = Path(args.output) if args.output else OUTPUT_DIR / f"dashboard_{today:%Y-%m-%d}.html"
 
     print(f"\n{'═'*58}")
-    print(f"  ⚡  Health Dashboard — Simon Hingant")
+    print("  ⚡  Health Dashboard — Simon Hingant")
     print(f"  {today:%d %B %Y}")
     print(f"{'═'*58}\n")
 
@@ -1218,10 +1224,10 @@ def main():
                 CACHE_FILE.stat().st_mtime >= EXPORT_XML.stat().st_mtime
     if use_cache:
         print("⚡ Apple Health: chargement depuis cache…")
-        ah_workouts, ah_records = pickle.load(open(CACHE_FILE,'rb'))
+        ah_workouts, ah_records = joblib.load(CACHE_FILE)
     else:
         ah_workouts, ah_records = parse_apple_health(EXPORT_XML)
-        pickle.dump((ah_workouts, ah_records), open(CACHE_FILE,'wb'))
+        joblib.dump((ah_workouts, ah_records), CACHE_FILE, compress=3)
         print("💾 Cache AH sauvegardé")
 
     # Load Strava

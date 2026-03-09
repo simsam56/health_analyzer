@@ -26,13 +26,10 @@ Métriques importées (v3) :
 import sqlite3
 import hashlib
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 from collections import defaultdict
 
-try:
-    import xml.etree.cElementTree as ET
-except ImportError:
-    import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -150,7 +147,7 @@ def parse_workouts(xml_path: str | Path) -> list[dict]:
                     avg_hr = _f(stat.get("average", 0)) or None
 
         key_raw = f"ah_{started}"
-        canonical_key = hashlib.md5(key_raw.encode()).hexdigest()[:16]
+        canonical_key = hashlib.sha256(key_raw.encode()).hexdigest()[:16]
 
         workouts.append({
             "source":        "apple_health",
@@ -345,7 +342,7 @@ def insert_health_metrics(conn: sqlite3.Connection,
 
 
 def run(xml_path: str | Path, db_path: str | Path) -> dict:
-    from pipeline.schema import get_connection, init_db
+    from pipeline.schema import get_connection
 
     print(f"  Parsing Apple Health XML : {xml_path}")
     xml_path = Path(xml_path)

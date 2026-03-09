@@ -285,8 +285,8 @@ def main():
     save_json(activities, metrics)
 
     print("\n✅ Sync terminée !")
-    print(f"   → Lance maintenant : python3 main.py --skip-parse")
-    print(f"   → Ou directement  : ./sync.sh --skip-parse")
+    print("   → Lance maintenant : python3 main.py --skip-parse")
+    print("   → Ou directement  : ./sync.sh --skip-parse")
 
 
 if __name__ == "__main__":

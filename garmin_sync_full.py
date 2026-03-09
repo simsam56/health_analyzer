@@ -17,6 +17,7 @@ import json
 import sqlite3
 import argparse
 import time
+import subprocess
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -320,7 +321,7 @@ def fetch_and_insert_metrics(client, conn,
                 log(f"   ⏳ Rate limit — pause {wait}s")
                 time.sleep(wait)
                 retry += 1
-            except Exception as e:
+            except Exception:
                 errors += 1
                 day_metrics = []
                 break
@@ -497,14 +498,16 @@ def install_launchagent():
     plist_dir.mkdir(parents=True, exist_ok=True)
 
     # Décharger l'ancien si existant
-    os.system(f"launchctl unload '{plist_path}' 2>/dev/null")
+    subprocess.run(["launchctl", "unload", str(plist_path)],
+                   capture_output=True, text=True)
 
     plist_path.write_text(plist_content)
-    ret = os.system(f"launchctl load '{plist_path}'")
+    ret = subprocess.run(["launchctl", "load", str(plist_path)],
+                        capture_output=True, text=True).returncode
 
     if ret == 0:
         print(f"✅ LaunchAgent installé : {plist_path}")
-        print(f"   → Sync automatique chaque jour à 06h30")
+        print("   → Sync automatique chaque jour à 06h30")
         print(f"   → Logs : {log_out}")
         print()
         print(f"   Pour désinstaller : launchctl unload '{plist_path}' && rm '{plist_path}'")

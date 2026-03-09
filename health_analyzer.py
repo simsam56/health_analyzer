@@ -5,13 +5,12 @@ Analyse les données Apple Health et génère un dashboard HTML interactif.
 Auteur : Simon Hingant — Généré automatiquement chaque dimanche soir.
 """
 
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
 import pandas as pd
 import numpy as np
 import json
-import os
 import sys
-from datetime import datetime, timedelta, date
+from datetime import timedelta, date
 from pathlib import Path
 from collections import defaultdict
 import argparse
@@ -975,31 +974,29 @@ def main():
         output_path = OUTPUT_DIR / f"health_report_{date.today().strftime('%Y-%m-%d')}.html"
 
     print(f"\n{'='*60}")
-    print(f"  🏋️  Health Analytics Dashboard — Simon Hingant")
+    print("  🏋️  Health Analytics Dashboard — Simon Hingant")
     print(f"  Date : {date.today().strftime('%d %B %Y')}")
     print(f"{'='*60}\n")
 
-    # Cache pickle pour accélérer les relances
-    import pickle
+    # Cache joblib pour accélérer les relances (sécurisé)
+    import joblib
     cache_path = SCRIPT_DIR / ".health_cache.pkl"
     use_cache = (cache_path.exists() and not args.no_cache and
                  cache_path.stat().st_mtime >= export_path.stat().st_mtime)
 
     if use_cache:
         print("⚡ Chargement depuis le cache (utilisez --no-cache pour re-parser)…")
-        with open(cache_path, "rb") as f:
-            workouts, records = pickle.load(f)
+        workouts, records = joblib.load(cache_path)
     else:
         workouts, records = parse_health_data(export_path)
-        with open(cache_path, "wb") as f:
-            pickle.dump((workouts, records), f)
+        joblib.dump((workouts, records), cache_path, compress=3)
         print("💾 Cache sauvegardé")
 
     df_workouts, daily   = build_dataframes(workouts, records)
     training_load        = calculate_training_load(df_workouts)
     report               = generate_report(df_workouts, daily, training_load, output_path)
 
-    print(f"\n🎉 Rapport prêt !")
+    print("\n🎉 Rapport prêt !")
     print(f"   → file://{report.resolve()}")
 
     if args.open:

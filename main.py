@@ -992,7 +992,7 @@ def _print_audit(db_path: Path):
     for tbl in ["activities", "strength_sessions", "exercise_sets",
                 "health_metrics", "daily_load", "weekly_muscle_volume",
                 "calendar_events", "planner_tasks"]:
-        n = conn.execute(f"SELECT COUNT(*) FROM {tbl}").fetchone()[0]
+        n = conn.execute("SELECT COUNT(*) FROM ?", (tbl,)).fetchone()[0]
         print(f"  {tbl:<25} {n:>6} lignes")
     print()
 
@@ -1012,7 +1012,7 @@ def _print_audit(db_path: Path):
         WHERE started_at > date('now', '-365 days')
         ORDER BY d
     """).fetchall()
-    from datetime import date as ddate, timedelta
+    from datetime import date as ddate
     prev = None
     for (d,) in acts:
         curr = ddate.fromisoformat(d)
@@ -1041,6 +1041,23 @@ def _print_audit(db_path: Path):
     print("=" * 60)
     print()
     conn.close()
+
+    print("🔍 Atteint la section serveur...")
+
+    # Debug: état des variables serveur
+    print(f"🐛 Debug: args.serve={args.serve}, serve_thread={serve_thread}, alive={serve_thread.is_alive() if serve_thread else 'None'}")
+
+    # Attendre le serveur si --serve
+    if args.serve and serve_thread and serve_thread.is_alive():
+        print("🌐 Serveur actif - Appuyez sur Ctrl+C pour arrêter")
+        try:
+            while serve_thread.is_alive():
+                serve_thread.join(timeout=1.0)
+        except KeyboardInterrupt:
+            print("\n🛑 Arrêt du serveur...")
+            # Le thread daemon s'arrêtera automatiquement
+    else:
+        print("ℹ️  Serveur terminé ou non démarré")
 
 
 if __name__ == "__main__":

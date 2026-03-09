@@ -22,7 +22,6 @@ Auth :
   Les tokens sont sauvegardés dans ~/.garth/ (valides ~1 an)
 """
 import sqlite3
-import json
 import os
 import sys
 from datetime import date, timedelta, datetime
@@ -152,7 +151,7 @@ def get_garmin_client(
         return client
     except Exception as e:
         if "oauth" in str(e).lower() or "token" in str(e).lower():
-            print(f"   ℹ️  Token expiré, reconnexion…")
+            print("   ℹ️  Token expiré, reconnexion…")
         else:
             pass
 
@@ -756,7 +755,7 @@ def run(
     if not GARMIN_AVAILABLE:
         return {"error": "garminconnect non installé"}
 
-    print(f"🔗 Connexion Garmin Connect…")
+    print("🔗 Connexion Garmin Connect…")
     client = get_garmin_client(email=email, password=password)
 
     if client is None:

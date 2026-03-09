@@ -19,6 +19,7 @@ TYPE_DEFS = {
     "travail":      {"label": "Travail",     "category": "travail",   "color": "#3b82f6", "icon": "💼"},
     "formation":    {"label": "Formation",   "category": "formation", "color": "#f59e0b", "icon": "📚"},
     "apprentissage":{"label": "Formation",   "category": "formation", "color": "#f59e0b", "icon": "📚"},
+    "lecon":        {"label": "Leçon",       "category": "lecon",     "color": "#06b6d4", "icon": "🎓"},
     "social":       {"label": "Social",      "category": "social",    "color": "#ec4899", "icon": "💬"},
     "relationnel":  {"label": "Social",      "category": "social",    "color": "#ec4899", "icon": "💬"},
     "autre":        {"label": "Autre",       "category": "autre",     "color": "#64748b", "icon": "🧩"},
@@ -30,6 +31,7 @@ DOMAIN_COLORS = {
     "yoga":     "#a78bfa",
     "travail":  "#3b82f6",
     "formation":"#f59e0b",
+    "lecon":    "#06b6d4",
     "social":   "#ec4899",
     "autre":    "#64748b",
     # rétro-compat
@@ -40,7 +42,7 @@ DOMAIN_COLORS = {
 
 DOMAIN_ICONS = {
     "sport": "🏃", "yoga": "🧘", "travail": "💼",
-    "formation": "📚", "social": "💬", "autre": "🧩",
+    "formation": "📚", "lecon": "🎓", "social": "💬", "autre": "🧩",
     "sante": "🏃", "relationnel": "💬", "apprentissage": "📚",
 }
 
@@ -49,6 +51,7 @@ CATEGORY_LABELS = {
     "yoga":      "Yoga",
     "travail":   "Travail",
     "formation": "Formation",
+    "lecon":     "Leçon",
     "social":    "Social",
     "autre":     "Autre",
     # rétro-compat
@@ -94,6 +97,10 @@ def _infer_event_type(event: dict) -> str:
         return "travail"
     if cat in ("formation", "apprentissage", "learning"):
         return "formation"
+    if cat in ("lecon", "lesson"):
+        return "lecon"
+    if any(k in title for k in ["leçon", "lecon", "lesson", "cours de"]):
+        return "lecon"
     if cat in ("social", "relationnel"):
         return "social"
     if cat in ("yoga",):
@@ -244,7 +251,6 @@ def generate_html(
     sync_badge_class = "warn"
     if cal_last_sync_raw:
         try:
-            from datetime import datetime as _dt
             sync_dt = _dt.fromisoformat(str(cal_last_sync_raw)[:19])
             hours_ago = (_dt.now() - sync_dt).total_seconds() / 3600
             sync_time_str = sync_dt.strftime("%H:%M")
@@ -370,7 +376,10 @@ def generate_html(
     if not recent_html:
         recent_html = '<div class="muted">Aucune activité récente.</div>'
 
-    cal_enabled = bool(calendar_sync.get("enabled"))
+    # cal_enabled = True dès que macOS + EventKit disponible (permission vérifiée à runtime via /calendar/status)
+    import sys as _sys
+    _cal_err = calendar_sync.get("error", "")
+    cal_enabled = _sys.platform == "darwin" and _cal_err != "eventkit_unavailable" and _cal_err != "apple_calendar_macos_only"
     pending_sync = int(calendar_sync.get("pending_tasks", 0) or 0)
 
     # Recommendations
@@ -533,13 +542,34 @@ body {
 
 /* ─── FORMULAIRE INLINE JOUR "+" ─────────────────────────────── */
 .day-quick-form { background:var(--surface-2); border:1px solid var(--line); border-radius:var(--radius-sm); padding:6px; display:flex; flex-direction:column; gap:5px; margin-bottom:6px; }
-.day-quick-input { background:var(--surface-0); border:1px solid var(--line); border-radius:6px; padding:5px 7px; font-size:11px; color:var(--text); width:100%; font-family:inherit; }
+.day-quick-input { background:var(--surface-0); border:1px solid var(--line); border-radius:6px; padding:5px 7px; font-size:11px; color:var(--text); width:100%; font-family:inherit; box-sizing:border-box; }
 .day-quick-input:focus { outline:none; border-color:#3b82f6; box-shadow:0 0 0 2px rgba(59,130,246,.2); }
 .day-quick-select { background:var(--surface-0); border:1px solid var(--line); border-radius:6px; padding:4px 6px; font-size:10px; color:var(--text); font-family:inherit; width:100%; }
+.day-quick-time-row { display:flex; gap:4px; align-items:center; }
+.day-quick-time-row .day-quick-input { flex:1; min-width:0; width:auto; padding:4px 5px; }
+.day-quick-time-row .dqt-sep { font-size:10px; color:var(--muted); flex-shrink:0; }
 .day-quick-actions { display:flex; gap:4px; }
 .day-quick-submit { flex:1; padding:4px 6px; background:#3b82f6; color:#fff; border:none; border-radius:5px; font-size:10px; font-weight:700; cursor:pointer; font-family:inherit; }
 .day-quick-submit:hover { background:#2563eb; }
 .day-quick-cancel { padding:4px 7px; background:transparent; color:var(--muted); border:1px solid var(--line); border-radius:5px; font-size:10px; cursor:pointer; font-family:inherit; }
+
+/* ─── MODAL PLANIFICATION ─────────────────────────────────────── */
+.plan-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); backdrop-filter:blur(3px); z-index:9000; display:flex; align-items:center; justify-content:center; animation:fadeIn .15s ease; }
+.plan-modal { background:var(--surface-1); border:1px solid var(--border-hover); border-radius:16px; padding:20px 24px; width:min(340px,92vw); box-shadow:0 24px 64px rgba(0,0,0,.5); }
+.plan-modal h3 { margin:0 0 16px; font-size:14px; font-weight:700; color:var(--text); }
+.plan-modal label { display:block; font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; margin-top:12px; }
+.plan-modal label:first-of-type { margin-top:0; }
+.plan-modal input { width:100%; padding:8px 10px; background:var(--surface-0); border:1px solid var(--line); border-radius:8px; color:var(--text); font-size:13px; font-family:inherit; box-sizing:border-box; }
+.plan-modal input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px rgba(99,102,241,.25); }
+.plan-modal .pm-time-row { display:flex; gap:8px; align-items:center; }
+.plan-modal .pm-time-row input { flex:1; }
+.plan-modal .pm-time-row span { color:var(--muted); font-size:12px; flex-shrink:0; }
+.plan-modal .pm-footer { display:flex; gap:8px; margin-top:20px; }
+.plan-modal .pm-ok { flex:1; padding:9px; background:var(--accent); color:#fff; border:none; border-radius:9px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; transition:background .15s; }
+.plan-modal .pm-ok:hover { background:#4f46e5; }
+.plan-modal .pm-cancel { padding:9px 14px; background:transparent; color:var(--muted); border:1px solid var(--line); border-radius:9px; font-size:13px; cursor:pointer; font-family:inherit; }
+.plan-modal select, .pm-select { width:100%; padding:8px 10px; background:var(--surface-0); border:1px solid var(--line); border-radius:8px; color:var(--text); font-size:13px; font-family:inherit; box-sizing:border-box; appearance:auto; }
+.plan-modal select:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 2px rgba(99,102,241,.25); }
 
 /* ─── TODAY BADGE ────────────────────────────────────────────── */
 .today-badge { display:inline-block; background:#3b82f6; color:#fff; border-radius:4px; font-size:9px; font-weight:800; padding:1px 5px; margin-left:4px; }
@@ -751,12 +781,14 @@ body {
   display: flex;
   justify-content: space-between;
 }
-.event-x {
+.event-x, .event-del {
   border: none;
   background: transparent;
   color: #94a3b8;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 .stats {
   display: flex;
@@ -1301,7 +1333,9 @@ input:focus, select:focus {
 .event-title { font-size:11px; font-weight:700; line-height:1.3; color:var(--text); }
 .event-meta { display:flex; align-items:center; gap:6px; margin-top:3px; flex-wrap:wrap; }
 .event-cat-pill { display:inline-flex; align-items:center; border-radius:4px; padding:1px 5px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
-.event-x { background:none; border:none; color:var(--muted); cursor:pointer; font-size:11px; padding:0 2px; margin-left:auto; }
+.event-x, .event-del { background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; padding:2px 6px; margin-left:4px; border-radius:4px; transition:all .15s; opacity:.6; }
+.event-x:hover { background:rgba(59,130,246,.2); color:#60a5fa; opacity:1; }
+.event-del:hover { background:rgba(239,68,68,.2); color:#f87171; opacity:1; }
 
 /* ─── IDÉES - Quick Capture ─────────────────────────────────── */
 .idea-capture-sticky { position:sticky; top:0; z-index:10; background:var(--bg); padding:8px 0 6px; }
@@ -1345,7 +1379,30 @@ input:focus, select:focus {
 .indicator-card .ic-bar { height:8px; background:var(--surface-2); border-radius:var(--radius-full); overflow:hidden; }
 .indicator-card .ic-fill { height:100%; border-radius:var(--radius-full); transition:width .8s cubic-bezier(0.4,0,0.2,1); }
 
-/* ─── PILOTAGE v5 ─────────────────────────────────────────────── */
+/* ─── PLANNING PAGE v6 ────────────────────────────────────────── */
+.planning-top-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:16px; }
+@media (max-width:768px) { .planning-top-row { grid-template-columns:1fr; } }
+.planning-donut-card { background:var(--surface-0); border:1px solid var(--line); border-radius:var(--radius-lg); padding:18px 20px; }
+.planning-donut-title { font-size:14px; font-weight:800; letter-spacing:-0.02em; margin-bottom:12px; }
+.planning-donut-body { display:flex; align-items:center; gap:18px; }
+.planning-donut-legend { display:flex; flex-direction:column; gap:5px; flex:1; }
+.planning-sync-card { background:var(--surface-0); border:1px solid var(--line); border-radius:var(--radius-lg); padding:18px 20px; display:flex; flex-direction:column; gap:10px; }
+.planning-sync-top { display:flex; align-items:center; gap:8px; }
+.btn-sync-large { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:12px 20px; background:linear-gradient(135deg,#3b82f6,#6366f1); color:#fff; border:none; border-radius:var(--radius-md); font-size:14px; font-weight:700; cursor:pointer; transition:opacity .15s, transform .12s; font-family:inherit; }
+.btn-sync-large:hover { opacity:.9; transform:translateY(-1px); }
+.btn-sync-large:disabled { opacity:.4; cursor:default; transform:none; }
+.btn-sync-large .sync-icon { font-size:16px; }
+.planning-sync-info { font-size:11px; color:var(--muted); text-align:center; }
+.planning-mini-strip { display:flex; gap:6px; flex-wrap:wrap; }
+.pm-chip { display:inline-flex; align-items:center; gap:4px; padding:4px 10px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:var(--radius-full); font-size:11px; color:var(--text-secondary); }
+.pm-chip b { color:var(--chip-color, var(--text)); font-weight:800; }
+.cal-card { padding:14px; }
+.cal-nav { padding:8px 14px; font-size:14px; font-weight:700; }
+.board-header-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+.board-header-row h3 { margin:0; font-size:16px; font-weight:800; letter-spacing:-0.02em; }
+.board-tip { font-size:11px; color:var(--muted); margin-bottom:12px; padding:6px 10px; background:rgba(59,130,246,0.06); border:1px solid rgba(59,130,246,0.15); border-radius:var(--radius-sm); }
+
+/* ─── PILOTAGE v5 (legacy compat) ─────────────────────────────── */
 .pilotage-header { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
 .pilotage-header h2 { margin:0; font-size:18px; font-weight:800; letter-spacing:-.02em; flex:1; }
 .sync-status { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); }
@@ -1483,55 +1540,41 @@ input:focus, select:focus {
 
   <section class="section active" id="sec-planning">
 
-    <!-- ═══ PILOTAGE HEADER ═══ -->
-    <div class="pilotage-header">
-      <h2>Pilotage</h2>
-      <div class="sync-status">
-        <span class="sync-dot-big" id="syncDotBig"></span>
-        <span id="syncStatusText">—</span>
-        <span id="syncLastTime" style="color:var(--muted);font-size:11px;"></span>
-      </div>
-      <button class="btn-sync" id="syncBtn" onclick="syncAll()">⟳ Synchroniser</button>
-    </div>
-
-    <!-- ═══ MINI INDICATEURS ═══ -->
-    <div class="pilotage-mini-strip">
-      <div class="pilotage-mini">
-        <span class="pm-icon">🏃</span>
-        <div class="pm-body">
-          <span class="pm-label">Sport</span>
-          <span class="pm-value" id="mini-sport" style="color:#22c55e">__GOAL_DONE__h</span>
+    <!-- ═══ PLANNING HEADER — donut + sync ═══ -->
+    <div class="planning-top-row">
+      <div class="planning-donut-card">
+        <div class="planning-donut-title">Ma semaine</div>
+        <div class="planning-donut-body">
+          <canvas id="weekDonutChart2" width="120" height="120"></canvas>
+          <div class="planning-donut-legend" id="donutLegend2"></div>
         </div>
       </div>
-      <div class="pilotage-mini">
-        <span class="pm-icon">🧘</span>
-        <div class="pm-body">
-          <span class="pm-label">Yoga</span>
-          <span class="pm-value" id="mini-yoga" style="color:#a78bfa">0h</span>
+      <div class="planning-sync-card">
+        <div class="planning-sync-top">
+          <span class="sync-dot-big" id="syncDotBig"></span>
+          <span id="syncStatusText" style="font-size:12px;color:var(--muted)">—</span>
+          <span id="syncLastTime" style="color:var(--muted);font-size:11px;"></span>
         </div>
-      </div>
-      <div class="pilotage-mini">
-        <span class="pm-icon">💼</span>
-        <div class="pm-body">
-          <span class="pm-label">Travail</span>
-          <span class="pm-value" id="mini-travail" style="color:#3b82f6">__WORK_WEEK_H__h</span>
-        </div>
-      </div>
-      <div class="pilotage-mini">
-        <span class="pm-icon">📚</span>
-        <div class="pm-body">
-          <span class="pm-label">Formation</span>
-          <span class="pm-value" id="mini-formation" style="color:#f59e0b">0h</span>
+        <button class="btn-sync-large" id="syncBtn" onclick="syncAll()">
+          <span class="sync-icon">⟳</span> Synchroniser
+        </button>
+        <div class="planning-sync-info">Apple Calendar + Gmail</div>
+        <!-- Mini indicateurs inline -->
+        <div class="planning-mini-strip">
+          <div class="pm-chip" style="--chip-color:#22c55e"><span>🏃</span> <b id="mini-sport">__GOAL_DONE__h</b></div>
+          <div class="pm-chip" style="--chip-color:#a78bfa"><span>🧘</span> <b id="mini-yoga">0h</b></div>
+          <div class="pm-chip" style="--chip-color:#3b82f6"><span>💼</span> <b id="mini-travail">__WORK_WEEK_H__h</b></div>
+          <div class="pm-chip" style="--chip-color:#06b6d4"><span>🎓</span> <b id="mini-lecon">0h</b></div>
         </div>
       </div>
     </div>
 
     <!-- ═══ PLANNING SEMAINE ═══ -->
-    <div class="card" style="margin-bottom:16px;">
+    <div class="card cal-card">
       <div class="pilotage-cal-header">
-        <button class="btn" id="prevWeek">&larr;</button>
+        <button class="btn cal-nav" id="prevWeek">&larr;</button>
         <h3 id="weekLabel">Semaine</h3>
-        <button class="btn" id="nextWeek">&rarr;</button>
+        <button class="btn cal-nav" id="nextWeek">&rarr;</button>
       </div>
       <div class="week-wrap">
         <div class="week-grid" id="weekGrid"></div>
@@ -1540,18 +1583,28 @@ input:focus, select:focus {
 
     <!-- ═══ BOARD TÂCHES ═══ -->
     <div class="card board-section">
+      <div class="board-header-row">
+        <h3>Mes tâches</h3>
+      </div>
       <div class="quick-add-row">
-        <input id="taskText" type="text" placeholder="Nouvelle tâche ou idée…" />
+        <input id="taskText" type="text" placeholder="Nouvelle tâche…" />
         <select id="taskDomain">
-          <option value="travail">💼 Travail</option>
           <option value="sport">🏃 Sport</option>
+          <option value="travail">💼 Travail</option>
           <option value="yoga">🧘 Yoga</option>
+          <option value="lecon">🎓 Leçon</option>
           <option value="formation">📚 Formation</option>
           <option value="social">💬 Social</option>
           <option value="autre">🧩 Autre</option>
         </select>
+        <select id="taskCalendar" title="Calendrier cible">
+          <option value="Personnel">📘 Personnel (iCloud)</option>
+          <option value="simon.hingant@gmail.com">📧 Gmail</option>
+          <option value="Calendrier">📙 Calendrier (partagé)</option>
+        </select>
         <button class="btn-primary" id="addTaskBtn">+ Ajouter</button>
       </div>
+      <div class="board-tip">Glisse une tâche vers le calendrier · Clic ✕ pour supprimer</div>
       <div class="board-grid" id="boardGrid"></div>
     </div>
 
@@ -1683,12 +1736,12 @@ const API_BASE = '/api/planner';
 // Domain colors and icons
 const DOM_COLORS = {
   sport:'#22c55e', yoga:'#a78bfa', travail:'#3b82f6',
-  formation:'#f59e0b', social:'#ec4899', autre:'#64748b',
+  formation:'#f59e0b', lecon:'#06b6d4', social:'#ec4899', autre:'#64748b',
   sante:'#22c55e', relationnel:'#ec4899', apprentissage:'#f59e0b',
 };
 const DOM_ICONS = {
   sport:'🏃', yoga:'🧘', travail:'💼',
-  formation:'📚', social:'💬', autre:'🧩',
+  formation:'📚', lecon:'🎓', social:'💬', autre:'🧩',
   sante:'🏃', relationnel:'💬', apprentissage:'📚',
 };
 
@@ -1743,6 +1796,8 @@ function inferTypeFromEvent(ev) {
   const c = ev.category||'';
   if (c==='travail') return 'travail';
   if (c==='formation'||c==='apprentissage') return 'formation';
+  if (c==='lecon') return 'lecon';
+  if (/leçon|lecon|lesson|cours de/.test(text)) return 'lecon';
   if (c==='social'||c==='relationnel') return 'social';
   if (c==='yoga') return 'yoga';
   if (c==='sport'||c==='sante') return 'cardio';
@@ -1774,7 +1829,7 @@ function updateSyncUI(connected, lastTime, error) {
 }
 
 // ─── Apple Calendar status (top bar) ──────────────────────────────────────────
-function updateAppleCalStatus(state, time) {
+function updateAppleCalStatus(state, time, errorDetail) {
   const btn=document.getElementById('appleCalBtn');
   const sub=document.getElementById('appleCalSub');
   const spinner=document.getElementById('appleCalSpinner');
@@ -1783,31 +1838,55 @@ function updateAppleCalStatus(state, time) {
   if(spinner) spinner.style.display='none';
   if(state==='syncing'){
     btn.classList.add('syncing');
-    if(sub) sub.textContent='Synchronisation…';
+    if(sub) sub.textContent='Synchronisation\u2026';
     if(spinner) spinner.style.display='inline';
   } else if(state==='ok'){
     btn.classList.add('ok');
-    if(sub) sub.textContent='Sync · '+relativeTime(time);
+    if(sub) sub.textContent='Sync \u00b7 '+relativeTime(time);
+  } else if(state==='permission_denied'){
+    btn.classList.add('error');
+    if(sub) sub.textContent='\u26a0\ufe0f Autorisation requise';
+    btn.title='Acc\u00e8s Calendriers refus\u00e9 \u2014 Syst\u00e8me > Confidentialit\u00e9 > Calendriers';
   } else if(state==='error'){
     btn.classList.add('error');
-    if(sub) sub.textContent='Erreur de synchro';
+    if(sub) sub.textContent=errorDetail||'Erreur de synchro';
   } else {
     if(sub) sub.textContent=CAL_SYNC_ENABLED?'Connect\u00e9':'Non connect\u00e9';
   }
 }
 
+// ─── Vérification permission calendrier au démarrage ─────────────────────────
+async function checkCalendarPermission() {
+  if(!CAL_SYNC_ENABLED) return;
+  try {
+    const r=await fetch(API_BASE+'/calendar/status');
+    if(!r.ok) return;
+    const d=await r.json();
+    if(d.permission==='denied'||d.error==='calendar_permission_denied'){
+      updateAppleCalStatus('permission_denied');
+      updateSyncUI(false,null,true);
+      // Toast d'aide persistant avec instructions
+      showToast('\u26a0\ufe0f Acc\u00e8s Calendriers refus\u00e9 \u2014 Syst\u00e8me > Confidentialit\u00e9 & S\u00e9curit\u00e9 > Calendriers > Terminal \u2713','warn');
+    } else if(d.ok && d.permission==='granted'){
+      updateAppleCalStatus('idle');
+      updateSyncUI(true,null,false);
+    }
+  } catch(_){}
+}
+
 // ─── Donut répartition semaine ─────────────────────────────────────────────────
 let _weekDonut=null;
 function renderWeekDonut(dur) {
-  const cv=document.getElementById('weekDonutChart');
+  const cv=document.getElementById('weekDonutChart2')||document.getElementById('weekDonutChart');
   if(!cv||typeof Chart==='undefined') return;
   if(_weekDonut){_weekDonut.destroy();_weekDonut=null;}
   const cats=[
     {k:'sport',   label:'Sport',     color:'#22c55e'},
     {k:'travail', label:'Travail',   color:'#3b82f6'},
+    {k:'yoga',    label:'Yoga',      color:'#a78bfa'},
+    {k:'lecon',   label:'Leçon',     color:'#06b6d4'},
     {k:'social',  label:'Social',    color:'#ec4899'},
     {k:'formation',label:'Formation',color:'#f59e0b'},
-    {k:'yoga',    label:'Yoga',      color:'#a78bfa'},
     {k:'autre',   label:'Autre',     color:'#64748b'},
   ];
   const total=Object.values(dur).reduce((a,b)=>a+(b||0),0);
@@ -1836,7 +1915,7 @@ function renderWeekDonut(dur) {
       cutout:'62%'
     }
   });
-  const leg=document.getElementById('donutLegend');
+  const leg=document.getElementById('donutLegend2')||document.getElementById('donutLegend');
   if(leg){
     const rows=cats.filter(c=>(dur[c.k]||0)>0.01).map(c=>`<div class="donut-leg-row"><span class="donut-leg-dot" style="background:${c.color}"></span><span class="donut-leg-label">${c.label}</span><span class="donut-leg-val">${(dur[c.k]||0).toFixed(1)}h</span></div>`);
     leg.innerHTML=rows.length?rows.join(''):'<div style="font-size:10px;color:var(--muted)">Aucune donnée</div>';
@@ -1858,7 +1937,7 @@ function initMascot() {
 function normCat(c) { return {sante:'sport',relationnel:'social',apprentissage:'formation'}[c]||c; }
 
 function categoryDurations(events) {
-  const out={sport:0,yoga:0,travail:0,formation:0,social:0,autre:0};
+  const out={sport:0,yoga:0,travail:0,formation:0,lecon:0,social:0,autre:0};
   events.forEach(ev=>{
     const s=parseIso(ev.start_at), e=parseIso(ev.end_at);
     if(!s||!e) return;
@@ -1876,6 +1955,7 @@ function updateMiniIndicators(dur) {
   if(el('mini-yoga'))      el('mini-yoga').textContent=fmt(dur.yoga||0);
   if(el('mini-travail'))   el('mini-travail').textContent=fmt(dur.travail||0);
   if(el('mini-formation')) el('mini-formation').textContent=fmt(dur.formation||0);
+  if(el('mini-lecon'))     el('mini-lecon').textContent=fmt(dur.lecon||0);
   if(el('heroWork'))       el('heroWork').textContent=fmt(dur.travail||0);
   if(el('heroSocial'))     el('heroSocial').textContent=fmt(dur.social||0);
   if(el('sum-sante'))      el('sum-sante').textContent=(dur.sport||0).toFixed(1);
@@ -1920,21 +2000,47 @@ async function apiDeleteTask(taskId) {
 async function syncAll() {
   updateAppleCalStatus('syncing');
   const btn=document.getElementById('syncBtn');
-  if(btn){btn.disabled=true;btn.textContent='⟳ Sync…';}
+  if(btn){btn.disabled=true;btn.textContent='\u29d7 Sync\u2026';}
   try {
+    // 0. V\u00e9rifier permission macOS avant tout
+    try {
+      const sr=await fetch(API_BASE+'/calendar/status');
+      if(sr.ok){
+        const sd=await sr.json();
+        if(sd.permission==='denied'||sd.error==='calendar_permission_denied'){
+          updateAppleCalStatus('permission_denied');
+          updateSyncUI(false,null,true);
+          showToast('\u26a0\ufe0f Acc\u00e8s Calendriers refus\u00e9 \u2014 R\u00e8gles: Syst\u00e8me \u203a Confidentialit\u00e9 \u203a Calendriers','err');
+          return;
+        }
+      }
+    } catch(_){}
+    // 1. Push local tasks \u2192 Apple Calendar (t\u00e2ches non encore synch\u00e9es)
+    let pushInfo='';
+    try {
+      const pr=await fetch(API_BASE+'/calendar/push',{method:'POST',headers:apiHeaders(),body:'{}'});
+      const pd=await pr.json();
+      if(pd.result){
+        const s=pd.result.synced||0; if(s>0) pushInfo=` +${s} envoy\u00e9${s>1?'s':''}`;
+      }
+    } catch(_){}
+    // 2. Pull Apple Calendar \u2192 SQLite
     const r=await fetch(API_BASE+'/calendar/sync',{method:'POST',headers:apiHeaders(),body:'{}'});
     const d=await r.json();
     if(d.ok){
-      const now=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-      updateSyncUI(true,now,null);
-      updateAppleCalStatus('ok',now);
+      const nowIso=new Date().toISOString();
+      updateSyncUI(true,nowIso,null);
+      updateAppleCalStatus('ok',nowIso);
       if(d.events) currentEvents=d.events.map((ev,i)=>({...ev,_uid:String(ev.id||'api:'+i)}));
       if(d.board)  currentBoard=d.board;
       await renderWeek(); renderBoard();
-      showToast('Synchronisation Apple Calendar OK.','ok');
+      showToast('Calendrier synchronis\u00e9'+pushInfo+'.','ok');
+    } else {
+      updateAppleCalStatus('error');
+      showToast('Synchronisation \u00e9chou\u00e9e.','err');
     }
   } catch(e){ updateSyncUI(false,null,true); updateAppleCalStatus('error'); showToast('Impossible de synchroniser.','err'); }
-  finally { if(btn){btn.disabled=false;btn.textContent='⟳ Synchroniser';} }
+  finally { if(btn){btn.disabled=false;btn.textContent='\u29d7 Synchroniser';} }
 }
 
 // ─── Local state fallback ─────────────────────────────────────────────────────
@@ -1986,7 +2092,22 @@ async function removeEvent(uid) {
   if(API_ENABLED) {
     try {
       const tid=getTaskId(ev);
-      if(tid){ const out=await apiDeleteTask(tid); if(out.events) currentEvents=out.events.map((e,i)=>({...e,_uid:String(e.id||'api:'+i)})); if(out.board) currentBoard=out.board; return; }
+      if(tid){
+        const out=await apiDeleteTask(tid);
+        if(out.events) currentEvents=out.events.map((e,i)=>({...e,_uid:String(e.id||'api:'+i)}));
+        if(out.board) currentBoard=out.board;
+        showToast('Tâche supprimée.','ok');
+        return;
+      }
+      // Événement Apple Calendar (pas de task_id) — supprimer via l'API Apple
+      const calUid=ev.calendar_uid||(ev.id&&String(ev.id).startsWith('apple:')?String(ev.id).slice(6):'');
+      if(calUid){
+        const r=await fetch(API_BASE+'/apple/'+encodeURIComponent(calUid),{method:'DELETE',headers:apiHeaders()});
+        const out=await r.json();
+        if(out.events) currentEvents=out.events.map((e,i)=>({...e,_uid:String(e.id||'api:'+i)}));
+        showToast('Événement supprimé du calendrier.','ok');
+        return;
+      }
     } catch(_){API_ENABLED=false;}
   }
   setEventLocal(uid,{deleted:true});
@@ -1994,11 +2115,20 @@ async function removeEvent(uid) {
 
 // ─── Schedule / Unschedule ────────────────────────────────────────────────────
 async function scheduleTaskOnDate(taskId, dateIso) {
-  const start=new Date(dateIso+'T09:00:00'); const end=addMin(start,60);
+  // Heure intelligente : si même jour → heure courante arrondie au quart ; sinon 09:00
+  const today=isoDate(new Date());
+  let startTime='09:00:00';
+  if(dateIso===today){
+    const n=new Date(); const m=Math.ceil(n.getMinutes()/15)*15;
+    const h=n.getHours()+Math.floor(m/60);
+    startTime=String(h%24).padStart(2,'0')+':'+String(m%60).padStart(2,'0')+':00';
+  }
+  const start=new Date(dateIso+'T'+startTime); const end=addMin(start,60);
   const task=currentBoard.find(t=>(t.task_id||t.id)==taskId)||{};
   const lastBucket=task.triage_status||'a_planifier';
   try {
-    const out=await apiUpdateTask(taskId,{scheduled:true,scheduled_date:dateIso,scheduled_start:toIsoNoMs(start),scheduled_end:toIsoNoMs(end),start_at:toIsoNoMs(start),end_at:toIsoNoMs(end),last_bucket_before_scheduling:lastBucket,sync_apple:true});
+    const calName=task.calendar_name||'Personnel';
+    const out=await apiUpdateTask(taskId,{scheduled:true,scheduled_date:dateIso,scheduled_start:toIsoNoMs(start),scheduled_end:toIsoNoMs(end),start_at:toIsoNoMs(start),end_at:toIsoNoMs(end),calendar_name:calName,last_bucket_before_scheduling:lastBucket,sync_apple:true});
     if(out.events) currentEvents=out.events.map((e,i)=>({...e,_uid:String(e.id||'api:'+i)}));
     if(out.board)  currentBoard=out.board;
     showToast('Tâche planifiée.','ok');
@@ -2018,11 +2148,13 @@ async function unscheduleTask(taskId, lastBucket) {
 async function addBoardTask() {
   const textEl=document.getElementById('taskText');
   const domEl=document.getElementById('taskDomain');
+  const calEl=document.getElementById('taskCalendar');
   const title=String((textEl&&textEl.value)||'').trim();
   if(!title){showToast('Saisis un titre.','warn');return;}
   const category=(domEl&&domEl.value)||'autre';
+  const calendar_name=(calEl&&calEl.value)||'Personnel';
   try {
-    const out=await apiCreateTask({title,category,triage_status:'a_determiner',scheduled:false,sync_apple:false});
+    const out=await apiCreateTask({title,category,calendar_name,triage_status:'a_determiner',scheduled:false,sync_apple:false});
     if(out.board) currentBoard=out.board;
     else currentBoard.push({task_id:out.created?.task_id,title,category,triage_status:'a_determiner',scheduled:false});
     if(textEl) textEl.value='';
@@ -2048,7 +2180,6 @@ async function terminateTask(taskId) {
 }
 
 async function deleteBoardTask(taskId) {
-  if(!confirm('Supprimer cette tâche ?')) return;
   try {
     const out=await apiDeleteTask(taskId);
     if(out.board) currentBoard=out.board;
@@ -2057,11 +2188,75 @@ async function deleteBoardTask(taskId) {
   } catch(e){ showToast('Impossible de supprimer.','err'); }
 }
 
+// ─── Modal planification depuis board ────────────────────────────────────────
+function showPlanModal(taskId) {
+  document.querySelectorAll('.plan-modal-overlay').forEach(el=>el.remove());
+  const today=isoDate(new Date());
+  const defStart=defaultStartTime(today);
+  const defEnd=addMinToTimeStr(defStart,60);
+  const ov=document.createElement('div'); ov.className='plan-modal-overlay';
+  ov.innerHTML=`<div class="plan-modal">
+    <h3>📅 Planifier la t\u00e2che</h3>
+    <label>Date</label>
+    <input type="date" id="pm-date" value="${today}" min="${today}" />
+    <label>Heure d\u00e9but \u2192 fin</label>
+    <div class="pm-time-row">
+      <input type="time" id="pm-start" value="${defStart}" />
+      <span>\u2192</span>
+      <input type="time" id="pm-end" value="${defEnd}" />
+    </div>
+    <label>Calendrier</label>
+    <select id="pm-calendar" class="pm-select">
+      <option value="Personnel">📘 Personnel (iCloud)</option>
+      <option value="simon.hingant@gmail.com">📧 Gmail</option>
+      <option value="Calendrier">📙 Calendrier (partag\u00e9)</option>
+    </select>
+    <div class="pm-footer">
+      <button class="pm-cancel">\u2715 Annuler</button>
+      <button class="pm-ok">\u2713 Planifier</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  const pmDate=ov.querySelector('#pm-date');
+  const pmStart=ov.querySelector('#pm-start');
+  const pmEnd=ov.querySelector('#pm-end');
+  let endTouched=false;
+  pmDate.addEventListener('change',()=>{
+    const v=defaultStartTime(pmDate.value); pmStart.value=v;
+    if(!endTouched) pmEnd.value=addMinToTimeStr(v,60);
+  });
+  pmStart.addEventListener('change',()=>{ if(!endTouched) pmEnd.value=addMinToTimeStr(pmStart.value,60); });
+  pmEnd.addEventListener('change',()=>{ endTouched=true; });
+  ov.querySelector('.pm-cancel').addEventListener('click',()=>ov.remove());
+  ov.addEventListener('click',ev=>{ if(ev.target===ov) ov.remove(); });
+  ov.querySelector('.pm-ok').addEventListener('click',async()=>{
+    const dt=pmDate.value;
+    if(!dt||!/^\d{4}-\d{2}-\d{2}$/.test(dt)){showToast('Date invalide.','warn');return;}
+    if(pmStart.value>=pmEnd.value){showToast('Heure fin \u2265 d\u00e9but.','warn');return;}
+    ov.remove();
+    const s=new Date(dt+'T'+pmStart.value+':00');
+    const e=new Date(dt+'T'+pmEnd.value+':00');
+    const task=currentBoard.find(t=>(t.task_id||t.id)==taskId)||{};
+    const lastBucket=task.triage_status||'a_planifier';
+    try {
+      const pmCal=ov.querySelector('#pm-calendar');
+      const calName=(pmCal&&pmCal.value)||'Personnel';
+      const out=await apiUpdateTask(taskId,{scheduled:true,scheduled_date:dt,
+        scheduled_start:toIsoNoMs(s),scheduled_end:toIsoNoMs(e),
+        start_at:toIsoNoMs(s),end_at:toIsoNoMs(e),
+        calendar_name:calName,
+        last_bucket_before_scheduling:lastBucket,sync_apple:true});
+      if(out.events) currentEvents=out.events.map((ev,i)=>({...ev,_uid:String(ev.id||'api:'+i)}));
+      if(out.board) currentBoard=out.board;
+      await renderWeek(); renderBoard();
+      showToast('T\u00e2che planifi\u00e9e.','ok');
+    } catch(_){ showToast('Impossible de planifier.','err'); }
+  });
+  pmDate.focus();
+}
+
 async function planFromBoard(taskId) {
-  const dt=prompt('Date de planification (YYYY-MM-DD) :',isoDate(new Date()));
-  if(!dt||!/^\d{4}-\d{2}-\d{2}$/.test(dt)) return;
-  await scheduleTaskOnDate(taskId,dt);
-  await renderWeek(); renderBoard();
+  showPlanModal(taskId);
 }
 
 // ─── Render board ─────────────────────────────────────────────────────────────
@@ -2073,38 +2268,80 @@ const TRIAGE_COLS=[
   {key:'termine',     label:'Terminé',      color:'#22c55e'},
 ];
 
+// ─── Heure par défaut arrondie au prochain quart d'heure ──────────────────────
+function defaultStartTime(dateIso) {
+  const today=isoDate(new Date());
+  if(dateIso===today){
+    const n=new Date(); const raw=Math.ceil(n.getMinutes()/15)*15;
+    const m=raw%60; const h=(n.getHours()+Math.floor(raw/60))%24;
+    return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+  }
+  return '09:00';
+}
+function addMinToTimeStr(hhmm, mins) {
+  const [h,m]=hhmm.split(':').map(Number);
+  const t=h*60+m+mins; return String(Math.floor(t/60)%24).padStart(2,'0')+':'+String(t%60).padStart(2,'0');
+}
+
 // ─── Quick form inline pour ajout jour ────────────────────────────────────────
 function showDayQuickForm(col, dateIso) {
   document.querySelectorAll('.day-quick-form').forEach(f=>f.remove());
+  const defStart=defaultStartTime(dateIso);
+  const defEnd=addMinToTimeStr(defStart,60);
   const form=document.createElement('div'); form.className='day-quick-form';
-  form.innerHTML=`<input class="day-quick-input" type="text" placeholder="Titre de la tâche…" />`
+  form.innerHTML=
+    `<input class="day-quick-input" type="text" placeholder="Titre de la t\u00e2che\u2026" />`
     +`<select class="day-quick-select">`
-    +`<option value="travail">💼 Travail</option>`
     +`<option value="sport">🏃 Sport</option>`
+    +`<option value="travail">💼 Travail</option>`
     +`<option value="yoga">🧘 Yoga</option>`
+    +`<option value="lecon">🎓 Leçon</option>`
     +`<option value="formation">📚 Formation</option>`
     +`<option value="social">💬 Social</option>`
     +`<option value="autre">🧩 Autre</option>`
     +`</select>`
+    +`<select class="day-quick-select day-quick-cal">`
+    +`<option value="Personnel">📘 Personnel</option>`
+    +`<option value="simon.hingant@gmail.com">📧 Gmail</option>`
+    +`<option value="Calendrier">📙 Calendrier</option>`
+    +`</select>`
+    +`<div class="day-quick-time-row">`
+    +`<input class="day-quick-input" type="time" id="dqt-start" value="${defStart}" title="Heure d\u00e9but" />`
+    +`<span class="dqt-sep">\u2192</span>`
+    +`<input class="day-quick-input" type="time" id="dqt-end" value="${defEnd}" title="Heure fin" />`
+    +`</div>`
     +`<div class="day-quick-actions">`
-    +`<button class="day-quick-submit">✓ Ajouter</button>`
-    +`<button class="day-quick-cancel">✕</button>`
+    +`<button class="day-quick-submit">\u2713 Ajouter</button>`
+    +`<button class="day-quick-cancel">\u2715</button>`
     +`</div>`;
   const firstEvent=col.querySelector('.event');
   if(firstEvent) col.insertBefore(form,firstEvent); else col.appendChild(form);
-  const inp=form.querySelector('.day-quick-input'); inp.focus();
+  const inp=form.querySelector('input[type=text]');
+  const tStart=form.querySelector('#dqt-start');
+  const tEnd=form.querySelector('#dqt-end');
+  inp.focus();
+  // Auto-recalcule fin quand début change (si fin pas manuellement modifiée)
+  let endTouched=false;
+  tStart.addEventListener('change',()=>{
+    if(!endTouched) tEnd.value=addMinToTimeStr(tStart.value,60);
+  });
+  tEnd.addEventListener('change',()=>{ endTouched=true; });
   async function submit(){
     const title=inp.value.trim(); if(!title){inp.focus();return;}
-    const domain=form.querySelector('.day-quick-select').value;
-    const s2=new Date(dateIso+'T09:00:00'); const e2=addMin(s2,60);
+    const domain=form.querySelector('.day-quick-select:not(.day-quick-cal)').value;
+    const calSel=form.querySelector('.day-quick-cal');
+    const calName=(calSel&&calSel.value)||'Personnel';
+    if(tStart.value>=tEnd.value){showToast('Heure fin \u2265 heure d\u00e9but.','warn');return;}
+    const s2=new Date(dateIso+'T'+tStart.value+':00');
+    const e2=new Date(dateIso+'T'+tEnd.value+':00');
     form.remove();
     try{
-      const out=await apiCreateTask({title,category:domain,triage_status:'a_planifier',scheduled:true,
+      const out=await apiCreateTask({title,category:domain,calendar_name:calName,triage_status:'a_planifier',scheduled:true,
         scheduled_date:dateIso,scheduled_start:toIsoNoMs(s2),scheduled_end:toIsoNoMs(e2),
         start_at:toIsoNoMs(s2),end_at:toIsoNoMs(e2),sync_apple:true});
       if(out.board) currentBoard=out.board;
-      showToast('Tâche ajoutée — '+dateIso,'ok'); await renderWeek();
-    }catch(_){showToast('Impossible de créer.','err');}
+      showToast('T\u00e2che ajout\u00e9e \u2014 '+dateIso,'ok'); await renderWeek();
+    }catch(_){showToast('Impossible de cr\u00e9er.','err');}
   }
   form.querySelector('.day-quick-submit').addEventListener('click',submit);
   form.querySelector('.day-quick-cancel').addEventListener('click',()=>form.remove());
@@ -2293,7 +2530,6 @@ async function renderWeek() {
       });
       card.querySelector('.event-del').addEventListener('click',async evd=>{
         evd.stopPropagation();
-        if(!confirm('Supprimer ?')) return;
         await removeEvent(ev._uid); await renderWeek(); renderBoard();
       });
       col.appendChild(card);
@@ -2362,7 +2598,12 @@ window.addEventListener('DOMContentLoaded', () => {
     renderBoard();
     await renderWeek();
     initRings(); initMascot();
-    if(!CAL_SYNC_ENABLED) showToast('Apple Calendar non connecté.','warn');
+    // Auto-sync calendrier au chargement
+    if(CAL_SYNC_ENABLED && API_ENABLED) {
+      try { await syncAll(); } catch(_){}
+    } else if(CAL_SYNC_ENABLED) {
+      checkCalendarPermission();
+    }
   })();
 });
 </script>
@@ -2430,7 +2671,10 @@ window.addEventListener('DOMContentLoaded', () => {
         "__TENK_VALUES__": json.dumps(tenk_values, ensure_ascii=False),
         "__VO2_LABELS__": json.dumps(vo2_labels, ensure_ascii=False),
         "__VO2_VALUES__": json.dumps(vo2_values, ensure_ascii=False),
-        "__API_TOKEN_JS__": json.dumps(api_token, ensure_ascii=False),
+        # Laisser le placeholder pour injection dynamique par cockpit_server.py
+        # Si api_token est fourni, l'injecter directement (mode fichier statique)
+        # Sinon, garder le placeholder pour le serveur
+        "__API_TOKEN_JS__": "__API_TOKEN_JS__" if not api_token else json.dumps(api_token, ensure_ascii=False),
         "__TSB__": f"{tsb:+.1f}",
         "__CTL__": f"{ctl:.1f}",
         "__ATL__": f"{atl:.1f}",
