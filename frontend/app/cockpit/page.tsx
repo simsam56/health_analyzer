@@ -332,8 +332,8 @@ function PMCChart({
                 fontSize: 12,
                 color: "#f1f5f9",
               }}
-              labelFormatter={(v: string) =>
-                new Date(v).toLocaleDateString("fr-FR", {
+              labelFormatter={(v) =>
+                new Date(String(v)).toLocaleDateString("fr-FR", {
                   day: "numeric",
                   month: "short",
                 })
@@ -514,7 +514,7 @@ function ActivityHoursChart({
                 fontSize: 12,
                 color: "#f1f5f9",
               }}
-              formatter={(v: number) => [`${v.toFixed(1)}h`, "Heures"]}
+              formatter={(v) => [`${Number(v).toFixed(1)}h`, "Heures"]}
             />
             <Bar dataKey="hours" radius={[4, 4, 0, 0]} maxBarSize={32}>
               {series.map((entry, i) => (
