@@ -26,7 +26,6 @@ export default function SemainePage() {
   const hoursSeries = data?.activities?.hours_series ?? [];
   const summary = data?.week?.summary;
 
-  // Domain hours for the summary pills
   const domainHours = [
     { label: "Sport", value: summary?.sante_h ?? 0, color: "var(--color-sport)" },
     { label: "Travail", value: summary?.travail_h ?? 0, color: "var(--color-travail)" },
@@ -37,103 +36,109 @@ export default function SemainePage() {
   return (
     <div className="space-y-5">
       {/* ── Row 1: Readiness + Health Metrics ─────────────────────── */}
-      <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-        {/* Readiness gauge */}
-        <ReadinessGauge
-          score={readiness?.score ?? 0}
-          label={readiness?.label ?? "\u2014"}
-          color={readiness?.color ?? "#64748b"}
-          confidence={readiness?.confidence ?? 0}
-          components={readiness?.components}
-        />
+      <section aria-label="Readiness et métriques de santé" data-section="readiness-sante">
+        <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+          <ReadinessGauge
+            score={readiness?.score ?? 0}
+            label={readiness?.label ?? "\u2014"}
+            color={readiness?.color ?? "#64748b"}
+            confidence={readiness?.confidence ?? 0}
+            components={readiness?.components}
+          />
 
-        {/* Health metric cards */}
-        <div className="grid grid-cols-3 gap-2.5">
-          <SparkMetric
-            icon={Activity}
-            label="HRV"
-            value={health?.hrv}
-            unit="ms"
-            color="#22c55e"
-            daysOld={health?.hrv_days_old}
-          />
-          <SparkMetric
-            icon={Heart}
-            label="FC Repos"
-            value={health?.rhr}
-            unit="bpm"
-            color="#ef4444"
-            daysOld={health?.rhr_days_old}
-          />
-          <SparkMetric
-            icon={Moon}
-            label="Sommeil"
-            value={health?.sleep_h}
-            unit="h"
-            color="#a855f7"
-            daysOld={health?.sleep_days_old}
-          />
-          <SparkMetric
-            icon={Wind}
-            label="VO2max"
-            value={health?.vo2max}
-            unit=""
-            color="#06b6d4"
-            daysOld={health?.vo2max_days_old}
-          />
-          <SparkMetric
-            icon={Battery}
-            label="Body Battery"
-            value={health?.body_battery}
-            unit="%"
-            color="#ff9f0a"
-            daysOld={health?.body_battery_days_old}
-          />
-          <SparkMetric
-            icon={TrendingUp}
-            label="ACWR"
-            value={acwr?.acwr}
-            unit=""
-            color={
-              acwr?.zone === "optimal"
-                ? "#22c55e"
-                : acwr?.zone === "surcharge"
-                  ? "#ff3b30"
-                  : "#ff9f0a"
-            }
-            badge={acwr?.zone}
-          />
+          <div className="grid grid-cols-3 gap-2.5" data-section="metriques-sante">
+            <SparkMetric
+              icon={Activity}
+              label="HRV"
+              value={health?.hrv}
+              unit="ms"
+              color="#22c55e"
+              daysOld={health?.hrv_days_old}
+            />
+            <SparkMetric
+              icon={Heart}
+              label="FC Repos"
+              value={health?.rhr}
+              unit="bpm"
+              color="#ef4444"
+              daysOld={health?.rhr_days_old}
+            />
+            <SparkMetric
+              icon={Moon}
+              label="Sommeil"
+              value={health?.sleep_h}
+              unit="h"
+              color="#a855f7"
+              daysOld={health?.sleep_days_old}
+            />
+            <SparkMetric
+              icon={Wind}
+              label="VO2max"
+              value={health?.vo2max}
+              unit=""
+              color="#06b6d4"
+              daysOld={health?.vo2max_days_old}
+            />
+            <SparkMetric
+              icon={Battery}
+              label="Body Battery"
+              value={health?.body_battery}
+              unit="%"
+              color="#ff9f0a"
+              daysOld={health?.body_battery_days_old}
+            />
+            <SparkMetric
+              icon={TrendingUp}
+              label="ACWR"
+              value={acwr?.acwr}
+              unit=""
+              color={
+                acwr?.zone === "optimal"
+                  ? "#22c55e"
+                  : acwr?.zone === "surcharge"
+                    ? "#ff3b30"
+                    : "#ff9f0a"
+              }
+              badge={acwr?.zone}
+            />
+          </div>
         </div>
-      </div>
+      </section>
 
       {/* ── Row 2: Domain hours pills ─────────────────────────────── */}
-      <div className="grid grid-cols-4 gap-2.5">
-        {domainHours.map((d) => (
-          <div key={d.label} className="glass rounded-xl px-3.5 py-2.5">
-            <div className="text-[10px] font-medium uppercase tracking-wider text-text-muted">
-              {d.label}
+      <section aria-label="Heures par domaine cette semaine" data-section="heures-domaine">
+        <div className="grid grid-cols-4 gap-2.5">
+          {domainHours.map((d) => (
+            <div key={d.label} className="glass rounded-xl px-3.5 py-2.5" data-metric={`heures-${d.label.toLowerCase()}`}>
+              <div className="text-[10px] font-medium uppercase tracking-wider text-text-muted">
+                {d.label}
+              </div>
+              <div className="mt-0.5 flex items-baseline gap-1">
+                <span className="text-xl font-bold tabular-nums" style={{ color: d.color }}>
+                  {d.value.toFixed(1)}
+                </span>
+                <span className="text-[10px] text-text-muted">h</span>
+              </div>
             </div>
-            <div className="mt-0.5 flex items-baseline gap-1">
-              <span className="text-xl font-bold tabular-nums" style={{ color: d.color }}>
-                {d.value.toFixed(1)}
-              </span>
-              <span className="text-[10px] text-text-muted">h</span>
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </section>
 
       {/* ── Row 3: Charts ─────────────────────────────────────────── */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <WeeklyHoursChart data={hoursSeries} />
-        {pmc && <PMCMiniChart series={pmc.series} current={pmc.current} />}
-      </div>
+      <section aria-label="Graphiques de performance" data-section="graphiques">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <WeeklyHoursChart data={hoursSeries} />
+          {pmc && <PMCMiniChart series={pmc.series} current={pmc.current} />}
+        </div>
+      </section>
 
       {/* ── Row 4: Timeline + Board ───────────────────────────────── */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <EventTimeline events={events} />
-        <BoardKanban tasks={board} />
-      </div>
+      <section aria-label="Événements et tâches" data-section="evenements-taches">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <EventTimeline events={events} />
+          <BoardKanban tasks={board} />
+        </div>
+      </section>
     </div>
   );
 }

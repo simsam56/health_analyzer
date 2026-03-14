@@ -32,6 +32,7 @@ export default function SantePage() {
   return (
     <div className="space-y-6">
       {/* Rings + Readiness */}
+      <section aria-label="Score readiness et anneaux" data-section="readiness-anneaux">
       <div className="glass-strong rounded-2xl p-6">
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-around">
           <ThreeRings
@@ -59,8 +60,10 @@ export default function SantePage() {
           </div>
         </div>
       </div>
+      </section>
 
       {/* Métriques santé */}
+      <section aria-label="Métriques santé" data-section="metriques-sante">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <MetricCard
           icon={Activity}
@@ -111,26 +114,28 @@ export default function SantePage() {
           badge={acwr?.zone}
         />
       </div>
+      </section>
 
       {/* Running + Activités récentes */}
       <div className="grid gap-4 lg:grid-cols-2">
         {running && running.sessions > 0 && (
+          <section aria-label="Statistiques running" data-section="running-stats">
           <div className="glass rounded-2xl p-5">
             <h3 className="mb-3 flex items-center gap-2 text-base font-semibold">
-              <Footprints className="h-4 w-4 text-accent-green" />
+              <Footprints className="h-4 w-4 text-accent-green" aria-hidden="true" />
               Running
             </h3>
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div data-metric="allure">
                 <div className="text-xs text-text-muted">Allure moy.</div>
                 <div className="text-lg font-bold">{running.avg_pace_str}</div>
               </div>
-              <div>
+              <div data-metric="km-semaine">
                 <div className="text-xs text-text-muted">km/sem</div>
                 <div className="text-lg font-bold">{running.km_per_week}</div>
               </div>
               {Object.entries(running.predictions).map(([dist, time]) => (
-                <div key={dist}>
+                <div key={dist} data-metric={`prediction-${dist}`}>
                   <div className="text-xs text-text-muted">{dist}</div>
                   <div className="text-sm font-semibold text-accent-green">
                     {time}
@@ -139,20 +144,25 @@ export default function SantePage() {
               ))}
             </div>
           </div>
+          </section>
         )}
 
+        <section aria-label="Activités récentes" data-section="activites-recentes">
         <div className="glass rounded-2xl p-5">
           <h3 className="mb-3 flex items-center gap-2 text-base font-semibold">
-            <Timer className="h-4 w-4 text-accent-blue" />
+            <Timer className="h-4 w-4 text-accent-blue" aria-hidden="true" />
             Activités récentes
           </h3>
-          <div className="space-y-2">
+          <div className="space-y-2" role="list" aria-label="Liste des activités">
             {recent.slice(0, 5).map((a) => (
               <div
                 key={a.id}
+                role="listitem"
+                data-activity-id={a.id}
+                data-activity-type={a.type}
                 className="flex items-center gap-3 rounded-lg bg-surface-0 px-3 py-2"
               >
-                <span className="text-sm">{getActivityIcon(a.type)}</span>
+                <span className="text-sm" aria-hidden="true">{getActivityIcon(a.type)}</span>
                 <div className="flex-1">
                   <div className="text-sm font-medium">
                     {a.name || a.type}
@@ -173,6 +183,7 @@ export default function SantePage() {
             ))}
           </div>
         </div>
+        </section>
       </div>
     </div>
   );
