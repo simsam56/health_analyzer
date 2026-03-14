@@ -1,4 +1,4 @@
-# 🔍 AUDIT COMPLET - PerformOS v3 Health Analyzer
+# 🔍 AUDIT COMPLET - Bord v3 Health Analyzer
 **Date**: 2026-03-05 | **Statut**: Fonctionnel avec améliorations recommandées
 **Outils utilisés**: Ruff, Bandit, Radon, pip-audit, Explore agent
 
@@ -40,7 +40,7 @@
 ### Complexité (Radon Maintainability Index)
 ```
 main.py                                        C (65.57) ⚠️  À refactoriser
-cockpit_server.py                              B (75.53)
+bord_server.py                                 B (75.53)
 build_dashboard.py                             B (74.12)
 dashboard/generator.py                         B (74.01)
 dashboard/generator_premium.py                 B (76.80)
@@ -183,7 +183,7 @@ Integrity: ✅
 1. **Modulaire** : pipeline → analytics → dashboard clairement séparé
 2. **Multi-sources** : Apple Health, Strava, Garmin unifiés avec dédup
 3. **Smart caching** : `.ah_cache.pkl` (46 MB), `.health_cache.pkl` (70 MB)
-4. **API locale** : cockpit_server.py avec token auth
+4. **API locale** : bord_server.py avec token auth
 5. **Automation** : LaunchAgent macOS, backup_local.sh horodaté
 6. **Well-indexed** : 15 index SQLite pour perf requêtes
 
@@ -202,7 +202,7 @@ Integrity: ✅
 ### Évaluation: 7/10 (Bon pour local, moyen pour web)
 
 ### ✅ Forces
-- ✅ Token API pour planner (cockpit_server.py)
+- ✅ Token API pour planner (bord_server.py)
 - ✅ `.env` correctement dans `.gitignore`
 - ✅ Zéro XSS (escaping HTML)
 - ✅ Zéro CSRF (localhost uniquement)
@@ -378,7 +378,7 @@ pip install flask-restx  # Ou fastapi avec openapi
 
 ```
 56+ commits | Bien structurés | Squashing quand ok
-├── fix: restore cockpit rendering (16ccedf, 2026-03-05)
+├── fix: restore dashboard rendering (16ccedf, 2026-03-05)
 ├── ops: add local snapshot backup (dd72f49, 2026-03-05)
 ├── feat: refonte UX planning (aaa695c, 2026-03-03)
 ├── feat: sports agent + premium dashboard (905a913)
@@ -536,7 +536,7 @@ Fichiers modifiés frequent:
 3. **Excellente automation** : LaunchAgent, backup, smart skip
 4. **Bonne documentation** : 4 markdown détaillés
 5. **Git hygiene** : Commits structurés, propre history
-6. **Production-ready** : Cockpit v3 fonctionnel, API working
+6. **Production-ready** : Bord v3 fonctionnel, API working
 
 ### ⚠️ À Améliorer
 1. **Sécurité XML** : Remplacer ElementTree → defusedxml (2 jours)
@@ -546,7 +546,7 @@ Fichiers modifiés frequent:
 5. **Documentation API** : Swagger/OpenAPI manquant
 
 ### 🎯 Recommandation Finale
-**PerformOS v3 est PRÊT pour production locale** avec les corrections P0 (sécurité XML, shell exec). Les améliorations P1-P3 sont essentielles si publié ou utilisé multi-user.
+**Bord v3 est PRÊT pour production locale** avec les corrections P0 (sécurité XML, shell exec). Les améliorations P1-P3 sont essentielles si publié ou utilisé multi-user.
 
 **Score Global: 7.4/10** → Passer à **8.5/10** en 2 semaines (phases 1-2)
 

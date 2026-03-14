@@ -1,5 +1,5 @@
 """
-sports_agent.py — PerformOS · Intelligent Sports Analysis Agent
+sports_agent.py — Bord · Intelligent Sports Analysis Agent
 
 Analyses performed:
   - Running: trends, pace progression, predictions, consistency score

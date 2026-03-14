@@ -1,8 +1,11 @@
 "use client";
 
 import { useDashboard } from "@/lib/queries/use-dashboard";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { ErrorCard } from "@/components/ui/error-card";
 import { ThreeRings } from "@/components/health/three-rings";
 import { MetricCard } from "@/components/health/metric-card";
+import { formatDate } from "@/lib/utils";
 import {
   Heart,
   Activity,
@@ -17,21 +20,8 @@ import {
 export default function SantePage() {
   const { data, isLoading, error } = useDashboard();
 
-  if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-green border-t-transparent" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="glass rounded-2xl p-6 text-center text-accent-red">
-        Erreur de connexion à l&apos;API.
-      </div>
-    );
-  }
+  if (isLoading) return <LoadingSpinner color="border-accent-green" />;
+  if (error) return <ErrorCard />;
 
   const health = data?.health;
   const readiness = data?.readiness;
@@ -42,6 +32,7 @@ export default function SantePage() {
   return (
     <div className="space-y-6">
       {/* Rings + Readiness */}
+      <section aria-label="Score readiness et anneaux" data-section="readiness-anneaux">
       <div className="glass-strong rounded-2xl p-6">
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-around">
           <ThreeRings
@@ -55,13 +46,13 @@ export default function SantePage() {
               className="text-5xl font-extrabold"
               style={{ color: readiness?.color ?? "#64748b" }}
             >
-              {readiness?.score ?? "—"}
+              {readiness?.score ?? "\u2014"}
             </div>
             <div
               className="mt-1 text-sm font-medium"
               style={{ color: readiness?.color ?? "#64748b" }}
             >
-              {readiness?.label ?? "—"}
+              {readiness?.label ?? "\u2014"}
             </div>
             <div className="mt-2 text-xs text-text-muted">
               Confiance : {((readiness?.confidence ?? 0) * 100).toFixed(0)}%
@@ -69,8 +60,10 @@ export default function SantePage() {
           </div>
         </div>
       </div>
+      </section>
 
       {/* Métriques santé */}
+      <section aria-label="Métriques santé" data-section="metriques-sante">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <MetricCard
           icon={Activity}
@@ -121,27 +114,28 @@ export default function SantePage() {
           badge={acwr?.zone}
         />
       </div>
+      </section>
 
       {/* Running + Activités récentes */}
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Running */}
         {running && running.sessions > 0 && (
+          <section aria-label="Statistiques running" data-section="running-stats">
           <div className="glass rounded-2xl p-5">
             <h3 className="mb-3 flex items-center gap-2 text-base font-semibold">
-              <Footprints className="h-4 w-4 text-accent-green" />
+              <Footprints className="h-4 w-4 text-accent-green" aria-hidden="true" />
               Running
             </h3>
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div data-metric="allure">
                 <div className="text-xs text-text-muted">Allure moy.</div>
                 <div className="text-lg font-bold">{running.avg_pace_str}</div>
               </div>
-              <div>
+              <div data-metric="km-semaine">
                 <div className="text-xs text-text-muted">km/sem</div>
                 <div className="text-lg font-bold">{running.km_per_week}</div>
               </div>
               {Object.entries(running.predictions).map(([dist, time]) => (
-                <div key={dist}>
+                <div key={dist} data-metric={`prediction-${dist}`}>
                   <div className="text-xs text-text-muted">{dist}</div>
                   <div className="text-sm font-semibold text-accent-green">
                     {time}
@@ -150,21 +144,25 @@ export default function SantePage() {
               ))}
             </div>
           </div>
+          </section>
         )}
 
-        {/* Activités récentes */}
+        <section aria-label="Activités récentes" data-section="activites-recentes">
         <div className="glass rounded-2xl p-5">
           <h3 className="mb-3 flex items-center gap-2 text-base font-semibold">
-            <Timer className="h-4 w-4 text-accent-blue" />
+            <Timer className="h-4 w-4 text-accent-blue" aria-hidden="true" />
             Activités récentes
           </h3>
-          <div className="space-y-2">
+          <div className="space-y-2" role="list" aria-label="Liste des activités">
             {recent.slice(0, 5).map((a) => (
               <div
                 key={a.id}
+                role="listitem"
+                data-activity-id={a.id}
+                data-activity-type={a.type}
                 className="flex items-center gap-3 rounded-lg bg-surface-0 px-3 py-2"
               >
-                <span className="text-sm">{getActivityIcon(a.type)}</span>
+                <span className="text-sm" aria-hidden="true">{getActivityIcon(a.type)}</span>
                 <div className="flex-1">
                   <div className="text-sm font-medium">
                     {a.name || a.type}
@@ -185,6 +183,7 @@ export default function SantePage() {
             ))}
           </div>
         </div>
+        </section>
       </div>
     </div>
   );
@@ -192,24 +191,13 @@ export default function SantePage() {
 
 function getActivityIcon(type: string): string {
   const icons: Record<string, string> = {
-    Running: "🏃",
-    Cycling: "🚴",
-    "Strength Training": "🏋️",
-    Swimming: "🏊",
-    Yoga: "🧘",
-    Hiking: "🥾",
-    Walking: "🚶",
+    Running: "\ud83c\udfc3",
+    Cycling: "\ud83d\udeb4",
+    "Strength Training": "\ud83c\udfcb\ufe0f",
+    Swimming: "\ud83c\udfca",
+    Yoga: "\ud83e\uddd8",
+    Hiking: "\ud83e\uddb6",
+    Walking: "\ud83d\udeb6",
   };
-  return icons[type] ?? "🏃";
-}
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString("fr-FR", {
-      day: "numeric",
-      month: "short",
-    });
-  } catch {
-    return "";
-  }
+  return icons[type] ?? "\ud83c\udfc3";
 }

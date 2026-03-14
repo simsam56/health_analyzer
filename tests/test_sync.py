@@ -32,7 +32,7 @@ if not TOKEN:
     except Exception:
         pass
 if not TOKEN:
-    TOKEN = "performos"
+    TOKEN = "bord"
 
 
 def api(method: str, path: str, body: dict | None = None) -> dict:
@@ -40,7 +40,7 @@ def api(method: str, path: str, body: dict | None = None) -> dict:
     data = json.dumps(body or {}).encode() if body is not None else b"{}"
     req = urllib.request.Request(url, data=data, method=method)
     req.add_header("Content-Type", "application/json")
-    req.add_header("X-PerformOS-Token", TOKEN)
+    req.add_header("X-Bord-Token", TOKEN)
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
             return {"status": resp.status, "body": json.loads(resp.read())}
@@ -143,7 +143,7 @@ def test_cleanup(task_id: int):
 
 def main():
     print(f"\n{'=' * 60}")
-    print(f"PerformOS Sync Tests — {BASE_URL}")
+    print(f"Bord Sync Tests — {BASE_URL}")
     print(f"Token: {TOKEN[:8]}...")
     print(f"{'=' * 60}\n")
 

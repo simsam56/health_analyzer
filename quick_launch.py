@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-PerformOS Quick Launcher - Icône bureau avec calendrier intégré
+Bord Quick Launcher - Icône bureau avec calendrier intégré
 """
 
 import subprocess
@@ -31,9 +31,9 @@ def check_dependencies():
     return True
 
 
-def launch_performos():
-    """Lancer PerformOS avec calendrier intégré"""
-    print("🚀 PerformOS - Lancement rapide avec calendrier")
+def launch_bord():
+    """Lancer Bord avec calendrier intégré"""
+    print("🚀 Bord - Lancement rapide avec calendrier")
     print("=" * 60)
 
     if not check_dependencies():
@@ -78,7 +78,7 @@ def launch_performos():
         except:
             pass
 
-        print("✅ PerformOS lancé!")
+        print("✅ Bord lancé!")
         print("📱 Interface ouverte dans le navigateur")
         print("🗓️ Calendrier Apple synchronisé")
         print()
@@ -107,4 +107,4 @@ def launch_performos():
 
 
 if __name__ == "__main__":
-    sys.exit(launch_performos())
+    sys.exit(launch_bord())

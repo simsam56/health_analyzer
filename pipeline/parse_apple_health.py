@@ -1,5 +1,5 @@
 """
-parse_apple_health.py — PerformOS v3
+parse_apple_health.py — Bord
 Parse Apple Health export.xml → SQLite
 
 Métriques importées (v3) :

@@ -1,178 +1,144 @@
 "use client";
 
 import { useDashboard } from "@/lib/queries/use-dashboard";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { ErrorCard } from "@/components/ui/error-card";
+import { ReadinessGauge } from "@/components/dashboard/readiness-gauge";
+import { SparkMetric } from "@/components/dashboard/spark-metric";
+import { WeeklyHoursChart } from "@/components/dashboard/weekly-hours-chart";
+import { PMCMiniChart } from "@/components/dashboard/pmc-mini-chart";
+import { EventTimeline } from "@/components/dashboard/event-timeline";
+import { BoardKanban } from "@/components/planner/board-kanban";
+import { Heart, Activity, Moon, Wind, Battery, TrendingUp } from "lucide-react";
 
 export default function SemainePage() {
   const { data, isLoading, error } = useDashboard();
 
-  if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-blue border-t-transparent" />
-      </div>
-    );
-  }
+  if (isLoading) return <LoadingSpinner />;
+  if (error) return <ErrorCard />;
 
-  if (error) {
-    return (
-      <div className="glass rounded-2xl p-6 text-center text-accent-red">
-        Erreur de connexion à l&apos;API Python. Vérifiez que le serveur tourne sur le port 8765.
-      </div>
-    );
-  }
-
-  const summary = data?.week?.summary;
+  const health = data?.health;
+  const readiness = data?.readiness;
+  const acwr = data?.acwr;
+  const pmc = data?.pmc;
   const events = data?.week?.events ?? [];
   const board = data?.week?.board ?? [];
-  const readiness = data?.readiness;
+  const hoursSeries = data?.activities?.hours_series ?? [];
+  const summary = data?.week?.summary;
+
+  const domainHours = [
+    { label: "Sport", value: summary?.sante_h ?? 0, color: "var(--color-sport)" },
+    { label: "Travail", value: summary?.travail_h ?? 0, color: "var(--color-travail)" },
+    { label: "Social", value: summary?.relationnel_h ?? 0, color: "var(--color-social)" },
+    { label: "Formation", value: summary?.apprentissage_h ?? 0, color: "var(--color-formation)" },
+  ];
 
   return (
-    <div className="space-y-6">
-      {/* Métriques en haut */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <MetricPill
-          label="Readiness"
-          value={readiness?.score ?? 0}
-          unit="/100"
-          color={readiness?.color ?? "#64748b"}
-        />
-        <MetricPill
-          label="Sport"
-          value={summary?.sante_h ?? 0}
-          unit="h"
-          color="var(--color-sport)"
-        />
-        <MetricPill
-          label="Travail"
-          value={summary?.travail_h ?? 0}
-          unit="h"
-          color="var(--color-travail)"
-        />
-        <MetricPill
-          label="Social"
-          value={summary?.relationnel_h ?? 0}
-          unit="h"
-          color="var(--color-social)"
-        />
-      </div>
+    <div className="space-y-5">
+      {/* ── Row 1: Readiness + Health Metrics ─────────────────────── */}
+      <section aria-label="Readiness et métriques de santé" data-section="readiness-sante">
+        <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+          <ReadinessGauge
+            score={readiness?.score ?? 0}
+            label={readiness?.label ?? "\u2014"}
+            color={readiness?.color ?? "#64748b"}
+            confidence={readiness?.confidence ?? 0}
+            components={readiness?.components}
+          />
 
-      {/* Événements de la semaine */}
-      <div className="glass rounded-2xl p-5">
-        <h2 className="mb-4 text-lg font-semibold">
-          Cette semaine
-          <span className="ml-2 text-sm font-normal text-text-muted">
-            {events.length} événements
-          </span>
-        </h2>
-        {events.length === 0 ? (
-          <p className="text-text-muted">Aucun événement cette semaine.</p>
-        ) : (
-          <div className="space-y-2">
-            {events.slice(0, 15).map((e) => (
-              <div
-                key={e.id}
-                className="flex items-center gap-3 rounded-lg bg-surface-0 px-3 py-2"
-              >
-                <div
-                  className="h-2 w-2 rounded-full"
-                  style={{ background: getCategoryColor(e.category) }}
-                />
-                <span className="flex-1 text-sm">{e.title}</span>
-                <span className="text-xs text-text-muted">
-                  {formatTime(e.start_at)}
-                </span>
-              </div>
-            ))}
+          <div className="grid grid-cols-3 gap-2.5" data-section="metriques-sante">
+            <SparkMetric
+              icon={Activity}
+              label="HRV"
+              value={health?.hrv}
+              unit="ms"
+              color="#22c55e"
+              daysOld={health?.hrv_days_old}
+            />
+            <SparkMetric
+              icon={Heart}
+              label="FC Repos"
+              value={health?.rhr}
+              unit="bpm"
+              color="#ef4444"
+              daysOld={health?.rhr_days_old}
+            />
+            <SparkMetric
+              icon={Moon}
+              label="Sommeil"
+              value={health?.sleep_h}
+              unit="h"
+              color="#a855f7"
+              daysOld={health?.sleep_days_old}
+            />
+            <SparkMetric
+              icon={Wind}
+              label="VO2max"
+              value={health?.vo2max}
+              unit=""
+              color="#06b6d4"
+              daysOld={health?.vo2max_days_old}
+            />
+            <SparkMetric
+              icon={Battery}
+              label="Body Battery"
+              value={health?.body_battery}
+              unit="%"
+              color="#ff9f0a"
+              daysOld={health?.body_battery_days_old}
+            />
+            <SparkMetric
+              icon={TrendingUp}
+              label="ACWR"
+              value={acwr?.acwr}
+              unit=""
+              color={
+                acwr?.zone === "optimal"
+                  ? "#22c55e"
+                  : acwr?.zone === "surcharge"
+                    ? "#ff3b30"
+                    : "#ff9f0a"
+              }
+              badge={acwr?.zone}
+            />
           </div>
-        )}
-      </div>
+        </div>
+      </section>
 
-      {/* Board (kanban simplifié) */}
-      <div className="glass rounded-2xl p-5">
-        <h2 className="mb-4 text-lg font-semibold">
-          Backlog
-          <span className="ml-2 text-sm font-normal text-text-muted">
-            {board.length} tâches
-          </span>
-        </h2>
-        {board.length === 0 ? (
-          <p className="text-text-muted">Aucune tâche en backlog.</p>
-        ) : (
-          <div className="space-y-2">
-            {board.map((t) => (
-              <div
-                key={t.id}
-                className="flex items-center gap-3 rounded-lg bg-surface-0 px-3 py-2"
-              >
-                <span
-                  className="rounded px-1.5 py-0.5 text-[10px] font-medium uppercase"
-                  style={{
-                    background: `${getCategoryColor(t.category)}20`,
-                    color: getCategoryColor(t.category),
-                  }}
-                >
-                  {t.category}
-                </span>
-                <span className="flex-1 text-sm">{t.title}</span>
-                <span className="text-[10px] uppercase text-text-muted">
-                  {t.triage_status?.replace(/_/g, " ")}
-                </span>
+      {/* ── Row 2: Domain hours pills ─────────────────────────────── */}
+      <section aria-label="Heures par domaine cette semaine" data-section="heures-domaine">
+        <div className="grid grid-cols-4 gap-2.5">
+          {domainHours.map((d) => (
+            <div key={d.label} className="glass rounded-xl px-3.5 py-2.5" data-metric={`heures-${d.label.toLowerCase()}`}>
+              <div className="text-[10px] font-medium uppercase tracking-wider text-text-muted">
+                {d.label}
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+              <div className="mt-0.5 flex items-baseline gap-1">
+                <span className="text-xl font-bold tabular-nums" style={{ color: d.color }}>
+                  {d.value.toFixed(1)}
+                </span>
+                <span className="text-[10px] text-text-muted">h</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Row 3: Charts ─────────────────────────────────────────── */}
+      <section aria-label="Graphiques de performance" data-section="graphiques">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <WeeklyHoursChart data={hoursSeries} />
+          {pmc && <PMCMiniChart series={pmc.series} current={pmc.current} />}
+        </div>
+      </section>
+
+      {/* ── Row 4: Timeline + Board ───────────────────────────────── */}
+      <section aria-label="Événements et tâches" data-section="evenements-taches">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <EventTimeline events={events} />
+          <BoardKanban tasks={board} />
+        </div>
+      </section>
     </div>
   );
-}
-
-function MetricPill({
-  label,
-  value,
-  unit,
-  color,
-}: {
-  label: string;
-  value: number;
-  unit: string;
-  color: string;
-}) {
-  return (
-    <div className="glass rounded-xl px-4 py-3">
-      <div className="text-xs font-medium text-text-muted">{label}</div>
-      <div className="mt-1 flex items-baseline gap-1">
-        <span className="text-2xl font-bold" style={{ color }}>
-          {typeof value === "number" ? value.toFixed(1) : value}
-        </span>
-        <span className="text-sm text-text-muted">{unit}</span>
-      </div>
-    </div>
-  );
-}
-
-function getCategoryColor(cat: string): string {
-  const colors: Record<string, string> = {
-    sport: "#22c55e",
-    yoga: "#a855f7",
-    travail: "#3b82f6",
-    formation: "#06b6d4",
-    social: "#ec4899",
-    lecon: "#f59e0b",
-    autre: "#64748b",
-  };
-  return colors[cat] ?? "#64748b";
-}
-
-function formatTime(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString("fr-FR", {
-      weekday: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return "";
-  }
 }

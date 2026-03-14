@@ -1,5 +1,5 @@
 """
-schema.py — PerformOS v3 · Schéma SQLite complet
+schema.py — Bord · Schéma SQLite complet
 """
 
 import sqlite3

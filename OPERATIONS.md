@@ -1,4 +1,4 @@
-# PerformOS v3 - Runbook
+# Bord v3 - Runbook
 
 Ce document sert de guide d'exploitation rapide (local Mac).
 
@@ -11,9 +11,9 @@ python3 -m pip install fitparse garminconnect python-dotenv pyobjc-framework-Eve
 
 ## 2) Commandes principales
 
-- Lancement simple cockpit (recommandé, 1 commande):
+- Lancement simple Bord (recommandé, 1 commande):
 ```bash
-bash start_cockpit.sh
+bash start_bord.sh
 ```
 Ouvre automatiquement le navigateur sur la page **Pilotage** (board tâches + calendrier + sync Apple Calendar).
 Utiliser le bouton **⟳ Synchroniser** dans l'UI pour déclencher une sync Apple Calendar bidirectionnelle.
@@ -49,16 +49,16 @@ python3 main.py --garmin --days 90 --force-garmin --garmin-refresh-tail-days 3
 python3 main.py --skip-parse
 ```
 
-- Mode cockpit interactif (UI persistante DB + API locale):
+- Mode dashboard interactif (UI persistante DB + API locale):
 ```bash
 python3 main.py --skip-parse --garmin --days 90 --serve
 ```
 Puis ouvrir: `http://127.0.0.1:8765`
-Note: si un dashboard existe déjà, le cockpit démarre immédiatement puis les données se rafraîchissent en arrière-plan.
+Note: si un dashboard existe déjà, Bord démarre immédiatement puis les données se rafraîchissent en arrière-plan.
 
-- Mode cockpit interactif avec token API fixe (recommandé):
+- Mode dashboard interactif avec token API fixe (recommandé):
 ```bash
-PERFORMOS_API_TOKEN="change-me-local-token" python3 main.py --skip-parse --garmin --days 90 --serve
+BORD_API_TOKEN="change-me-local-token" python3 main.py --skip-parse --garmin --days 90 --serve
 ```
 Le token protège les actions d'écriture (`POST/PATCH/DELETE`) côté planning.
 
@@ -82,9 +82,9 @@ python3 main.py --skip-parse --no-calendar
 python3 main.py --skip-parse --no-dedup
 ```
 
-- Arrêter tous les serveurs cockpit locaux:
+- Arrêter tous les serveurs Bord locaux:
 ```bash
-bash stop_cockpit.sh
+bash stop_bord.sh
 ```
 
 ## 3) Sorties attendues

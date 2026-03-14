@@ -1,4 +1,4 @@
-# 🚨 DÉPANNAGE PerformOS - MacBook Pro M5
+# 🚨 DÉPANNAGE Bord - MacBook Pro M5
 
 ## Problème: Application ne s'ouvre pas
 
@@ -32,7 +32,7 @@ pip install -r requirements.txt
 ```bash
 cd /Users/simonhingant/Documents/health_analyzer
 ./create_simple_app.sh
-# Crée PerformOS_Simple.app sur le bureau
+# Crée Bord_Simple.app sur le bureau
 ```
 
 #### Solution 2: Lancement Direct
@@ -46,7 +46,7 @@ python3 main.py --serve --calendar-days 7
 cd /Users/simonhingant/Documents/health_analyzer
 
 # Supprimer les anciennes apps
-rm -rf ~/Desktop/PerformOS*.app
+rm -rf ~/Desktop/Bord*.app
 
 # Réinstaller les dépendances
 pip install --upgrade -r requirements.txt

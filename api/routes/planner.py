@@ -1,4 +1,4 @@
-"""Routes planner (port depuis cockpit_server.py)."""
+"""Routes planner."""
 
 from __future__ import annotations
 

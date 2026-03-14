@@ -1,5 +1,5 @@
 """
-generator_premium.py — PerformOS · Premium Dark Dashboard (MacBook Pro M5)
+generator_premium.py — Bord — Premium Dark Dashboard
 Design: Dark Navy + Sport Agent Insights + Chart.js
 """
 
@@ -514,7 +514,7 @@ def generate_html(
     last_run_days = agent_running.get("last_run_days_ago", 999)
 
     # ─── Pilotage sidebar HTML builders ────────────────────────
-    cockpit_categories_html = ""
+    weekly_categories_html = ""
     for _icon, _lbl, _val, _color in [
         ("🏃", "Santé / Sport", sante_h, "#10b981"),
         ("💼", "Travail", travail_h, "#3b82f6"),
@@ -522,7 +522,7 @@ def generate_html(
         ("📚", "Apprentissage", apprentissage_h, "#eab308"),
     ]:
         _pct2 = min(100.0, _val / max(total_h, 0.01) * 100) if total_h else 0
-        cockpit_categories_html += (
+        weekly_categories_html += (
             f'<div style="display:flex;align-items:center;gap:10px;padding:9px 0;'
             f'border-bottom:1px solid rgba(255,255,255,0.07)">'
             f'<span style="font-size:15px;width:22px;text-align:center">{_icon}</span>'
@@ -568,7 +568,7 @@ def generate_html(
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>PerformOS · Dashboard</title>
+<title>Bord</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>{CSS}</style>
 </head>
@@ -577,7 +577,7 @@ def generate_html(
 
 <div class="header">
   <div>
-    <div class="brand-logo">PerformOS</div>
+    <div class="brand-logo">Bord</div>
     <div class="brand-date">{escape(today_str)}</div>
     <div class="brand-sub">Sport Performance Intelligence · Simon Hingant</div>
   </div>
@@ -848,17 +848,17 @@ def generate_html(
       </div>
     </div>
 
-    <!-- ── Colonne droite : cockpit ── -->
+    <!-- ── Colonne droite : tableau de bord ── -->
     <div class="stack">
 
-      <!-- Cockpit semaine -->
+      <!-- Résumé semaine -->
       <div class="card">
         <div class="card-header">
-          <span class="card-title">📊 Cockpit semaine</span>
+          <span class="card-title">📊 Résumé semaine</span>
           <span class="tag">{total_h:.1f}h total</span>
         </div>
         <div class="card-body">
-          {cockpit_categories_html}
+          {weekly_categories_html}
           <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.07)">
             <div class="flex-between mb8">
               <span style="font-size:12px;font-weight:700">🎯 Objectif sport / semaine</span>
@@ -1148,7 +1148,7 @@ function prepareEvent(ev) {{
 
 async function apiFetch(method, path, body) {{
   const headers = {{'Content-Type':'application/json'}};
-  if (API_TOKEN) headers['X-PerformOS-Token'] = API_TOKEN;
+  if (API_TOKEN) headers['X-Bord-Token'] = API_TOKEN;
   const res = await fetch(API_BASE+path,{{method,headers,body:body?JSON.stringify(body):undefined}});
   if (!res.ok) throw new Error('HTTP '+res.status);
   return res.json();
@@ -1184,12 +1184,12 @@ async function pushToApple() {{
     setTimeout(() => {{ if (btn) btn.textContent = '🍎 Pousser tâches locales vers Calendar'; }}, 3000);
   }} catch(err) {{
     if (btn) btn.textContent = '🍎 Pousser tâches locales vers Calendar';
-    alert('ℹ️ Serveur cockpit non actif — lance start_cockpit.sh pour activer la sync');
+    alert('ℹ️ Serveur Bord non actif — lance start_bord.sh pour activer la sync');
   }}
 }}
 
 // ─── Ideas inbox ─────────────────────────────────────────────
-const IDEAS_KEY = 'performos_ideas_v1';
+const IDEAS_KEY = 'bord_ideas_v1';
 function loadIdeas() {{ try {{ return JSON.parse(localStorage.getItem(IDEAS_KEY)||'[]'); }} catch(e) {{ return []; }} }}
 function saveIdeas(ideas) {{ try {{ localStorage.setItem(IDEAS_KEY, JSON.stringify(ideas)); }} catch(e) {{}} }}
 const TYPE_COLORS_MAP = {type_defs_js};

@@ -1,8 +1,8 @@
-# PerformOS Cockpit — Audit Complet (2026-03-04)
+# Bord — Audit Complet (2026-03-04)
 
 ## 1) Audit Architecture
 
-- Pipeline global cohérent: `pipeline/*` (ingestion) → `analytics/*` (calculs) → `dashboard/generator.py` (UI HTML) → `cockpit_server.py` (API locale).
+- Pipeline global cohérent: `pipeline/*` (ingestion) → `analytics/*` (calculs) → `dashboard/generator.py` (UI HTML) → `bord_server.py` (API locale).
 - Point d'entrée unique clair: [`main.py`](/Users/simonhingant/Documents/health_analyzer/main.py).
 - Forces:
   - ingestion multi-sources Apple/Strava/Garmin/Calendar opérationnelle,
@@ -41,7 +41,7 @@
 ## 4) Audit Sécurité
 
 - Améliorations appliquées:
-  - protection des endpoints d’écriture planner par token API (`X-PerformOS-Token`) en mode serveur,
+  - protection des endpoints d’écriture planner par token API (`X-Bord-Token`) en mode serveur,
   - validation stricte des dates début/fin,
   - plafonds de taille payload et longueur texte,
   - échappement HTML côté front pour éviter XSS sur titres d’événements,
@@ -63,5 +63,5 @@
 
 ## 6) Conclusion
 
-PerformOS est passé d’un dashboard “data brute” à un cockpit pilotable.  
+Bord est passé d’un dashboard “data brute” à un dashboard pilotable.  
 La base produit est désormais solide pour la phase suivante: coaching adaptatif, meilleure précision musculation, et automatisations multi-domaines (travail/relationnel).

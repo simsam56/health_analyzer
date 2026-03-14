@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═════════════════════════════════════════════════════════════════════════════
-# sync_and_generate.sh — Pipeline PerformOS v3
+# sync_and_generate.sh — Pipeline Bord v3
 # ═════════════════════════════════════════════════════════════════════════════
 set -euo pipefail
 
@@ -22,7 +22,7 @@ notify() {
 }
 
 log "═══════════════════════════════════════════════════════"
-log "  ⚡ PerformOS v3 — Sport Dashboard"
+log "  ⚡ Bord v3 — Sport Dashboard"
 log "  $DATE_FR"
 log "═══════════════════════════════════════════════════════"
 
@@ -32,7 +32,7 @@ log "═════════════════════════
 }
 
 log "🔄 Génération du dashboard..."
-notify "PerformOS ⏳" "Analyse des données en cours..."
+notify "Bord ⏳" "Analyse des données en cours..."
 
 if "$PYTHON_BIN" "$SCRIPT_DIR/main.py" \
     --export "$SCRIPT_DIR/export.xml" \
@@ -47,7 +47,7 @@ if "$PYTHON_BIN" "$SCRIPT_DIR/main.py" \
     log "   Taille : ${REPORT_KB} KB"
 else
     log "❌ Erreur lors de la génération — consultez $LOG_FILE"
-    notify "PerformOS ❌" "Erreur de génération" "Basso"
+    notify "Bord ❌" "Erreur de génération" "Basso"
     exit 1
 fi
 
@@ -65,7 +65,7 @@ if [[ "${OPEN_BROWSER:-1}" == "1" ]]; then
 fi
 
 log "🎉 Dashboard complet en ${SECONDS}s"
-notify "⚡ PerformOS" "Rapport du ${DATE_FR} prêt" "Glass"
+notify "⚡ Bord" "Rapport du ${DATE_FR} prêt" "Glass"
 log "═══════════════════════════════════════════════════════"
 
 exit 0

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Diagnostic Apple Calendar pour PerformOS v3
+Diagnostic Apple Calendar pour Bord
 """
 
 import sqlite3

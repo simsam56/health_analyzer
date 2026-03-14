@@ -1,4 +1,4 @@
-# Design System — PerformOS v4
+# Design System — Bord v4
 
 > Version : 1.0 | Date : 2026-03-05 | Stack : Python-generated Modern HTML
 
@@ -39,7 +39,7 @@
 
 ```css
 :root {
-  /* Domaines PerformOS */
+  /* Domaines Bord */
   --sante:         #22c55e;
   --sante-bg:      rgba(34,197,94,0.10);
   --travail:       #3b82f6;
@@ -140,7 +140,7 @@
 
 ## 6. Composants
 
-### 6.1 TopCockpit (Header)
+### 6.1 TopBar (Header)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -148,7 +148,7 @@
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-- Classe : `.top-cockpit`
+- Classe : `.top-bar`
 - Background : `var(--surface-1)` + `backdrop-filter: blur(20px)`
 - Border : `1px solid var(--border)`
 - Radius : `var(--radius-lg)`
@@ -229,7 +229,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│                    TopCockpit                         │
+│                    TopBar                              │
 ├──────────────────────────────────────────────────────┤
 │                  IndicatorStrip                       │
 ├──────────────────────────────────────────────────────┤
