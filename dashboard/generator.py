@@ -768,25 +768,7 @@ body {
   cursor: pointer;
 }
 .week-label { font-size: 13px; color: var(--muted); font-weight: 600; }
-.week-wrap { overflow-x: auto; }
-.week-grid {
-  min-width: 1240px;
-  display: grid;
-  grid-template-columns: repeat(7, minmax(180px, 1fr));
-  gap: 10px;
-}
-.day-col {
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  min-height: 300px;
-  padding: 10px;
-  transition: border-color .16s ease, background .16s ease;
-}
-.day-col.drop-target {
-  border-color: #93c5fd;
-  background: linear-gradient(180deg, #ffffff 0%, #eff6ff 100%);
-}
+/* old .week-grid and .day-col removed — replaced by time-grid in PLANNING section below */
 .day-head {
   display: flex;
   justify-content: space-between;
@@ -1504,8 +1486,7 @@ input:focus, select:focus {
 .pilotage-cal-header h3 { margin:0; font-size:14px; font-weight:700; flex:1; }
 
 /* ─── DAY-COL TODAY highlight ─────────────────────────────────── */
-.day-col.today { border:2px solid var(--accent); background:rgba(59,130,246,0.04); }
-.day-col.today .day-head { color:var(--accent); }
+/* .day-col removed — using .day-cell now */
 .today-badge { display:inline-block; font-size:8px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; background:var(--accent); color:#fff; padding:1px 5px; border-radius:4px; margin-left:4px; }
 
 /* ─── BOARD v5 ────────────────────────────────────────────────── */
