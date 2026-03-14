@@ -1,110 +1,190 @@
 #!/usr/bin/env python3
 """
-PerformOS Quick Launcher - Icône bureau avec calendrier intégré
+Bord — Quick Launcher (bouton bureau macOS)
+
+Lance le backend Python (cockpit_server.py) + le frontend Next.js,
+puis ouvre le navigateur sur le Cockpit.
 """
 
+import atexit
+import os
+import signal
 import subprocess
 import sys
 import time
+import urllib.request
 from pathlib import Path
 
-# Configuration
 ROOT = Path(__file__).parent
-CALENDAR_DAYS = 30  # Plus de jours pour le calendrier
+FRONTEND_DIR = ROOT / "frontend"
+DB_PATH = ROOT / "athlete.db"
+DASHBOARD_PATH = ROOT / "reports" / "dashboard.html"
+BACKEND_PORT = 8765
+FRONTEND_PORT = 3000
+COCKPIT_URL = f"http://localhost:{FRONTEND_PORT}/cockpit"
+
+processes: list[subprocess.Popen] = []
 
 
-def check_dependencies():
-    """Vérifier les dépendances critiques"""
-    missing = []
+def cleanup():
+    """Arrêter proprement tous les processus enfants."""
+    for p in processes:
+        try:
+            p.terminate()
+        except OSError:
+            pass
+    for p in processes:
+        try:
+            p.wait(timeout=5)
+        except Exception:
+            try:
+                p.kill()
+            except OSError:
+                pass
+
+
+def wait_for(url: str, timeout: int = 30, label: str = "") -> bool:
+    """Attendre qu'un URL réponde (max timeout secondes)."""
+    for _ in range(timeout * 2):
+        try:
+            urllib.request.urlopen(url, timeout=2)
+            return True
+        except Exception:
+            time.sleep(0.5)
+    print(f"  Timeout en attendant {label or url}")
+    return False
+
+
+def kill_port(port: int):
+    """Libérer un port si occupé (macOS/Linux)."""
     try:
-        import sqlite3
+        result = subprocess.run(
+            ["lsof", "-ti", f":{port}"],
+            capture_output=True, text=True,
+        )
+        pids = result.stdout.strip().split("\n")
+        for pid in pids:
+            if pid:
+                os.kill(int(pid), signal.SIGTERM)
+        if pids and pids[0]:
+            time.sleep(1)
+    except Exception:
+        pass
 
-        import defusedxml
-        import joblib
-    except ImportError as e:
-        missing.append(str(e))
 
-    if missing:
-        print(f"❌ Dépendances manquantes: {', '.join(missing)}")
-        print("Installez avec: pip install -r requirements.txt")
-        return False
-    return True
-
-
-def launch_performos():
-    """Lancer PerformOS avec calendrier intégré"""
-    print("🚀 PerformOS - Lancement rapide avec calendrier")
-    print("=" * 60)
-
-    if not check_dependencies():
+def ensure_db():
+    """Créer la DB démo si elle n'existe pas."""
+    if DB_PATH.exists():
         return
+    print("  Base de données absente, création de la DB démo...")
+    subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "seed_demo.py")],
+        cwd=str(ROOT), check=True,
+    )
 
-    # Commande optimisée pour calendrier
-    cmd = [
-        sys.executable,
-        str(ROOT / "main.py"),
-        "--serve",  # Interface web
-        "--calendar-days",
-        str(CALENDAR_DAYS),  # Plus de jours calendrier
-        "--weeks-muscle",
-        "8",  # Analyse musculaire étendue
-        "--serve-port",
-        "8765",  # Port fixe
-    ]
 
-    print(f"📅 Calendrier: {CALENDAR_DAYS} jours")
-    print("🌐 Interface: http://127.0.0.1:8765")
-    print("💪 Analyse musculaire: 8 semaines")
+def ensure_frontend_deps():
+    """Installer les deps npm si manquantes."""
+    if (FRONTEND_DIR / "node_modules").is_dir():
+        return
+    print("  Installation des dépendances frontend...")
+    subprocess.run(
+        ["npm", "install", "--silent"],
+        cwd=str(FRONTEND_DIR), check=True,
+    )
+
+
+def main():
+    print()
+    print("  ╔══════════════════════════════╗")
+    print("  ║     B o r d  —  Cockpit      ║")
+    print("  ╚══════════════════════════════╝")
+    print()
+
+    atexit.register(cleanup)
+
+    # ── Pré-requis ────────────────────────────────────────────
+    ensure_db()
+    ensure_frontend_deps()
+
+    # ── Libérer les ports ─────────────────────────────────────
+    kill_port(BACKEND_PORT)
+    kill_port(FRONTEND_PORT)
+
+    # ── Backend Python ────────────────────────────────────────
+    print(f"  Backend Python (port {BACKEND_PORT})...")
+    backend = subprocess.Popen(
+        [
+            sys.executable, str(ROOT / "cockpit_server.py"),
+            "--dashboard", str(DASHBOARD_PATH),
+            "--db", str(DB_PATH),
+            "--port", str(BACKEND_PORT),
+        ],
+        cwd=str(ROOT),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    processes.append(backend)
+
+    if not wait_for(f"http://127.0.0.1:{BACKEND_PORT}/api/artifact",
+                    timeout=15, label="backend"):
+        print("  Le backend n'a pas demarré.")
+        return 1
+
+    print(f"  Backend OK (PID {backend.pid})")
+
+    # ── Frontend Next.js ──────────────────────────────────────
+    print(f"  Frontend Next.js (port {FRONTEND_PORT})...")
+
+    # Utiliser le build prod si dispo, sinon dev
+    next_bin = str(FRONTEND_DIR / "node_modules" / ".bin" / "next")
+    if (FRONTEND_DIR / ".next").is_dir():
+        frontend_cmd = [next_bin, "start", "-p", str(FRONTEND_PORT)]
+    else:
+        frontend_cmd = [next_bin, "dev", "--port", str(FRONTEND_PORT)]
+
+    frontend = subprocess.Popen(
+        frontend_cmd,
+        cwd=str(FRONTEND_DIR),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    processes.append(frontend)
+
+    if not wait_for(f"http://127.0.0.1:{FRONTEND_PORT}",
+                    timeout=30, label="frontend"):
+        print("  Le frontend n'a pas demarré.")
+        return 1
+
+    print(f"  Frontend OK (PID {frontend.pid})")
+
+    # ── Ouvrir le navigateur ──────────────────────────────────
+    print()
+    print(f"  Bord est pret !")
+    print(f"  -> {COCKPIT_URL}")
+    print()
+    print("  Ctrl+C pour tout arreter.")
     print()
 
     try:
-        # Lancer en arrière-plan
-        process = subprocess.Popen(
-            cmd,
-            cwd=str(ROOT),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            universal_newlines=True,
-        )
-
-        # Attendre que le serveur démarre
-        time.sleep(3)
-
-        # Ouvrir le navigateur automatiquement
+        subprocess.run(["open", COCKPIT_URL], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except FileNotFoundError:
+        # Linux
         try:
-            subprocess.run(["open", "http://127.0.0.1:8765"], check=False)
-        except:
+            subprocess.run(["xdg-open", COCKPIT_URL], check=False,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
             pass
 
-        print("✅ PerformOS lancé!")
-        print("📱 Interface ouverte dans le navigateur")
-        print("🗓️ Calendrier Apple synchronisé")
-        print()
-        print("💡 Fonctionnalités disponibles:")
-        print("   • Planning hebdomadaire")
-        print("   • Synchronisation calendrier Apple")
-        print("   • Création/modification d'événements")
-        print("   • Analyse santé et performance")
-        print()
-        print("🔄 Le serveur tourne en arrière-plan...")
-        print("   Appuyez Ctrl+C pour arrêter")
-
-        # Garder le processus en vie
-        try:
-            process.wait()
-        except KeyboardInterrupt:
-            print("\n🛑 Arrêt du serveur...")
-            process.terminate()
-            process.wait()
-
-    except Exception as e:
-        print(f"❌ Erreur lancement: {e}")
-        return 1
+    # ── Attendre Ctrl+C ───────────────────────────────────────
+    try:
+        backend.wait()
+    except KeyboardInterrupt:
+        print("\n  Arret...")
 
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(launch_performos())
+    sys.exit(main())
