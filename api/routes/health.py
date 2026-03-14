@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from analytics.muscle_groups import analyze_imbalances, get_cumulative_volume
 from analytics.training_load import (
     build_daily_tss,
     compute_acwr,
     compute_pmc,
     compute_wakeboard_score,
+    compute_weekly_trends,
+    generate_highlights,
     get_health_metrics,
+    analyze_running,
 )
 from api.deps import get_db
 
@@ -97,6 +101,34 @@ def health_rings() -> dict:
                 },
             },
         }
+    finally:
+        conn.close()
+
+
+@router.get("/weekly-trends")
+def weekly_trends(weeks: int = 8) -> dict:
+    """Tendances hebdomadaires des métriques santé."""
+    conn = get_db()
+    try:
+        trends = compute_weekly_trends(conn, weeks=weeks)
+        return {"ok": True, "trends": trends}
+    finally:
+        conn.close()
+
+
+@router.get("/highlights")
+def health_highlights() -> dict:
+    """Insights intelligents basés sur les données récentes."""
+    conn = get_db()
+    try:
+        metrics = get_health_metrics(conn)
+        daily_tss = build_daily_tss(conn)
+        acwr = compute_acwr(daily_tss)
+        running = analyze_running(conn, weeks=12)
+        muscle_cumul = get_cumulative_volume(conn, weeks=4)
+        muscle_alerts = analyze_imbalances(muscle_cumul, weeks=4)
+        highlights = generate_highlights(conn, metrics, acwr, running, muscle_alerts)
+        return {"ok": True, "highlights": highlights}
     finally:
         conn.close()
 
