@@ -9,9 +9,11 @@ import {
   Briefcase,
   Users,
   Lightbulb,
+  Gauge,
 } from "lucide-react";
 
 const TABS = [
+  { href: "/cockpit", label: "Cockpit", icon: Gauge },
   { href: "/semaine", label: "Semaine", icon: CalendarDays },
   { href: "/sante", label: "Santé", icon: Heart },
   { href: "/travail", label: "Travail", icon: Briefcase },

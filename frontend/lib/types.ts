@@ -167,6 +167,72 @@ export interface Activity {
   tss: number | null;
 }
 
+// ── Muscles (détail) ─────────────────────────────────────────────
+
+export interface MuscleTarget {
+  min: number;
+  hyper: number;
+  max: number;
+  icon: string;
+}
+
+export interface MuscleCumulative {
+  total_sets: number;
+  total_reps: number;
+  sets_per_week: number;
+  opacity?: number;
+}
+
+export interface MuscleSession {
+  date: string;
+  workout_name: string;
+  total_sets: number;
+  total_reps: number;
+  duration_min: number;
+  muscles: string[];
+}
+
+export interface MusclesData {
+  zones: Record<string, number>;
+  cumulative: Record<string, MuscleCumulative>;
+  weekly_volume: Record<string, Record<string, unknown>>;
+  alerts: MuscleAlert[];
+  score: number;
+  targets: Record<string, MuscleTarget>;
+  top_exercises: Record<string, { exercise: string; sets: number; total_reps: number }[]>;
+  recent_sessions: MuscleSession[];
+}
+
+// ── Activities (détail) ──────────────────────────────────────────
+
+export interface ActivitiesData {
+  recent: Activity[];
+  hours_series: { week: string; hours: number }[];
+  total_count: number;
+  total_km: number;
+  strength_sessions: number;
+}
+
+// ── Artifact (unified payload) ───────────────────────────────────
+
+export interface ArtifactData {
+  ok: boolean;
+  generated_at: string;
+  health: HealthMetrics;
+  readiness: ReadinessData;
+  acwr: ACWRData;
+  pmc: PMCData;
+  running: RunningData;
+  muscles: MusclesData;
+  week: {
+    start: string;
+    summary: WeekSummary;
+    events: PlannerEvent[];
+    board: BoardTask[];
+  };
+  activities: ActivitiesData;
+}
+
 // ── Dashboard (agrégat) ───────────────────────────────────────────
 
 export interface WeekSummary {
