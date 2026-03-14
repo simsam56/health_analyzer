@@ -1388,22 +1388,27 @@ input:focus, select:focus {
 .cat-leg-row { display:flex; align-items:center; gap:7px; font-size:11px; }
 .cat-leg-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
 
-/* ─── PLANNING - agrandir ────────────────────────────────────── */
+/* ─── PLANNING TIME-GRID 8h-21h ─────────────────────────────── */
 .week-wrap { overflow-x:auto; }
-.day-col { min-height:500px; background:rgba(255,255,255,0.02); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:8px; flex:1; min-width:115px; position:relative; transition:border-color .2s, background .2s; }
-.day-col:hover { border-color:rgba(255,255,255,0.14); background:rgba(255,255,255,0.035); }
-.day-col.today { border-color:rgba(59,130,246,.3); background:rgba(59,130,246,0.04); box-shadow:0 0 24px rgba(59,130,246,.08); }
-.day-col.drop-target { border-color:rgba(59,130,246,.5); background:rgba(59,130,246,0.08); box-shadow:0 0 30px rgba(59,130,246,.12); }
-.day-head { font-size:11px; font-weight:700; color:var(--muted); margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
-.day-add { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); color:var(--muted); width:22px; height:22px; border-radius:6px; cursor:pointer; font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:center; transition:all .15s; padding:0; }
-.day-add:hover { background:rgba(59,130,246,.2); color:#60a5fa; border-color:rgba(59,130,246,.4); transform:scale(1.1); }
-.event { border-left:3px solid #9ca3af; background:rgba(255,255,255,0.04); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border-top:1px solid rgba(255,255,255,0.08); border-right:1px solid rgba(255,255,255,0.05); border-bottom:1px solid rgba(255,255,255,0.05); border-radius:10px; padding:6px 8px; margin-bottom:4px; cursor:grab; transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s; overflow:hidden; box-sizing:border-box; }
-.event:hover { transform:translateY(-1px) scale(1.01); box-shadow:0 8px 24px rgba(0,0,0,.4); background:rgba(255,255,255,0.08); border-top-color:rgba(255,255,255,0.12); }
+.week-grid { display:grid; grid-template-columns:50px repeat(7,1fr); min-width:800px; }
+.week-grid .hour-label { font-size:10px; font-weight:600; color:var(--muted); text-align:right; padding-right:8px; height:60px; display:flex; align-items:flex-start; justify-content:flex-end; }
+.week-grid .day-header { text-align:center; padding:8px 0; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+.week-grid .day-header .day-num { font-size:18px; font-weight:800; color:var(--text); margin-top:2px; }
+.week-grid .day-header.today .day-num { color:var(--accent); }
+.week-grid .day-header .day-count { font-size:10px; color:var(--muted); }
+.week-grid .day-header .day-add { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); color:var(--muted); width:20px; height:20px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; transition:all .15s; padding:0; margin-left:4px; vertical-align:middle; }
+.week-grid .day-header .day-add:hover { background:rgba(59,130,246,.2); color:#60a5fa; border-color:rgba(59,130,246,.4); }
+.day-cell { position:relative; height:60px; border-top:1px solid rgba(255,255,255,0.06); border-left:1px solid rgba(255,255,255,0.06); }
+.day-cell.today { background:rgba(59,130,246,0.03); }
+.day-cell.drop-target { background:rgba(59,130,246,0.08); }
+.day-col-events { position:absolute; inset:0; }
+.event { position:absolute; left:2px; right:2px; border-left:3px solid #9ca3af; background:rgba(255,255,255,0.06); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border-radius:8px; padding:4px 6px; cursor:grab; transition:transform .18s ease, box-shadow .18s ease; overflow:hidden; box-sizing:border-box; z-index:2; }
+.event:hover { transform:scale(1.02); box-shadow:0 8px 24px rgba(0,0,0,.4); background:rgba(255,255,255,0.10); }
 .event.dragging { opacity:.5; transform:scale(.95); }
-.event-title { font-size:11px; font-weight:700; line-height:1.3; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.event-meta { display:flex; align-items:center; gap:6px; margin-top:3px; flex-wrap:nowrap; }
+.event-title { font-size:10px; font-weight:700; line-height:1.3; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.event-meta { display:flex; align-items:center; gap:4px; margin-top:2px; flex-wrap:nowrap; font-size:9px; color:var(--muted); }
 .event-cat-pill { display:inline-flex; align-items:center; border-radius:4px; padding:1px 5px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
-.event-x, .event-del { background:none; border:none; color:var(--muted); cursor:pointer; font-size:14px; padding:2px 6px; margin-left:4px; border-radius:4px; transition:all .15s; opacity:.6; }
+.event-x, .event-del { background:none; border:none; color:var(--muted); cursor:pointer; font-size:12px; padding:1px 4px; margin-left:2px; border-radius:4px; transition:all .15s; opacity:.6; }
 .event-x:hover { background:rgba(59,130,246,.2); color:#60a5fa; opacity:1; }
 .event-del:hover { background:rgba(239,68,68,.2); color:#f87171; opacity:1; }
 
@@ -2563,50 +2568,87 @@ async function renderWeek() {
   computeAndRenderTrendCharts(events);
 
   const grid=document.getElementById('weekGrid'); if(!grid) return; grid.innerHTML='';
+  const START_HOUR=8, END_HOUR=21, HOUR_H=60;
+  const totalHours=END_HOUR-START_HOUR;
+
+  // Corner vide
+  const corner=document.createElement('div'); grid.appendChild(corner);
+
+  // En-têtes jours
   for(let i=0;i<7;i++){
     const d=addDays(start,i); const dateIso=isoDate(d); const isToday=dateIso===isoDate(new Date());
-    const col=document.createElement('div'); col.className='day-col'+(isToday?' today':''); col.dataset.date=dateIso;
-    const head=document.createElement('div'); head.className='day-head';
-    head.innerHTML='<span>'+days[i]+' '+shortDateFr(d)+(isToday?' <span class="today-badge">Auj.</span>':'')+'</span>'
-      +'<button class="day-add" data-date="'+dateIso+'" title="Ajouter ici">+</button>';
-    col.appendChild(head);
+    const dayEvts=events.filter(ev=>{const s=parseIso(ev.start_at);return s&&isoDate(s)===dateIso;});
+    const hdr=document.createElement('div'); hdr.className='day-header'+(isToday?' today':'');
+    hdr.innerHTML='<div>'+days[i]+'</div><div class="day-num">'+d.getDate()+'</div>'
+      +(dayEvts.length?'<div class="day-count">'+dayEvts.length+'</div>':'');
+    grid.appendChild(hdr);
+  }
 
-    // Drop zone pour tâches du board
-    col.addEventListener('dragover',ev=>{ev.preventDefault();col.classList.add('drop-target');});
-    col.addEventListener('dragleave',()=>col.classList.remove('drop-target'));
-    col.addEventListener('drop',async ev=>{
-      ev.preventDefault(); col.classList.remove('drop-target');
-      const boardTaskId=ev.dataTransfer.getData('application/x-board-task');
-      if(boardTaskId){await scheduleTaskOnDate(boardTaskId,dateIso);await renderWeek();renderBoard();return;}
-      const uid=ev.dataTransfer.getData('text/plain');
-      if(uid&&!uid.startsWith('board:')){await moveEventToDate(uid,dateIso);await renderWeek();}
-    });
+  // Grille horaire : pour chaque heure, 1 label + 7 cellules
+  // On crée d'abord les conteneurs par jour pour y positionner les events
+  const dayCols=[];
+  for(let h=START_HOUR;h<END_HOUR;h++){
+    const lbl=document.createElement('div'); lbl.className='hour-label';
+    lbl.textContent=String(h).padStart(2,'0')+':00';
+    grid.appendChild(lbl);
+    for(let i=0;i<7;i++){
+      const cell=document.createElement('div');
+      const d=addDays(start,i); const dateIso=isoDate(d); const isToday=dateIso===isoDate(new Date());
+      cell.className='day-cell'+(isToday?' today':'');
+      cell.dataset.date=dateIso;
+      // Drop zone
+      cell.addEventListener('dragover',ev=>{ev.preventDefault();cell.classList.add('drop-target');});
+      cell.addEventListener('dragleave',()=>cell.classList.remove('drop-target'));
+      cell.addEventListener('drop',async ev=>{
+        ev.preventDefault(); cell.classList.remove('drop-target');
+        const boardTaskId=ev.dataTransfer.getData('application/x-board-task');
+        if(boardTaskId){await scheduleTaskOnDate(boardTaskId,dateIso);await renderWeek();renderBoard();return;}
+        const uid=ev.dataTransfer.getData('text/plain');
+        if(uid&&!uid.startsWith('board:')){await moveEventToDate(uid,dateIso);await renderWeek();}
+      });
+      // Seulement à la première heure : créer le conteneur absolu pour events
+      if(h===START_HOUR){
+        const evContainer=document.createElement('div');
+        evContainer.className='day-col-events';
+        evContainer.style.position='absolute'; evContainer.style.top='0'; evContainer.style.left='0'; evContainer.style.right='0';
+        evContainer.style.height=(totalHours*HOUR_H)+'px'; evContainer.style.pointerEvents='none';
+        cell.style.position='relative';
+        cell.appendChild(evContainer);
+        dayCols.push({dateIso,container:evContainer});
+      }
+      grid.appendChild(cell);
+    }
+  }
 
-    const dayEvents=events.filter(ev=>{const s=parseIso(ev.start_at);return s&&isoDate(s)===dateIso;}).sort((a,b)=>parseIso(a.start_at)-parseIso(b.start_at));
-    if(!dayEvents.length){const emp=document.createElement('div');emp.className='muted';emp.style.fontSize='12px';emp.textContent='—';col.appendChild(emp);}
-
+  // Placer les events dans les conteneurs
+  dayCols.forEach(({dateIso,container})=>{
+    const dayEvents=events.filter(ev=>{const s=parseIso(ev.start_at);return s&&isoDate(s)===dateIso;});
     dayEvents.forEach(ev=>{
       const cat=normCat(ev.category||'autre'); const color=domainColor(cat); const icon=domainIcon(cat);
       const s=parseIso(ev.start_at); const e=parseIso(ev.end_at);
+      if(!s) return;
+      const startH=s.getHours()+s.getMinutes()/60;
+      const endH=e?(e.getHours()+e.getMinutes()/60):(startH+1);
+      const clampStart=Math.max(startH,START_HOUR); const clampEnd=Math.min(endH,END_HOUR);
+      if(clampEnd<=clampStart) return;
+      const top=((clampStart-START_HOUR)*HOUR_H);
+      const height=Math.max(20,(clampEnd-clampStart)*HOUR_H-2);
       const dur2=Math.max(5,Math.round(((e||s)-(s||e))/60000));
-      // Hauteur proportionnelle : 30min=base(38px), 1h=60px, 2h=104px, etc.
-      const PX_PER_MIN=1.1; const MIN_H=38;
-      const propH=Math.max(MIN_H, Math.round(dur2*PX_PER_MIN));
-      const card=document.createElement('div'); card.className='event'; card.draggable=true; card.style.borderLeftColor=color;
-      card.style.minHeight=propH+'px';
-      card.style.height=propH+'px';
-      // Formater la durée lisiblement
       const durLabel=dur2>=60?(Math.floor(dur2/60)+'h'+(dur2%60?String(dur2%60).padStart(2,'0'):'')):(dur2+'min');
-      card.innerHTML='<div class="event-title">'+icon+' '+escapeHtml(ev.title||'Événement')+'</div>'
-        +'<div class="event-meta"><span>'+(s?hm(s):'—')+(e?' \u2192 '+hm(e):'')+' · '+durLabel+'</span>'
-        +'<button class="event-x" title="Retirer du planning">\u2190</button>'
+      const card=document.createElement('div'); card.className='event'; card.draggable=true;
+      card.style.borderLeftColor=color; card.style.top=top+'px'; card.style.height=height+'px';
+      card.style.pointerEvents='auto';
+      card.style.background=color+'20';
+      card.innerHTML='<div class="event-title">'+icon+' '+escapeHtml(ev.title||'\u00c9v\u00e9nement')+'</div>'
+        +'<div class="event-meta"><span>'+(s?hm(s):'')+(e?' \u2013 '+hm(e):'')+' \u00b7 '+durLabel+'</span>'
+        +'<button class="event-x" title="Retirer">\u2190</button>'
         +'<button class="event-del" title="Supprimer">\u2715</button></div>';
       card.addEventListener('dragstart',evd=>{card.classList.add('dragging');evd.dataTransfer.setData('text/plain',ev._uid);});
       card.addEventListener('dragend',()=>card.classList.remove('dragging'));
       card.querySelector('.event-x').addEventListener('click',async evx=>{
         evx.stopPropagation();
         const tid=getTaskId(ev);
-        if(!tid){showToast('Cet événement Apple ne peut pas être retiré du planning.','warn');return;}
+        if(!tid){showToast('Cet \u00e9v\u00e9nement ne peut pas \u00eatre retir\u00e9 du planning.','warn');return;}
         await unscheduleTask(tid,ev.last_bucket_before_scheduling);
         await renderWeek(); renderBoard();
       });
@@ -2614,16 +2656,7 @@ async function renderWeek() {
         evd.stopPropagation();
         await removeEvent(ev._uid); await renderWeek(); renderBoard();
       });
-      col.appendChild(card);
-    });
-    grid.appendChild(col);
-  }
-
-  // Bouton "+" sur chaque jour
-  grid.querySelectorAll('.day-add').forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const dayCol=btn.closest('.day-col');
-      if(dayCol) showDayQuickForm(dayCol, btn.dataset.date);
+      container.appendChild(card);
     });
   });
 }
