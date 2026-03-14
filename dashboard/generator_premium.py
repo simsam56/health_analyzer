@@ -2,46 +2,74 @@
 generator_premium.py — PerformOS · Premium Dark Dashboard (MacBook Pro M5)
 Design: Dark Navy + Sport Agent Insights + Chart.js
 """
+
 from __future__ import annotations
 
-from pathlib import Path
-from datetime import date, datetime, timedelta
 import json
+from datetime import date, datetime, timedelta
 from html import escape
-
+from pathlib import Path
 
 TYPE_DEFS = {
-    "cardio":        {"label": "Cardio",        "color": "#f97316", "icon": "🏃"},
-    "musculation":   {"label": "Musculation",   "color": "#8b5cf6", "icon": "🏋️"},
-    "mobilite":      {"label": "Mobilité",      "color": "#06b6d4", "icon": "🧘"},
-    "sport_libre":   {"label": "Sport libre",   "color": "#10b981", "icon": "🎾"},
-    "travail":       {"label": "Travail",        "color": "#3b82f6", "icon": "💼"},
+    "cardio": {"label": "Cardio", "color": "#f97316", "icon": "🏃"},
+    "musculation": {"label": "Musculation", "color": "#8b5cf6", "icon": "🏋️"},
+    "mobilite": {"label": "Mobilité", "color": "#06b6d4", "icon": "🧘"},
+    "sport_libre": {"label": "Sport libre", "color": "#10b981", "icon": "🎾"},
+    "travail": {"label": "Travail", "color": "#3b82f6", "icon": "💼"},
     "apprentissage": {"label": "Apprentissage", "color": "#eab308", "icon": "📚"},
-    "relationnel":   {"label": "Relationnel",   "color": "#ec4899", "icon": "💬"},
-    "autre":         {"label": "Autre",          "color": "#6b7280", "icon": "🧩"},
+    "relationnel": {"label": "Relationnel", "color": "#ec4899", "icon": "💬"},
+    "autre": {"label": "Autre", "color": "#6b7280", "icon": "🧩"},
 }
 
-SEVERITY_COLORS = {"critical": "#ef4444", "warning": "#f97316", "info": "#3b82f6", "success": "#10b981"}
+SEVERITY_COLORS = {
+    "critical": "#ef4444",
+    "warning": "#f97316",
+    "info": "#3b82f6",
+    "success": "#10b981",
+}
 SEVERITY_BG = {
-    "critical": "rgba(239,68,68,0.12)", "warning": "rgba(249,115,22,0.12)",
-    "info": "rgba(59,130,246,0.12)",   "success": "rgba(16,185,129,0.12)",
+    "critical": "rgba(239,68,68,0.12)",
+    "warning": "rgba(249,115,22,0.12)",
+    "info": "rgba(59,130,246,0.12)",
+    "success": "rgba(16,185,129,0.12)",
 }
 
 SPORT_ICONS = {
-    "Running": "🏃", "Strength Training": "🏋️", "Swimming": "🏊",
-    "Cycling": "🚴", "Tennis": "🎾", "Tennis v2": "🎾", "Tennis V2": "🎾",
-    "Snowboarding": "🏂", "Resort Snowboarding": "🏂", "Cross Training": "⚡",
-    "Cross_country_skiing": "⛷️", "Walking": "🚶", "Yoga": "🧘",
-    "SnowSports": "⛷️", "Track Running": "🏃", "Treadmill Running": "🏃",
-    "DownhillSkiing": "🎿", "Skating": "⛸️", "Other": "🏅", "Wakeboard": "🏄",
+    "Running": "🏃",
+    "Strength Training": "🏋️",
+    "Swimming": "🏊",
+    "Cycling": "🚴",
+    "Tennis": "🎾",
+    "Tennis v2": "🎾",
+    "Tennis V2": "🎾",
+    "Snowboarding": "🏂",
+    "Resort Snowboarding": "🏂",
+    "Cross Training": "⚡",
+    "Cross_country_skiing": "⛷️",
+    "Walking": "🚶",
+    "Yoga": "🧘",
+    "SnowSports": "⛷️",
+    "Track Running": "🏃",
+    "Treadmill Running": "🏃",
+    "DownhillSkiing": "🎿",
+    "Skating": "⛸️",
+    "Other": "🏅",
+    "Wakeboard": "🏄",
 }
 
 SPORT_COLORS = {
-    "Running": "#f97316", "Strength Training": "#8b5cf6", "Swimming": "#06b6d4",
-    "Cycling": "#10b981", "Tennis": "#84cc16", "Tennis v2": "#84cc16",
-    "Snowboarding": "#60a5fa", "Resort Snowboarding": "#60a5fa",
-    "Cross Training": "#f59e0b", "Cross_country_skiing": "#a78bfa",
-    "Walking": "#94a3b8", "Yoga": "#f472b6",
+    "Running": "#f97316",
+    "Strength Training": "#8b5cf6",
+    "Swimming": "#06b6d4",
+    "Cycling": "#10b981",
+    "Tennis": "#84cc16",
+    "Tennis v2": "#84cc16",
+    "Snowboarding": "#60a5fa",
+    "Resort Snowboarding": "#60a5fa",
+    "Cross Training": "#f59e0b",
+    "Cross_country_skiing": "#a78bfa",
+    "Walking": "#94a3b8",
+    "Yoga": "#f472b6",
 }
 
 
@@ -79,17 +107,19 @@ def _prepare_pilot_events(pilot_events: list) -> list:
     for e in pilot_events:
         t = _infer_event_type(e)
         d = TYPE_DEFS.get(t, TYPE_DEFS["autre"])
-        rows.append({
-            "id": str(e.get("id") or ""),
-            "title": e.get("title") or "Événement",
-            "start_at": e.get("start_at"),
-            "end_at": e.get("end_at"),
-            "source": e.get("source") or "local",
-            "category": t,
-            "type": t,
-            "icon": d["icon"],
-            "color": d["color"],
-        })
+        rows.append(
+            {
+                "id": str(e.get("id") or ""),
+                "title": e.get("title") or "Événement",
+                "start_at": e.get("start_at"),
+                "end_at": e.get("end_at"),
+                "source": e.get("source") or "local",
+                "category": t,
+                "type": t,
+                "icon": d["icon"],
+                "color": d["color"],
+            }
+        )
     return rows
 
 
@@ -107,7 +137,7 @@ def _ring_svg(value: float, max_val: float, color: str, size: int = 120, stroke:
         f' transform="rotate(-90 {cx} {cy})">'
         f'<animate attributeName="stroke-dasharray" from="0 {circ:.1f}" to="{dash:.1f} {circ:.1f}"'
         f' dur="1.2s" fill="freeze" calcMode="spline" keySplines="0.4 0 0.2 1"/>'
-        f'</circle></svg>'
+        f"</circle></svg>"
     )
 
 
@@ -247,7 +277,9 @@ def generate_html(
     wbs_label = wakeboard.get("label", "–")
     acwr_val = float(acwr.get("acwr", 0) or 0)
     acwr_zone = acwr.get("zone", "–")
-    body_battery = float(health.get("body_battery") or _latest_metric(metrics_history, "body_battery", 0))
+    body_battery = float(
+        health.get("body_battery") or _latest_metric(metrics_history, "body_battery", 0)
+    )
     rhr = float(health.get("rhr") or 0)
     sleep_h = float(health.get("sleep_h") or _latest_metric(metrics_history, "sleep_h", 0))
     steps = float(_latest_metric(metrics_history, "steps", 0))
@@ -314,12 +346,19 @@ def generate_html(
             load_split[_t] += _dur_h
     cal_status = "Synchro OK" if garmin_ok else "En attente"
     cal_badge_class = "ok" if garmin_ok else "warn"
-    pending_count = sum(1 for _ev in pilotage.get("events", [])
-                        if _ev.get("source") == "local" and not _ev.get("synced_to_apple"))
-    pending_label = escape(f"{pending_count} tâche(s) à synchroniser" if pending_count
-                           else "Aucune tâche en attente")
-    goal_status_text = escape("✅ Objectif atteint !" if goal_pct >= 100
-                               else f"Reste {goal_left:.1f}h pour atteindre l'objectif")
+    pending_count = sum(
+        1
+        for _ev in pilotage.get("events", [])
+        if _ev.get("source") == "local" and not _ev.get("synced_to_apple")
+    )
+    pending_label = escape(
+        f"{pending_count} tâche(s) à synchroniser" if pending_count else "Aucune tâche en attente"
+    )
+    goal_status_text = escape(
+        "✅ Objectif atteint !"
+        if goal_pct >= 100
+        else f"Reste {goal_left:.1f}h pour atteindre l'objectif"
+    )
     goal_fill_color = "#10b981" if goal_pct >= 100 else "#6366f1"
 
     pmc_labels, pmc_ctl, pmc_atl, pmc_tsb = [], [], [], []
@@ -366,10 +405,10 @@ def generate_html(
             bg = SEVERITY_BG.get(sev, "rgba(59,130,246,0.1)")
             recs_html += (
                 f'<div class="rec-card" style="background:{bg};border-color:{col};color:{col}">'
-                f'<div class="rec-title">{escape(rec.get("icon",""))}&nbsp;{escape(rec.get("title",""))}</div>'
-                f'<div class="rec-body">{escape(rec.get("body",""))}</div>'
-                f'<div class="rec-action">→ {escape(rec.get("action",""))}</div>'
-                f'</div>'
+                f'<div class="rec-title">{escape(rec.get("icon", ""))}&nbsp;{escape(rec.get("title", ""))}</div>'
+                f'<div class="rec-body">{escape(rec.get("body", ""))}</div>'
+                f'<div class="rec-action">→ {escape(rec.get("action", ""))}</div>'
+                f"</div>"
             )
     else:
         recs_html = '<p class="text-muted text-sm">Aucune recommandation urgente. Continue comme ça ! 💪</p>'
@@ -383,7 +422,13 @@ def generate_html(
         try:
             act_d = date.fromisoformat(act_date_raw)
             days_ago_n = (today - act_d).days
-            date_label = "Auj." if days_ago_n == 0 else f"J-{days_ago_n}" if days_ago_n <= 30 else act_d.strftime("%d/%m")
+            date_label = (
+                "Auj."
+                if days_ago_n == 0
+                else f"J-{days_ago_n}"
+                if days_ago_n <= 30
+                else act_d.strftime("%d/%m")
+            )
         except Exception:
             date_label = act_date_raw
         dur_min = int((act.get("duration_s") or 0) / 60)
@@ -398,10 +443,10 @@ def generate_html(
             f'<div class="activity-info">'
             f'<div class="activity-name">{escape(act_name[:30])}</div>'
             f'<div class="activity-meta">{escape(date_label)} · {meta}</div>'
-            f'</div>'
+            f"</div>"
             f'<div class="activity-stat" style="color:{sc}">{hr_val if hr_val else "–"}'
             f'<br><span style="font-size:9px;opacity:.6">bpm</span></div>'
-            f'</div>'
+            f"</div>"
         )
 
     # Render weekly highlights
@@ -415,19 +460,19 @@ def generate_html(
     ready_html = (
         f'<div style="margin-top:12px;padding:10px;border-radius:8px;background:{ready_bg};text-align:center">'
         f'<span style="font-size:13px;font-weight:700;color:{ready_color}">{escape(ready_text)}</span>'
-        f'</div>'
+        f"</div>"
     )
 
     # Render predictions
     preds_html = ""
     race_labels_map = {"5km": "5 km", "10km": "10 km", "semi": "Semi", "marathon": "Marathon"}
-    for race, pred in (predictions.items() if predictions else {}.items()):
+    for race, pred in predictions.items() if predictions else {}.items():
         preds_html += (
             f'<div class="pred-card">'
             f'<div class="pred-dist">{escape(race_labels_map.get(race, race))}</div>'
-            f'<div class="pred-time">{escape(str(pred.get("label","–")))}</div>'
-            f'<div class="pred-pace">{escape(str(pred.get("pace_str","–")))}/km</div>'
-            f'</div>'
+            f'<div class="pred-time">{escape(str(pred.get("label", "–")))}</div>'
+            f'<div class="pred-pace">{escape(str(pred.get("pace_str", "–")))}/km</div>'
+            f"</div>"
         )
     if not preds_html:
         preds_html = '<p class="text-muted text-sm" style="grid-column:span 4;padding:8px 0">Données insuffisantes pour les prédictions</p>'
@@ -438,15 +483,15 @@ def generate_html(
         sc = sport.get("color", "#6b7280")
         sports_rows_html += (
             f'<div class="sport-row">'
-            f'<span style="font-size:16px">{escape(sport.get("icon","🏅"))}</span>'
+            f'<span style="font-size:16px">{escape(sport.get("icon", "🏅"))}</span>'
             f'<div style="flex:1;min-width:0">'
             f'<div class="flex-between">'
-            f'<span class="text-sm" style="font-weight:600">{escape(sport.get("type",""))}</span>'
-            f'<span class="text-sm text-muted">{sport.get("sessions",0)}x · {sport.get("hours",0)}h</span>'
-            f'</div>'
-            f'<div class="sport-bar-bg mt8"><div class="sport-bar-fill" style="width:{sport.get("pct",0)}%;background:{sc}"></div></div>'
-            f'</div>'
-            f'</div>'
+            f'<span class="text-sm" style="font-weight:600">{escape(sport.get("type", ""))}</span>'
+            f'<span class="text-sm text-muted">{sport.get("sessions", 0)}x · {sport.get("hours", 0)}h</span>'
+            f"</div>"
+            f'<div class="sport-bar-bg mt8"><div class="sport-bar-fill" style="width:{sport.get("pct", 0)}%;background:{sc}"></div></div>'
+            f"</div>"
+            f"</div>"
         )
 
     # Render strength sessions
@@ -456,12 +501,12 @@ def generate_html(
             f'<div class="activity-row">'
             f'<div class="activity-icon" style="background:rgba(139,92,246,.15)">🏋️</div>'
             f'<div class="activity-info">'
-            f'<div class="activity-name">{escape(str(sess.get("name",""))[:28])}</div>'
-            f'<div class="activity-meta">{escape(str(sess.get("date","")))} · {int(sess.get("duration_min",0))}min</div>'
-            f'</div>'
-            f'<div class="activity-stat" style="color:var(--purple)">{int(sess.get("calories",0) or 0)}'
+            f'<div class="activity-name">{escape(str(sess.get("name", ""))[:28])}</div>'
+            f'<div class="activity-meta">{escape(str(sess.get("date", "")))} · {int(sess.get("duration_min", 0))}min</div>'
+            f"</div>"
+            f'<div class="activity-stat" style="color:var(--purple)">{int(sess.get("calories", 0) or 0)}'
             f'<br><span style="font-size:9px;opacity:.6">kcal</span></div>'
-            f'</div>'
+            f"</div>"
         )
 
     last_strength_days = agent_strength.get("last_session_days_ago", 0) or 0
@@ -485,17 +530,22 @@ def generate_html(
             f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'
             f'<span style="font-size:12px;font-weight:600">{escape(_lbl)}</span>'
             f'<span style="font-size:14px;font-weight:800;color:{_color}">{_val:.1f}h</span>'
-            f'</div>'
+            f"</div>"
             f'<div style="height:5px;background:rgba(255,255,255,0.07);border-radius:3px;overflow:hidden">'
             f'<div style="height:100%;width:{_pct2:.0f}%;background:{_color};border-radius:3px;'
             f'transition:width .8s ease"></div>'
-            f'</div>'
-            f'</div>'
-            f'</div>'
+            f"</div>"
+            f"</div>"
+            f"</div>"
         )
 
     load_split_rows_html = ""
-    for _t2, _max_h2 in [("cardio", 5.0), ("musculation", 5.0), ("mobilite", 3.0), ("sport_libre", 5.0)]:
+    for _t2, _max_h2 in [
+        ("cardio", 5.0),
+        ("musculation", 5.0),
+        ("mobilite", 3.0),
+        ("sport_libre", 5.0),
+    ]:
         _v2 = load_split[_t2]
         _lbl2 = TYPE_DEFS[_t2]["label"]
         _color2 = TYPE_DEFS[_t2]["color"]
@@ -508,9 +558,9 @@ def generate_html(
             f'<div style="flex:1;height:4px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden">'
             f'<div style="height:100%;width:{_pct3:.0f}%;background:{_color2};border-radius:2px;'
             f'transition:width .8s ease"></div>'
-            f'</div>'
+            f"</div>"
             f'<span style="font-size:11px;font-weight:700;width:26px;text-align:right">{_v2:.1f}h</span>'
-            f'</div>'
+            f"</div>"
         )
 
     html = f"""<!DOCTYPE html>
@@ -533,8 +583,8 @@ def generate_html(
   </div>
   <div class="header-badges">
     {'<span class="badge ok"><span class="badge-dot"></span>Garmin</span>' if garmin_ok else '<span class="badge warn"><span class="badge-dot"></span>Garmin offline</span>'}
-    {'<span class="badge ok"><span class="badge-dot"></span>Strava</span>' if strava_ok else ''}
-    {'<span class="badge ok"><span class="badge-dot"></span>Apple Health</span>' if ah_ok else ''}
+    {'<span class="badge ok"><span class="badge-dot"></span>Strava</span>' if strava_ok else ""}
+    {'<span class="badge ok"><span class="badge-dot"></span>Apple Health</span>' if ah_ok else ""}
     <span class="badge"><span class="badge-dot" style="background:var(--accent)"></span>{total_act} activités</span>
     <span class="badge">🔄 <span id="sync-time">{datetime.now().strftime("%H:%M")}</span></span>
   </div>
@@ -565,7 +615,7 @@ def generate_html(
       <div class="stat-label">⚡ Body Battery</div>
       <div class="stat-value" style="color:{color_battery(body_battery)}">{int(body_battery)}</div>
       <div class="stat-sub">sur 100 · Garmin live</div>
-      <div class="stat-bar mt8"><div class="stat-bar-fill" style="width:{min(100,body_battery)}%;background:{color_battery(body_battery)}"></div></div>
+      <div class="stat-bar mt8"><div class="stat-bar-fill" style="width:{min(100, body_battery)}%;background:{color_battery(body_battery)}"></div></div>
       <div class="stat-accent" style="background:{color_battery(body_battery)}"></div>
     </div>
 
@@ -573,15 +623,15 @@ def generate_html(
       <div class="stat-label">❤️ FC Repos</div>
       <div class="stat-value" style="color:{color_rhr(rhr)}">{int(rhr)}<span class="stat-unit">bpm</span></div>
       <div class="stat-sub">{"Excellent" if rhr < 52 else "Normal" if rhr < 62 else "Élevé"} · Garmin</div>
-      <div class="stat-bar mt8"><div class="stat-bar-fill" style="width:{min(100,max(0,(80-rhr)/40*100)):.0f}%;background:{color_rhr(rhr)}"></div></div>
+      <div class="stat-bar mt8"><div class="stat-bar-fill" style="width:{min(100, max(0, (80 - rhr) / 40 * 100)):.0f}%;background:{color_rhr(rhr)}"></div></div>
       <div class="stat-accent" style="background:{color_rhr(rhr)}"></div>
     </div>
 
     <div class="stat-tile">
       <div class="stat-label">😴 Sommeil</div>
-      <div class="stat-value" style="color:{color_sleep(sleep_h)}">{round(sleep_h,1)}<span class="stat-unit">h</span></div>
+      <div class="stat-value" style="color:{color_sleep(sleep_h)}">{round(sleep_h, 1)}<span class="stat-unit">h</span></div>
       <div class="stat-sub">{"Optimal" if sleep_h >= 7.5 else "Suffisant" if sleep_h >= 6 else "Insuffisant"}</div>
-      <div class="stat-bar mt8"><div class="stat-bar-fill" style="width:{min(100,sleep_h/9*100):.0f}%;background:{color_sleep(sleep_h)}"></div></div>
+      <div class="stat-bar mt8"><div class="stat-bar-fill" style="width:{min(100, sleep_h / 9 * 100):.0f}%;background:{color_sleep(sleep_h)}"></div></div>
       <div class="stat-accent" style="background:{color_sleep(sleep_h)}"></div>
     </div>
   </div>
@@ -601,20 +651,20 @@ def generate_html(
           <div class="card-header"><span class="card-title">📈 ACWR · Charge</span></div>
           <div class="card-body">
             <div style="text-align:center;padding:12px 0">
-              <div class="stat-value" style="font-size:52px;color:{color_acwr(acwr_val)}">{round(acwr_val,2)}</div>
+              <div class="stat-value" style="font-size:52px;color:{color_acwr(acwr_val)}">{round(acwr_val, 2)}</div>
               <div style="font-size:14px;font-weight:600;color:{color_acwr(acwr_val)};margin-top:4px">Zone {escape(acwr_zone)}</div>
               <div class="stat-sub">Optimal : 0.8 – 1.3</div>
             </div>
-            <div class="stat-bar"><div class="stat-bar-fill" style="width:{min(100,acwr_val/2*100):.0f}%;background:{color_acwr(acwr_val)}"></div></div>
+            <div class="stat-bar"><div class="stat-bar-fill" style="width:{min(100, acwr_val / 2 * 100):.0f}%;background:{color_acwr(acwr_val)}"></div></div>
           </div>
         </div>
         <div class="card">
           <div class="card-header"><span class="card-title">👟 Activité</span></div>
           <div class="card-body">
             <div style="text-align:center;padding:8px 0">
-              <div class="stat-value" style="font-size:36px;color:{"#10b981" if steps>=8000 else "#fbbf24"}">{int(steps):,}</div>
+              <div class="stat-value" style="font-size:36px;color:{"#10b981" if steps >= 8000 else "#fbbf24"}">{int(steps):,}</div>
               <div class="stat-sub">pas · cible 8 000</div>
-              <div class="stat-bar mt8"><div class="stat-bar-fill" style="width:{min(100,steps/8000*100):.0f}%;background:var(--teal)"></div></div>
+              <div class="stat-bar mt8"><div class="stat-bar-fill" style="width:{min(100, steps / 8000 * 100):.0f}%;background:var(--teal)"></div></div>
             </div>
             <div class="divider"></div>
             <div class="flex-between"><span class="text-sm text-muted">Total activités</span><span class="text-sm" style="font-weight:700">{total_act}</span></div>
@@ -632,7 +682,7 @@ def generate_html(
       <div class="card">
         <div class="card-header"><span class="card-title">📊 Bilan semaine</span></div>
         <div class="card-body">
-          <div class="text-sm" style="color:var(--accent2);font-weight:700;margin-bottom:8px">{escape(agent_weekly.get("week",""))}</div>
+          <div class="text-sm" style="color:var(--accent2);font-weight:700;margin-bottom:8px">{escape(agent_weekly.get("week", ""))}</div>
           {highlights_html}
           {ready_html}
         </div>
@@ -648,10 +698,10 @@ def generate_html(
       <div class="card-header">
         <span class="card-title">🏃 Running · 12 mois</span>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <span class="tag">🏁 {agent_running.get("total_km",0)} km</span>
-          <span class="tag">📊 {agent_running.get("sessions",0)} sorties</span>
-          <span class="tag">⚡ {escape(str(agent_running.get("recent_pace_str","–")))}/km</span>
-          <span class="tag">🏆 Best: {escape(str(agent_running.get("best_pace_str","–")))}/km</span>
+          <span class="tag">🏁 {agent_running.get("total_km", 0)} km</span>
+          <span class="tag">📊 {agent_running.get("sessions", 0)} sorties</span>
+          <span class="tag">⚡ {escape(str(agent_running.get("recent_pace_str", "–")))}/km</span>
+          <span class="tag">🏆 Best: {escape(str(agent_running.get("best_pace_str", "–")))}/km</span>
         </div>
       </div>
       <div class="card-body">
@@ -664,10 +714,10 @@ def generate_html(
             <div class="chart-title">Prédictions de course</div>
             <div class="pred-grid" style="margin-top:4px">{preds_html}</div>
             <div class="divider"></div>
-            <div class="flex-between"><span class="text-sm text-muted">Régularité</span><span class="text-sm" style="font-weight:700;color:{"#10b981" if consistency>=70 else "#fbbf24" if consistency>=40 else "#ef4444"}">{consistency}/100</span></div>
-            <div class="stat-bar mt8"><div class="stat-bar-fill" style="width:{consistency}%;background:{"#10b981" if consistency>=70 else "#fbbf24"}"></div></div>
+            <div class="flex-between"><span class="text-sm text-muted">Régularité</span><span class="text-sm" style="font-weight:700;color:{"#10b981" if consistency >= 70 else "#fbbf24" if consistency >= 40 else "#ef4444"}">{consistency}/100</span></div>
+            <div class="stat-bar mt8"><div class="stat-bar-fill" style="width:{consistency}%;background:{"#10b981" if consistency >= 70 else "#fbbf24"}"></div></div>
             <div class="flex-between mt8"><span class="text-sm text-muted">Dernière sortie</span><span class="text-sm" style="font-weight:700">Il y a {last_run_days}j</span></div>
-            <div class="flex-between mt8"><span class="text-sm text-muted">Tendance allure</span><span style="font-size:18px">{escape(str(agent_running.get("pace_trend","→")))}</span></div>
+            <div class="flex-between mt8"><span class="text-sm text-muted">Tendance allure</span><span style="font-size:18px">{escape(str(agent_running.get("pace_trend", "→")))}</span></div>
           </div>
         </div>
       </div>
@@ -677,7 +727,7 @@ def generate_html(
       <div class="card">
         <div class="card-header">
           <span class="card-title">🎯 Répartition sports · 12 mois</span>
-          <span class="tag">{agent_breakdown.get("total_sessions",0)} séances</span>
+          <span class="tag">{agent_breakdown.get("total_sessions", 0)} séances</span>
         </div>
         <div class="card-body">
           <div style="max-width:180px;margin:0 auto 16px"><canvas id="chartSportDonut" height="180"></canvas></div>
@@ -688,16 +738,16 @@ def generate_html(
         <div class="card-header">
           <span class="card-title">🏋️ Musculation</span>
           <div style="display:flex;gap:8px">
-            <span class="tag">{agent_strength.get("sessions",0)} séances</span>
-            <span class="tag">{agent_strength.get("avg_per_week",0)}x/sem</span>
+            <span class="tag">{agent_strength.get("sessions", 0)} séances</span>
+            <span class="tag">{agent_strength.get("avg_per_week", 0)}x/sem</span>
           </div>
         </div>
         <div class="card-body">
           <div class="flex-between" style="margin-bottom:12px">
             <div><div class="stat-label">Dernière séance</div>
-            <div class="stat-value" style="font-size:28px;color:{"#10b981" if last_strength_days<=4 else "#f97316"}">{last_strength_days}j</div></div>
+            <div class="stat-value" style="font-size:28px;color:{"#10b981" if last_strength_days <= 4 else "#f97316"}">{last_strength_days}j</div></div>
             <div><div class="stat-label">Gap moyen</div>
-            <div class="stat-value" style="font-size:28px">{agent_strength.get("avg_gap_days","–")}<span class="stat-unit">j</span></div></div>
+            <div class="stat-value" style="font-size:28px">{agent_strength.get("avg_gap_days", "–")}<span class="stat-unit">j</span></div></div>
             <div><div class="stat-label">Récup.</div><div style="font-size:28px">{"✅" if last_strength_days >= 2 else "⚠️"}</div></div>
           </div>
           <div class="divider"></div>
@@ -728,7 +778,7 @@ def generate_html(
         <div class="card-body">
           <div class="flex-between mb8">
             <div><div class="stat-value" style="font-size:32px">{int(rhr)}<span class="stat-unit">bpm</span></div><div class="stat-sub">Aujourd'hui</div></div>
-            <div style="text-align:right"><div class="text-sm text-muted">Moy 30j</div><div style="font-size:16px;font-weight:700">{round(float(agent_recovery.get("averages",{}).get("rhr") or rhr),0):.0f} bpm</div></div>
+            <div style="text-align:right"><div class="text-sm text-muted">Moy 30j</div><div style="font-size:16px;font-weight:700">{round(float(agent_recovery.get("averages", {}).get("rhr") or rhr), 0):.0f} bpm</div></div>
           </div>
           <canvas id="chartRHR" height="80"></canvas>
         </div>
@@ -738,7 +788,7 @@ def generate_html(
         <div class="card-body">
           <div class="flex-between mb8">
             <div><div class="stat-value" style="font-size:32px;color:{color_battery(body_battery)}">{int(body_battery)}<span class="stat-unit">/100</span></div><div class="stat-sub">Aujourd'hui</div></div>
-            <div style="text-align:right"><div class="text-sm text-muted">Moy 30j</div><div style="font-size:16px;font-weight:700">{round(float(agent_recovery.get("averages",{}).get("body_battery") or body_battery),0):.0f}</div></div>
+            <div style="text-align:right"><div class="text-sm text-muted">Moy 30j</div><div style="font-size:16px;font-weight:700">{round(float(agent_recovery.get("averages", {}).get("body_battery") or body_battery), 0):.0f}</div></div>
           </div>
           <canvas id="chartBattery" height="80"></canvas>
         </div>
@@ -747,8 +797,8 @@ def generate_html(
         <div class="card-header"><span class="card-title">😴 Sommeil · 30j</span></div>
         <div class="card-body">
           <div class="flex-between mb8">
-            <div><div class="stat-value" style="font-size:32px">{round(sleep_h,1)}<span class="stat-unit">h</span></div><div class="stat-sub">Hier soir</div></div>
-            <div style="text-align:right"><div class="text-sm text-muted">Moy 30j</div><div style="font-size:16px;font-weight:700">{round(float(agent_recovery.get("averages",{}).get("sleep_h") or sleep_h),1)} h</div></div>
+            <div><div class="stat-value" style="font-size:32px">{round(sleep_h, 1)}<span class="stat-unit">h</span></div><div class="stat-sub">Hier soir</div></div>
+            <div style="text-align:right"><div class="text-sm text-muted">Moy 30j</div><div style="font-size:16px;font-weight:700">{round(float(agent_recovery.get("averages", {}).get("sleep_h") or sleep_h), 1)} h</div></div>
           </div>
           <canvas id="chartSleep" height="80"></canvas>
         </div>
@@ -963,7 +1013,7 @@ Chart.defaults.font.size = 11;
 }})();
 
 (function() {{
-  const sports = {_jse([{"label": s.get("type","")[:12], "sessions": s.get("sessions",0), "color": s.get("color","#6b7280")} for s in sports_list[:6]])};
+  const sports = {_jse([{"label": s.get("type", "")[:12], "sessions": s.get("sessions", 0), "color": s.get("color", "#6b7280")} for s in sports_list[:6]])};
   if (!sports.length) return;
   new Chart(document.getElementById('chartSportDonut').getContext('2d'), {{
     type:'doughnut',

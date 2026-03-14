@@ -12,40 +12,41 @@ Références science de l'entraînement :
   - Agoniste/Antagoniste : ratio Pecs/Dos idéal = 0.8-1.2
   - Volume mollets souvent négligé : minimum 6 sets/semaine
 """
-import sqlite3
-from pathlib import Path
-from datetime import date, timedelta
-from collections import defaultdict
 
-ROOT    = Path(__file__).parent.parent
+import sqlite3
+from collections import defaultdict
+from datetime import date, timedelta
+from pathlib import Path
+
+ROOT = Path(__file__).parent.parent
 DB_PATH = ROOT / "athlete.db"
 
 # ─────────────────────────────────────────────────────────────────
 # RECOMMANDATIONS VOLUME HEBDOMADAIRE (sets/semaine)
 # ─────────────────────────────────────────────────────────────────
 VOLUME_TARGETS = {
-    "Pecs":     {"min": 8,  "hyper": 12, "max": 20, "icon": "💪"},
-    "Dos":      {"min": 10, "hyper": 14, "max": 22, "icon": "🔙"},
-    "Épaules":  {"min": 8,  "hyper": 12, "max": 20, "icon": "🦋"},
-    "Biceps":   {"min": 6,  "hyper": 10, "max": 16, "icon": "💪"},
-    "Triceps":  {"min": 6,  "hyper": 10, "max": 16, "icon": "🔱"},
-    "Jambes":   {"min": 12, "hyper": 16, "max": 24, "icon": "🦵"},
-    "Core":     {"min": 8,  "hyper": 12, "max": 20, "icon": "⭕"},
+    "Pecs": {"min": 8, "hyper": 12, "max": 20, "icon": "💪"},
+    "Dos": {"min": 10, "hyper": 14, "max": 22, "icon": "🔙"},
+    "Épaules": {"min": 8, "hyper": 12, "max": 20, "icon": "🦋"},
+    "Biceps": {"min": 6, "hyper": 10, "max": 16, "icon": "💪"},
+    "Triceps": {"min": 6, "hyper": 10, "max": 16, "icon": "🔱"},
+    "Jambes": {"min": 12, "hyper": 16, "max": 24, "icon": "🦵"},
+    "Core": {"min": 8, "hyper": 12, "max": 20, "icon": "⭕"},
 }
 
 # Paires agoniste/antagoniste pour équilibre
 AGONIST_PAIRS = [
-    ("Pecs",  "Dos",     "Pecs/Dos",      (0.6, 0.9)),   # ratio Pecs:Dos idéal
-    ("Biceps","Triceps", "Biceps/Triceps", (0.7, 1.3)),   # ratio proche de 1:1
+    ("Pecs", "Dos", "Pecs/Dos", (0.6, 0.9)),  # ratio Pecs:Dos idéal
+    ("Biceps", "Triceps", "Biceps/Triceps", (0.7, 1.3)),  # ratio proche de 1:1
 ]
 
 # Seuils d'alerte
 ALERT_THRESHOLDS = {
-    "critique":   0.4,   # < 40% du minimum → alerte rouge
-    "faible":     0.7,   # 40-70% du minimum → alerte orange
-    "ok":         1.0,   # 70-100% du minimum → acceptable
-    "optimal":    1.3,   # 100-130% → optimal
-    "excessif":   1.5,   # > 150% → risque surentraînement
+    "critique": 0.4,  # < 40% du minimum → alerte rouge
+    "faible": 0.7,  # 40-70% du minimum → alerte orange
+    "ok": 1.0,  # 70-100% du minimum → acceptable
+    "optimal": 1.3,  # 100-130% → optimal
+    "excessif": 1.5,  # > 150% → risque surentraînement
 }
 
 MUSCLE_ALIASES = {
@@ -96,6 +97,7 @@ def _infer_muscles_from_text(text: str | None) -> list[str]:
 # FONCTIONS D'ANALYSE
 # ─────────────────────────────────────────────────────────────────
 
+
 def get_weekly_volume(
     conn: sqlite3.Connection,
     weeks: int = 8,
@@ -119,7 +121,8 @@ def get_weekly_volume(
 
     start_date = end_date - timedelta(weeks=weeks)
 
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT
             es.started_at,
             es.muscle_group,
@@ -135,9 +138,13 @@ def get_weekly_volume(
         GROUP BY
             strftime('%Y-W%W', es.started_at),
             es.muscle_group
-    """, (str(start_date), str(end_date))).fetchall()
+    """,
+        (str(start_date), str(end_date)),
+    ).fetchall()
 
-    weekly: dict[str, dict] = defaultdict(lambda: defaultdict(lambda: {"sets": 0, "reps": 0, "sessions": 0}))
+    weekly: dict[str, dict] = defaultdict(
+        lambda: defaultdict(lambda: {"sets": 0, "reps": 0, "sessions": 0})
+    )
 
     for row in rows:
         ts_str = row[0] or ""
@@ -145,13 +152,13 @@ def get_weekly_volume(
             d = date.fromisoformat(ts_str[:10])
             # Lundi de la semaine ISO
             week_start = d - timedelta(days=d.weekday())
-            week_key   = week_start.strftime("%Y-%m-%d")
+            week_key = week_start.strftime("%Y-%m-%d")
         except ValueError:
             continue
 
         mg = normalize_muscle_name(row[1])
-        weekly[week_key][mg]["sets"]     += row[2]
-        weekly[week_key][mg]["reps"]     += row[3]
+        weekly[week_key][mg]["sets"] += row[2]
+        weekly[week_key][mg]["reps"] += row[3]
         weekly[week_key][mg]["sessions"] += row[4]
 
     return {k: dict(v) for k, v in sorted(weekly.items())}
@@ -170,7 +177,8 @@ def get_cumulative_volume(
         end_date = date.today()
     start_date = end_date - timedelta(weeks=weeks)
 
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT
             es.muscle_group,
             COUNT(es.id)                   AS total_sets,
@@ -183,16 +191,18 @@ def get_cumulative_volume(
           AND es.set_type = 'active'
         GROUP BY es.muscle_group
         ORDER BY total_sets DESC
-    """, (str(start_date),)).fetchall()
+    """,
+        (str(start_date),),
+    ).fetchall()
 
     result = {}
     for row in rows:
         mg = normalize_muscle_name(row[0])
         total_sets = row[1]
         result[mg] = {
-            "total_sets":   total_sets,
-            "total_reps":   row[2],
-            "sessions":     row[3],
+            "total_sets": total_sets,
+            "total_reps": row[2],
+            "sessions": row[3],
             "sets_per_week": round(total_sets / weeks, 1),
         }
 
@@ -308,40 +318,42 @@ def analyze_imbalances(
     # ── 1. Alertes volume absolu ──────────────────────────────────
     for mg, targets in VOLUME_TARGETS.items():
         spw = volume.get(mg, {}).get("sets_per_week", 0)
-        min_sets  = targets["min"]
-        hyp_sets  = targets["hyper"]
-        icon      = targets["icon"]
+        min_sets = int(targets["min"])  # type: ignore[arg-type]
+        hyp_sets = int(targets["hyper"])  # type: ignore[arg-type]
+        icon = targets["icon"]
 
         if spw == 0:
             level = "critique"
-            msg   = f"⛔ {mg} — Aucun entraînement sur {weeks} semaines !"
+            msg = f"⛔ {mg} — Aucun entraînement sur {weeks} semaines !"
         elif spw < min_sets * ALERT_THRESHOLDS["critique"]:
             level = "critique"
-            msg   = f"🔴 {mg} — Volume très insuffisant : {spw:.1f} sets/sem (min recommandé : {min_sets})"
+            msg = f"🔴 {mg} — Volume très insuffisant : {spw:.1f} sets/sem (min recommandé : {min_sets})"
         elif spw < min_sets * ALERT_THRESHOLDS["faible"]:
             level = "faible"
-            msg   = f"🟠 {mg} — Volume faible : {spw:.1f} sets/sem (min recommandé : {min_sets})"
+            msg = f"🟠 {mg} — Volume faible : {spw:.1f} sets/sem (min recommandé : {min_sets})"
         elif spw < min_sets:
             level = "ok"
-            msg   = f"🟡 {mg} — Volume acceptable : {spw:.1f} sets/sem (idéal : {hyp_sets})"
+            msg = f"🟡 {mg} — Volume acceptable : {spw:.1f} sets/sem (idéal : {hyp_sets})"
         elif spw <= hyp_sets * ALERT_THRESHOLDS["optimal"]:
             level = "optimal"
-            msg   = f"✅ {mg} — Volume optimal : {spw:.1f} sets/sem"
+            msg = f"✅ {mg} — Volume optimal : {spw:.1f} sets/sem"
         else:
             level = "excessif"
-            msg   = f"⚠️ {mg} — Volume élevé : {spw:.1f} sets/sem (max conseillé : {targets['max']})"
+            msg = f"⚠️ {mg} — Volume élevé : {spw:.1f} sets/sem (max conseillé : {targets['max']})"
 
-        alerts.append({
-            "level":   level,
-            "status":  level,  # compat UI
-            "type":    "volume",
-            "muscle":  mg,
-            "message": msg,
-            "current": spw,
-            "sets_per_week": spw,  # compat UI
-            "target":  hyp_sets,
-            "icon":    icon,
-        })
+        alerts.append(
+            {
+                "level": level,
+                "status": level,  # compat UI
+                "type": "volume",
+                "muscle": mg,
+                "message": msg,
+                "current": spw,
+                "sets_per_week": spw,  # compat UI
+                "target": hyp_sets,
+                "icon": icon,
+            }
+        )
 
     # ── 2. Alertes déséquilibres agoniste/antagoniste ──────────────
     for mg_a, mg_b, label, (ratio_min, ratio_max) in AGONIST_PAIRS:
@@ -351,29 +363,33 @@ def analyze_imbalances(
         if sets_b > 0:
             ratio = sets_a / sets_b
             if ratio < ratio_min:
-                alerts.append({
-                    "level":   "faible",
-                    "status":  "faible",
-                    "type":    "balance",
-                    "muscle":  mg_a,
-                    "message": f"⚖️ Déséquilibre {label} : ratio {ratio:.2f} (idéal {ratio_min}-{ratio_max}). Entraîner davantage {mg_a}.",
-                    "current": ratio,
-                    "sets_per_week": sets_a,
-                    "target":  (ratio_min + ratio_max) / 2,
-                    "icon":    "⚖️",
-                })
+                alerts.append(
+                    {
+                        "level": "faible",
+                        "status": "faible",
+                        "type": "balance",
+                        "muscle": mg_a,
+                        "message": f"⚖️ Déséquilibre {label} : ratio {ratio:.2f} (idéal {ratio_min}-{ratio_max}). Entraîner davantage {mg_a}.",
+                        "current": ratio,
+                        "sets_per_week": sets_a,
+                        "target": (ratio_min + ratio_max) / 2,
+                        "icon": "⚖️",
+                    }
+                )
             elif ratio > ratio_max:
-                alerts.append({
-                    "level":   "faible",
-                    "status":  "faible",
-                    "type":    "balance",
-                    "muscle":  mg_b,
-                    "message": f"⚖️ Déséquilibre {label} : ratio {ratio:.2f} (idéal {ratio_min}-{ratio_max}). Entraîner davantage {mg_b}.",
-                    "current": ratio,
-                    "sets_per_week": sets_b,
-                    "target":  (ratio_min + ratio_max) / 2,
-                    "icon":    "⚖️",
-                })
+                alerts.append(
+                    {
+                        "level": "faible",
+                        "status": "faible",
+                        "type": "balance",
+                        "muscle": mg_b,
+                        "message": f"⚖️ Déséquilibre {label} : ratio {ratio:.2f} (idéal {ratio_min}-{ratio_max}). Entraîner davantage {mg_b}.",
+                        "current": ratio,
+                        "sets_per_week": sets_b,
+                        "target": (ratio_min + ratio_max) / 2,
+                        "icon": "⚖️",
+                    }
+                )
 
     # Trier par priorité (critique > faible > ok > optimal)
     level_order = {"critique": 0, "faible": 1, "ok": 2, "optimal": 3, "excessif": 4}
@@ -394,7 +410,8 @@ def get_top_exercises(
         end_date = date.today()
     start_date = end_date - timedelta(weeks=weeks)
 
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT
             muscle_group,
             exercise_name,
@@ -409,16 +426,20 @@ def get_top_exercises(
           AND set_type = 'active'
         GROUP BY muscle_group, exercise_name
         ORDER BY muscle_group, sets DESC
-    """, (str(start_date),)).fetchall()
+    """,
+        (str(start_date),),
+    ).fetchall()
 
     by_muscle: dict[str, list] = defaultdict(list)
     for row in rows:
-        by_muscle[normalize_muscle_name(row[0])].append({
-            "exercise":  row[1],
-            "category":  row[2],
-            "sets":      row[3],
-            "total_reps": row[4],
-        })
+        by_muscle[normalize_muscle_name(row[0])].append(
+            {
+                "exercise": row[1],
+                "category": row[2],
+                "sets": row[3],
+                "total_reps": row[4],
+            }
+        )
 
     return dict(by_muscle)
 
@@ -428,21 +449,21 @@ def compute_muscle_score(volume: dict[str, dict]) -> float:
     Score global de balance musculaire (0-100).
     Basé sur le respect des volumes minimums pour chaque groupe.
     """
-    scores = []
+    scores: list[float] = []
     for mg, targets in VOLUME_TARGETS.items():
-        spw     = volume.get(mg, {}).get("sets_per_week", 0)
-        min_s   = targets["min"]
-        hyp_s   = targets["hyper"]
+        spw = float(volume.get(mg, {}).get("sets_per_week", 0))
+        min_s = float(targets["min"])  # type: ignore[arg-type]
+        hyp_s = float(targets["hyper"])  # type: ignore[arg-type]
 
         # Score de 0 à 100 pour ce muscle
         if spw == 0:
-            s = 0
+            s = 0.0
         elif spw >= hyp_s:
-            s = 100
+            s = 100.0
         elif spw >= min_s:
-            s = 60 + 40 * (spw - min_s) / (hyp_s - min_s)
+            s = 60.0 + 40.0 * (spw - min_s) / (hyp_s - min_s)
         else:
-            s = 60 * spw / min_s
+            s = 60.0 * spw / min_s
 
         scores.append(s)
 
@@ -475,7 +496,8 @@ def get_recent_sessions(
     limit: int = 10,
 ) -> list[dict]:
     """Retourne les dernières séances de musculation."""
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT
             ss.started_at,
             ss.workout_name,
@@ -489,20 +511,24 @@ def get_recent_sessions(
         GROUP BY ss.id
         ORDER BY ss.started_at DESC
         LIMIT ?
-    """, (limit,)).fetchall()
+    """,
+        (limit,),
+    ).fetchall()
 
     sessions = []
     for row in rows:
-        muscles = sorted(set(m for m in (row[5] or "").split(",") if m and m != "Inconnu"))
+        muscles = sorted({m for m in (row[5] or "").split(",") if m and m != "Inconnu"})
         dur_min = round(row[4] / 60) if row[4] else 0
-        sessions.append({
-            "date":         row[0][:10] if row[0] else "?",
-            "workout_name": row[1],
-            "total_sets":   row[2],
-            "total_reps":   row[3],
-            "duration_min": dur_min,
-            "muscles":      muscles,
-        })
+        sessions.append(
+            {
+                "date": row[0][:10] if row[0] else "?",
+                "workout_name": row[1],
+                "total_sets": row[2],
+                "total_reps": row[3],
+                "duration_min": dur_min,
+                "muscles": muscles,
+            }
+        )
 
     return sessions
 
@@ -512,7 +538,7 @@ def get_recent_sessions(
 # ─────────────────────────────────────────────────────────────────
 def run(
     db_path: Path = DB_PATH,
-    weeks:   int  = 4,
+    weeks: int = 4,
     verbose: bool = True,
 ) -> dict:
     """
@@ -522,22 +548,22 @@ def run(
     conn = sqlite3.connect(str(db_path))
 
     # Volume par semaine
-    weekly_vol  = get_weekly_volume(conn, weeks=max(weeks, 8))
+    weekly_vol = get_weekly_volume(conn, weeks=max(weeks, 8))
     save_weekly_volume(conn, weekly_vol)
     # Volume cumulé (N dernières semaines)
     cum_volume_raw = get_cumulative_volume(conn, weeks=weeks)
     cum_volume, quality = apply_unknown_set_inference(conn, cum_volume_raw, weeks=weeks)
     # Déséquilibres
-    imbalances  = analyze_imbalances(cum_volume, weeks=weeks)
+    imbalances = analyze_imbalances(cum_volume, weeks=weeks)
     # Top exercices
     top_exercises = get_top_exercises(conn)
     # Score
-    score_base  = compute_muscle_score(cum_volume)
+    score_base = compute_muscle_score(cum_volume)
     # Confiance volume: pénalise légèrement si trop de sets inconnus non résolus
     infer_rate = float(quality.get("inference_rate", 1.0) or 1.0)
     score = round(score_base * (0.85 + 0.15 * infer_rate), 1)
     # Séances récentes
-    recent      = get_recent_sessions(conn, limit=8)
+    recent = get_recent_sessions(conn, limit=8)
 
     conn.close()
 
@@ -556,10 +582,14 @@ def run(
         print()
         print("   Volume (sets/semaine) :")
         for mg, data in cum_volume.items():
-            bar_len = min(int(data['sets_per_week'] * 2), 30)
-            bar     = "█" * bar_len
-            target  = VOLUME_TARGETS.get(mg, {}).get("hyper", 12)
-            status  = "✅" if data['sets_per_week'] >= target else ("🟡" if data['sets_per_week'] > 0 else "⛔")
+            bar_len = min(int(data["sets_per_week"] * 2), 30)
+            bar = "█" * bar_len
+            target = VOLUME_TARGETS.get(mg, {}).get("hyper", 12)
+            status = (
+                "✅"
+                if data["sets_per_week"] >= target
+                else ("🟡" if data["sets_per_week"] > 0 else "⛔")
+            )
             print(f"   {status} {mg:12} {bar:30} {data['sets_per_week']:.1f}/sem (cible: {target})")
         print()
         print("   Alertes :")
@@ -567,23 +597,24 @@ def run(
             print(f"   {a['message']}")
 
     return {
-        "weekly_volume":  weekly_vol,
-        "cumulative":     cum_volume,
-        "imbalances":     imbalances,
-        "top_exercises":  top_exercises,
-        "muscle_score":   score,
+        "weekly_volume": weekly_vol,
+        "cumulative": cum_volume,
+        "imbalances": imbalances,
+        "top_exercises": top_exercises,
+        "muscle_score": score,
         "muscle_score_base": score_base,
-        "data_quality":   quality,
+        "data_quality": quality,
         "recent_sessions": recent,
         "weeks_analyzed": weeks,
-        "targets":        VOLUME_TARGETS,
+        "targets": VOLUME_TARGETS,
     }
 
 
 if __name__ == "__main__":
     import argparse
+
     p = argparse.ArgumentParser()
-    p.add_argument("--db",    default=str(DB_PATH))
+    p.add_argument("--db", default=str(DB_PATH))
     p.add_argument("--weeks", type=int, default=4)
     args = p.parse_args()
     run(Path(args.db), args.weeks)

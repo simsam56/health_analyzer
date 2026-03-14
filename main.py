@@ -26,37 +26,40 @@ Architecture :
   dashboard/
     generator.py           → HTML dark mobile-first (Whoop/Oura/Garmin style)
 """
+
 import argparse
+import importlib.util
+import json
 import os
 import secrets
-import json
-import sqlite3
-import socket
-import sys
 import shutil
-import importlib.util
+import socket
+import sqlite3
 import subprocess
+import sys
 import threading
+from collections import defaultdict
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from collections import defaultdict
 
 ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
 # ─── Defaults ────────────────────────────────────────────────────
-DB_PATH     = ROOT / "athlete.db"
-AH_XML      = ROOT / "export.xml"
-STRAVA_DIR  = ROOT / "export_strava"
+DB_PATH = ROOT / "athlete.db"
+AH_XML = ROOT / "export.xml"
+STRAVA_DIR = ROOT / "export_strava"
 REPORTS_DIR = ROOT / "reports"
-STATE_PATH  = ROOT / ".performos_state.json"
+STATE_PATH = ROOT / ".performos_state.json"
 
 
 def banner():
     print()
     print("╔══════════════════════════════════════════════════════════╗")
     print("║  ⚡  PerformOS v3 · Sport Performance Intelligence       ║")
-    print(f"║     Simon Hingant · {date.today().strftime('%d %b %Y')} · {datetime.now().strftime('%H:%M')}             ║")
+    print(
+        f"║     Simon Hingant · {date.today().strftime('%d %b %Y')} · {datetime.now().strftime('%H:%M')}             ║"
+    )
     print("╚══════════════════════════════════════════════════════════╝")
     print()
 
@@ -72,8 +75,9 @@ def check_sources(ah_xml: Path, strava_dir: Path) -> None:
         print("     → Exporter depuis iPhone : Santé > Profil > Exporter les données")
 
     if strava_dir.exists():
-        fit_count = len(list(strava_dir.glob("activities/*.fit"))) + \
-                    len(list(strava_dir.glob("activities/*.fit.gz")))
+        fit_count = len(list(strava_dir.glob("activities/*.fit"))) + len(
+            list(strava_dir.glob("activities/*.fit.gz"))
+        )
         print(f"  ✅ Strava FIT         : {strava_dir} ({fit_count} fichiers FIT)")
     else:
         print(f"  ⚠️  Strava FIT         : {strava_dir} — MANQUANT")
@@ -103,35 +107,47 @@ def check_runtime_dependencies(args) -> None:
         print("⚠️  Dépendances manquantes détectées :")
         for dep in missing:
             print(f"   - {dep}")
-        print("   Installez avec : python3 -m pip install fitparse garminconnect python-dotenv pyobjc-framework-EventKit --break-system-packages")
+        print(
+            "   Installez avec : python3 -m pip install fitparse garminconnect python-dotenv pyobjc-framework-EventKit --break-system-packages"
+        )
         print()
 
 
 def _compute_data_quality(conn: sqlite3.Connection) -> dict:
     """Calcule des indicateurs qualité data pour l'affichage dashboard."""
-    activity_by_source = [dict(r) for r in conn.execute(
-        """
+    activity_by_source = [
+        dict(r)
+        for r in conn.execute(
+            """
         SELECT source, COUNT(*) AS n, MIN(date(started_at)) AS first_date, MAX(date(started_at)) AS last_date
         FROM activities GROUP BY source ORDER BY source
         """
-    ).fetchall()]
+        ).fetchall()
+    ]
 
-    metrics_by_source = [dict(r) for r in conn.execute(
-        "SELECT source, COUNT(*) AS n FROM health_metrics GROUP BY source ORDER BY source"
-    ).fetchall()]
+    metrics_by_source = [
+        dict(r)
+        for r in conn.execute(
+            "SELECT source, COUNT(*) AS n FROM health_metrics GROUP BY source ORDER BY source"
+        ).fetchall()
+    ]
 
-    freshness = [dict(r) for r in conn.execute(
-        """
+    freshness = [
+        dict(r)
+        for r in conn.execute(
+            """
         SELECT metric, MAX(date) AS last_date,
                CAST(julianday('now') - julianday(MAX(date)) AS INT) AS days_old
         FROM health_metrics
         GROUP BY metric
         ORDER BY days_old ASC
         """
-    ).fetchall()]
+        ).fetchall()
+    ]
 
-    duplicates = conn.execute(
-        """
+    duplicates = (
+        conn.execute(
+            """
         WITH g AS (
           SELECT lower(type) AS t, date(started_at) AS d,
                  CAST(ROUND(COALESCE(duration_s,0)/300.0)*300 AS INT) AS dur5,
@@ -143,7 +159,9 @@ def _compute_data_quality(conn: sqlite3.Connection) -> dict:
         )
         SELECT COALESCE(SUM(n),0) FROM g
         """
-    ).fetchone()[0] or 0
+        ).fetchone()[0]
+        or 0
+    )
 
     ex_total, ex_name_missing, ex_weight_missing = conn.execute(
         """
@@ -158,7 +176,8 @@ def _compute_data_quality(conn: sqlite3.Connection) -> dict:
     ex_weight_missing = ex_weight_missing or 0
 
     stale_critical = [
-        x for x in freshness
+        x
+        for x in freshness
         if x["metric"] in ("hrv_sdnn", "rhr", "sleep_h") and (x["days_old"] or 9999) > 45
     ]
 
@@ -177,15 +196,21 @@ def _compute_data_quality(conn: sqlite3.Connection) -> dict:
         "freshness": freshness,
         "duplicates_rows": int(duplicates),
         "exercise_sets_total": int(ex_total),
-        "exercise_name_missing_pct": round((ex_name_missing / ex_total) * 100, 1) if ex_total else 0.0,
-        "exercise_weight_missing_pct": round((ex_weight_missing / ex_total) * 100, 1) if ex_total else 0.0,
+        "exercise_name_missing_pct": round((ex_name_missing / ex_total) * 100, 1)
+        if ex_total
+        else 0.0,
+        "exercise_weight_missing_pct": round((ex_weight_missing / ex_total) * 100, 1)
+        if ex_total
+        else 0.0,
     }
 
 
 def _compute_progress_series(conn: sqlite3.Connection) -> dict:
     """Séries longues simplifiées pour la page Progression."""
-    training_hours_weekly = [dict(r) for r in conn.execute(
-        """
+    training_hours_weekly = [
+        dict(r)
+        for r in conn.execute(
+            """
         SELECT strftime('%Y-W%W', started_at) AS label,
                ROUND(SUM(COALESCE(duration_s,0))/3600.0, 2) AS value
         FROM activities
@@ -193,10 +218,13 @@ def _compute_progress_series(conn: sqlite3.Connection) -> dict:
         GROUP BY label
         ORDER BY label
         """
-    ).fetchall()]
+        ).fetchall()
+    ]
 
-    running_km_weekly = [dict(r) for r in conn.execute(
-        """
+    running_km_weekly = [
+        dict(r)
+        for r in conn.execute(
+            """
         SELECT strftime('%Y-W%W', started_at) AS label,
                ROUND(SUM(COALESCE(distance_m,0))/1000.0, 2) AS value
         FROM activities
@@ -204,7 +232,8 @@ def _compute_progress_series(conn: sqlite3.Connection) -> dict:
         GROUP BY label
         ORDER BY label
         """
-    ).fetchall()]
+        ).fetchall()
+    ]
 
     # Estimation 10k hebdo plus robuste via Riegel (plutôt que simple allure moyenne)
     run_rows = conn.execute(
@@ -240,14 +269,17 @@ def _compute_progress_series(conn: sqlite3.Connection) -> dict:
         value = vals[0] if len(vals) == 1 else sum(vals[:top_n]) / top_n
         est_10k_weekly.append({"label": wk, "value": round(value, 2)})
 
-    vo2max_series = [dict(r) for r in conn.execute(
-        """
+    vo2max_series = [
+        dict(r)
+        for r in conn.execute(
+            """
         SELECT date AS label, ROUND(value, 2) AS value
         FROM health_metrics
         WHERE metric='vo2max' AND value IS NOT NULL
         ORDER BY date
         """
-    ).fetchall()]
+        ).fetchall()
+    ]
 
     return {
         "training_hours_weekly": training_hours_weekly,
@@ -414,9 +446,13 @@ def deduplicate_strength_sessions(db_path: Path) -> int:
             )
 
         if (not keep_act or int(keep_act) == 0) and drop_act and int(drop_act) > 0:
-            conn.execute("UPDATE strength_sessions SET activity_id=? WHERE id=?", (drop_act, keep_id))
+            conn.execute(
+                "UPDATE strength_sessions SET activity_id=? WHERE id=?", (drop_act, keep_id)
+            )
         if (not keep_reps or int(keep_reps) == 0) and drop_reps and int(drop_reps) > 0:
-            conn.execute("UPDATE strength_sessions SET total_reps=? WHERE id=?", (drop_reps, keep_id))
+            conn.execute(
+                "UPDATE strength_sessions SET total_reps=? WHERE id=?", (drop_reps, keep_id)
+            )
         if keep_src in ("", "local") and drop_src:
             conn.execute("UPDATE strength_sessions SET source=? WHERE id=?", (drop_src, keep_id))
 
@@ -519,72 +555,97 @@ def _pick_available_port(preferred: int, host: str = "127.0.0.1", tries: int = 1
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="PerformOS v3 — Sport Performance Dashboard"
+    parser = argparse.ArgumentParser(description="PerformOS v3 — Sport Performance Dashboard")
+    parser.add_argument("--export", default=str(AH_XML), help="Chemin vers export.xml Apple Health")
+    parser.add_argument("--strava", default=str(STRAVA_DIR), help="Dossier export Strava")
+    parser.add_argument("--db", default=str(DB_PATH), help="Chemin base SQLite")
+    parser.add_argument("--output", default=None, help="Fichier HTML de sortie")
+    parser.add_argument(
+        "--garmin", action="store_true", help="Synchroniser Garmin Connect (nécessite .env)"
     )
-    parser.add_argument("--export",     default=str(AH_XML),
-                        help="Chemin vers export.xml Apple Health")
-    parser.add_argument("--strava",     default=str(STRAVA_DIR),
-                        help="Dossier export Strava")
-    parser.add_argument("--db",         default=str(DB_PATH),
-                        help="Chemin base SQLite")
-    parser.add_argument("--output",     default=None,
-                        help="Fichier HTML de sortie")
-    parser.add_argument("--garmin",     action="store_true",
-                        help="Synchroniser Garmin Connect (nécessite .env)")
-    parser.add_argument("--days",       type=int, default=30,
-                        help="Nb jours Garmin à synchroniser")
-    parser.add_argument("--garmin-min-interval-min", type=int, default=45,
-                        help="Intervalle minimum entre deux sync Garmin (minutes, smart skip)")
-    parser.add_argument("--force-garmin", action="store_true",
-                        help="Forcer la sync Garmin même si une sync récente existe (plus lent)")
-    parser.add_argument("--garmin-refresh-tail-days", type=int, default=3,
-                        help="Même en sync forcée, ne refresh complètement que les N derniers jours (incrémental)")
-    parser.add_argument("--skip-parse", action="store_true",
-                        help="Sauter Apple Health + Strava (utiliser DB existante)")
-    parser.add_argument("--force-parse", action="store_true",
-                        help="Forcer le parsing Apple Health + Strava même si sources inchangées")
-    parser.add_argument("--reset",      action="store_true",
-                        help="Réinitialiser la DB (backup automatique)")
-    parser.add_argument("--weeks-muscle", type=int, default=8,
-                        help="Fenêtre analyse musculaire (semaines)")
-    parser.add_argument("--audit",      action="store_true",
-                        help="Afficher rapport d'audit des données")
-    parser.add_argument("--calendar-days", type=int, default=21,
-                        help="Fenêtre agenda Apple Calendar (jours à venir)")
-    parser.add_argument("--no-calendar", action="store_true",
-                        help="Désactiver la sync agenda Apple Calendar")
-    parser.add_argument("--no-dedup", action="store_true",
-                        help="Désactiver la déduplication inter-sources des activités")
-    parser.add_argument("--add-task", default=None,
-                        help="Ajouter une tâche pilotage (titre)")
-    parser.add_argument("--task-category", default="sante",
-                        help="Catégorie tâche: sante|travail|relationnel|apprentissage|autre")
-    parser.add_argument("--task-date", default=None,
-                        help="Date tâche (YYYY-MM-DD)")
-    parser.add_argument("--task-time", default="09:00:00",
-                        help="Heure tâche (HH:MM[:SS])")
-    parser.add_argument("--task-duration-min", type=int, default=60,
-                        help="Durée tâche en minutes")
-    parser.add_argument("--task-notes", default=None,
-                        help="Notes tâche")
-    parser.add_argument("--task-sync-apple", action="store_true",
-                        help="Créer aussi l'événement dans Apple Calendar")
-    parser.add_argument("--task-calendar", default=None,
-                        help="Nom calendrier Apple cible (optionnel)")
-    parser.add_argument("--serve", action="store_true",
-                        help="Lance un serveur local pour interactions UI persistantes")
-    parser.add_argument("--serve-port", type=int, default=8765,
-                        help="Port du serveur local PerformOS")
+    parser.add_argument("--days", type=int, default=30, help="Nb jours Garmin à synchroniser")
+    parser.add_argument(
+        "--garmin-min-interval-min",
+        type=int,
+        default=45,
+        help="Intervalle minimum entre deux sync Garmin (minutes, smart skip)",
+    )
+    parser.add_argument(
+        "--force-garmin",
+        action="store_true",
+        help="Forcer la sync Garmin même si une sync récente existe (plus lent)",
+    )
+    parser.add_argument(
+        "--garmin-refresh-tail-days",
+        type=int,
+        default=3,
+        help="Même en sync forcée, ne refresh complètement que les N derniers jours (incrémental)",
+    )
+    parser.add_argument(
+        "--skip-parse",
+        action="store_true",
+        help="Sauter Apple Health + Strava (utiliser DB existante)",
+    )
+    parser.add_argument(
+        "--force-parse",
+        action="store_true",
+        help="Forcer le parsing Apple Health + Strava même si sources inchangées",
+    )
+    parser.add_argument(
+        "--reset", action="store_true", help="Réinitialiser la DB (backup automatique)"
+    )
+    parser.add_argument(
+        "--weeks-muscle", type=int, default=8, help="Fenêtre analyse musculaire (semaines)"
+    )
+    parser.add_argument("--audit", action="store_true", help="Afficher rapport d'audit des données")
+    parser.add_argument(
+        "--calendar-days",
+        type=int,
+        default=21,
+        help="Fenêtre agenda Apple Calendar (jours à venir)",
+    )
+    parser.add_argument(
+        "--no-calendar", action="store_true", help="Désactiver la sync agenda Apple Calendar"
+    )
+    parser.add_argument(
+        "--no-dedup",
+        action="store_true",
+        help="Désactiver la déduplication inter-sources des activités",
+    )
+    parser.add_argument("--add-task", default=None, help="Ajouter une tâche pilotage (titre)")
+    parser.add_argument(
+        "--task-category",
+        default="sante",
+        help="Catégorie tâche: sante|travail|relationnel|apprentissage|autre",
+    )
+    parser.add_argument("--task-date", default=None, help="Date tâche (YYYY-MM-DD)")
+    parser.add_argument("--task-time", default="09:00:00", help="Heure tâche (HH:MM[:SS])")
+    parser.add_argument("--task-duration-min", type=int, default=60, help="Durée tâche en minutes")
+    parser.add_argument("--task-notes", default=None, help="Notes tâche")
+    parser.add_argument(
+        "--task-sync-apple", action="store_true", help="Créer aussi l'événement dans Apple Calendar"
+    )
+    parser.add_argument(
+        "--task-calendar", default=None, help="Nom calendrier Apple cible (optionnel)"
+    )
+    parser.add_argument(
+        "--serve",
+        action="store_true",
+        help="Lance un serveur local pour interactions UI persistantes",
+    )
+    parser.add_argument(
+        "--serve-port", type=int, default=8765, help="Port du serveur local PerformOS"
+    )
     args = parser.parse_args()
 
     banner()
 
-    db_path    = Path(args.db)
-    ah_xml     = Path(args.export)
+    db_path = Path(args.db)
+    ah_xml = Path(args.export)
     strava_dir = Path(args.strava)
-    output_path = Path(args.output) if args.output else \
-                  REPORTS_DIR / f"dashboard_{date.today()}.html"
+    output_path = (
+        Path(args.output) if args.output else REPORTS_DIR / f"dashboard_{date.today()}.html"
+    )
 
     check_sources(ah_xml, strava_dir)
     check_runtime_dependencies(args)
@@ -599,7 +660,8 @@ def main():
 
     # ─── 1. Initialisation DB ────────────────────────────────────
     print("🗄️  Initialisation base de données…")
-    from pipeline.schema import init_db, get_connection
+    from pipeline.schema import get_connection, init_db
+
     conn = init_db(db_path)
     conn.close()
     print(f"   DB : {db_path}")
@@ -615,6 +677,7 @@ def main():
         if output_path.exists():
             try:
                 from cockpit_server import serve as serve_cockpit
+
                 serve_thread = threading.Thread(
                     target=serve_cockpit,
                     kwargs={
@@ -649,6 +712,7 @@ def main():
     # ─── 1.5 Ajout tâche pilotage (optionnel) ───────────────────
     if args.add_task:
         from analytics.planner import add_task, parse_task_datetime
+
         task_date = args.task_date or str(date.today())
         try:
             start_at, end_at = parse_task_datetime(
@@ -698,27 +762,38 @@ def main():
         else:
             if not source_state and _db_has_local_data(db_path):
                 bootstrap_skip = True
-                print("⚡ Smart skip initialisé (DB déjà peuplée): Apple/Strava ignorés par défaut.")
+                print(
+                    "⚡ Smart skip initialisé (DB déjà peuplée): Apple/Strava ignorés par défaut."
+                )
                 print("   Utilisez --force-parse si vous avez un nouvel export local.")
                 print()
-            parse_apple = ah_xml.exists() and (not bootstrap_skip) and (apple_sig != source_state.get("apple"))
-            parse_strava = strava_dir.exists() and (not bootstrap_skip) and (strava_sig != source_state.get("strava"))
+            parse_apple = (
+                ah_xml.exists()
+                and (not bootstrap_skip)
+                and (apple_sig != source_state.get("apple"))
+            )
+            parse_strava = (
+                strava_dir.exists()
+                and (not bootstrap_skip)
+                and (strava_sig != source_state.get("strava"))
+            )
 
         # ─── 2. Apple Health ─────────────────────────────────────
         if ah_xml.exists():
             if parse_apple:
                 print("🍎 Pipeline Apple Health…")
                 from pipeline.parse_apple_health import run as run_ah
+
                 result_ah = run_ah(xml_path=ah_xml, db_path=db_path)
                 local_parse_performed = True
                 new_activities_hint += int(result_ah.get("workouts_inserted", 0) or 0)
-                print(f"   Workouts : {result_ah.get('workouts_inserted',0)} insérés")
+                print(f"   Workouts : {result_ah.get('workouts_inserted', 0)} insérés")
                 print(
                     "   Métriques : "
-                    f"{result_ah.get('metrics_new',0)} nouvelles, "
-                    f"{result_ah.get('metrics_updated',0)} mises à jour, "
-                    f"{result_ah.get('metrics_unchanged',0)} inchangées "
-                    f"({result_ah.get('days_covered',0)} jours)"
+                    f"{result_ah.get('metrics_new', 0)} nouvelles, "
+                    f"{result_ah.get('metrics_updated', 0)} mises à jour, "
+                    f"{result_ah.get('metrics_unchanged', 0)} inchangées "
+                    f"({result_ah.get('days_covered', 0)} jours)"
                 )
                 print()
             else:
@@ -731,6 +806,7 @@ def main():
             if parse_strava:
                 print("🏃 Pipeline Strava FIT…")
                 from pipeline.parse_strava_fit import run as run_strava
+
                 st = run_strava(strava_dir=strava_dir, db_path=db_path)
                 local_parse_performed = True
                 new_activities_hint += int((st or {}).get("inserted", 0) or 0)
@@ -764,8 +840,10 @@ def main():
 
         if should_sync_garmin:
             print(f"⌚ Pipeline Garmin Connect ({args.days} derniers jours)…")
-            from pipeline.parse_garmin_connect import run as run_garmin
             from dotenv import load_dotenv
+
+            from pipeline.parse_garmin_connect import run as run_garmin
+
             load_dotenv(ROOT / ".env")
             result_gc = run_garmin(
                 db_path=db_path,
@@ -777,15 +855,15 @@ def main():
             if "error" not in result_gc:
                 garmin_connected = True
                 new_activities_hint += int(result_gc.get("activities_inserted", 0) or 0)
-                print(f"   Activités : {result_gc.get('activities_inserted',0)} nouvelles")
-                print(f"   Métriques : {result_gc.get('metrics_inserted',0)} nouvelles")
+                print(f"   Activités : {result_gc.get('activities_inserted', 0)} nouvelles")
+                print(f"   Métriques : {result_gc.get('metrics_inserted', 0)} nouvelles")
                 state["garmin"] = {
                     "last_sync_at": datetime.now().replace(microsecond=0).isoformat(),
                     "last_days": int(args.days),
                 }
                 _save_state(state)
             else:
-                print(f"   ⚠️  {result_gc.get('error','erreur inconnue')}")
+                print(f"   ⚠️  {result_gc.get('error', 'erreur inconnue')}")
         print()
     else:
         print("ℹ️  Garmin Connect : non activé (utilisez --garmin pour synchroniser)\n")
@@ -808,12 +886,15 @@ def main():
     if not args.no_calendar:
         try:
             from integrations.apple_calendar import sync_apple_calendar
+
             calendar_sync = sync_apple_calendar(
                 db_path=db_path,
                 days_ahead=args.calendar_days,
             )
             if calendar_sync.get("enabled"):
-                print(f"🗓️  Apple Calendar : {calendar_sync.get('events_synced',0)} événements synchronisés")
+                print(
+                    f"🗓️  Apple Calendar : {calendar_sync.get('events_synced', 0)} événements synchronisés"
+                )
             else:
                 err = calendar_sync.get("error", "indisponible")
                 print(f"🗓️  Apple Calendar : {err}")
@@ -822,7 +903,9 @@ def main():
                     print("     Réglages Système > Confidentialité et sécurité > Calendriers")
                     print("     puis relancez python3 main.py")
                 elif err == "eventkit_unavailable":
-                    print("   → Installez EventKit: python3 -m pip install pyobjc-framework-EventKit --break-system-packages")
+                    print(
+                        "   → Installez EventKit: python3 -m pip install pyobjc-framework-EventKit --break-system-packages"
+                    )
         except Exception as e:
             calendar_sync = {"enabled": False, "error": str(e), "events_synced": 0}
             print(f"🗓️  Apple Calendar : erreur ({e})")
@@ -835,29 +918,34 @@ def main():
     # ─── 6. Analytics ────────────────────────────────────────────
     print("📈 Calcul charge d'entraînement…")
     from analytics.training_load import run as run_training
+
     training = run_training(db_path=db_path, verbose=True)
     print()
 
     print(f"💪 Analyse musculaire ({args.weeks_muscle} semaines)…")
     from analytics.muscle_groups import run as run_muscles
+
     muscles = run_muscles(db_path=db_path, weeks=args.weeks_muscle)
     print()
 
     # ─── 7. Métriques santé pour le dashboard ────────────────────
     conn = get_connection(db_path)
     metrics_history = [
-        dict(row) for row in conn.execute(
+        dict(row)
+        for row in conn.execute(
             "SELECT date, metric, value, source FROM health_metrics ORDER BY date"
         ).fetchall()
     ]
     daily_load_rows = [
-        dict(row) for row in conn.execute(
+        dict(row)
+        for row in conn.execute(
             "SELECT date, ctl, atl, tsb, tss FROM daily_load ORDER BY date"
         ).fetchall()
     ]
-    has_garmin_data = conn.execute(
-        "SELECT COUNT(*) FROM activities WHERE source='garmin_connect'"
-    ).fetchone()[0] > 0
+    has_garmin_data = (
+        conn.execute("SELECT COUNT(*) FROM activities WHERE source='garmin_connect'").fetchone()[0]
+        > 0
+    )
     data_quality = _compute_data_quality(conn)
     progress_series = _compute_progress_series(conn)
 
@@ -865,6 +953,7 @@ def main():
     if not args.no_calendar:
         try:
             from integrations.apple_calendar import get_upcoming_events
+
             agenda_events = get_upcoming_events(
                 db_path=db_path,
                 days_ahead=args.calendar_days,
@@ -875,6 +964,7 @@ def main():
 
     # ─── 7.5 Pilotage hebdo ─────────────────────────────────────
     from analytics.planner import get_planner_events, weekly_category_summary, weekly_series
+
     start_window = (date.today() - timedelta(days=14)).strftime("%Y-%m-%dT00:00:00")
     end_window = (date.today() + timedelta(days=90)).strftime("%Y-%m-%dT23:59:59")
     planner_events = get_planner_events(conn, start_at=start_window, end_at=end_window)
@@ -910,12 +1000,13 @@ def main():
     sports_agent_data = {}
     try:
         from analytics.sports_agent import run_sports_agent
+
         acwr_current = float(training.get("acwr", {}).get("acwr", 1.0) or 1.0)
         sports_agent_data = run_sports_agent(db_path=DB_PATH, acwr_val=acwr_current)
         recs = sports_agent_data.get("recommendations", [])
         print(f"  ✅ {len(recs)} recommandations générées")
         if recs:
-            print(f"     Top: [{recs[0].get('severity','?').upper()}] {recs[0].get('title','')}")
+            print(f"     Top: [{recs[0].get('severity', '?').upper()}] {recs[0].get('title', '')}")
     except Exception as e:
         print(f"  ⚠️  Sports agent error: {e}")
 
@@ -937,14 +1028,16 @@ def main():
     print()
 
     # ─── Résumé ──────────────────────────────────────────────────
-    wbs   = training.get("wakeboard", {})
-    acwr  = training.get("acwr", {})
-    pmc   = training.get("pmc", {})
+    wbs = training.get("wakeboard", {})
+    acwr = training.get("acwr", {})
+    pmc = training.get("pmc", {})
     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    print(f"  Wakeboard Score : {wbs.get('score',0):.0f}/100 ({wbs.get('label','—')})")
-    print(f"  ACWR            : {acwr.get('acwr',0):.2f} (zone: {acwr.get('zone','—')})")
-    print(f"  CTL/ATL/TSB     : {pmc.get('ctl',0):.1f} / {pmc.get('atl',0):.1f} / {pmc.get('tsb',0):+.1f}")
-    print(f"  Muscle Score    : {muscles.get('muscle_score',0):.0f}/100")
+    print(f"  Wakeboard Score : {wbs.get('score', 0):.0f}/100 ({wbs.get('label', '—')})")
+    print(f"  ACWR            : {acwr.get('acwr', 0):.2f} (zone: {acwr.get('zone', '—')})")
+    print(
+        f"  CTL/ATL/TSB     : {pmc.get('ctl', 0):.1f} / {pmc.get('atl', 0):.1f} / {pmc.get('tsb', 0):+.1f}"
+    )
+    print(f"  Muscle Score    : {muscles.get('muscle_score', 0):.0f}/100")
     print(f"  Dashboard       : {output_path}")
     if not args.garmin:
         print()
@@ -957,7 +1050,9 @@ def main():
         if serve_port is None:
             serve_port = _pick_available_port(args.serve_port, host="127.0.0.1", tries=10)
         if early_server_started and serve_thread is not None:
-            print("🌐 Cockpit déjà lancé — rafraîchissez la page pour voir les données mises à jour.")
+            print(
+                "🌐 Cockpit déjà lancé — rafraîchissez la page pour voir les données mises à jour."
+            )
             try:
                 serve_thread.join()
             except KeyboardInterrupt:
@@ -972,6 +1067,7 @@ def main():
             except Exception:
                 pass
             from cockpit_server import serve as serve_cockpit
+
             serve_cockpit(
                 dashboard_path=output_path,
                 db_path=db_path,
@@ -989,9 +1085,16 @@ def _print_audit(db_path: Path):
     print("=" * 60)
 
     # Comptes par table
-    for tbl in ["activities", "strength_sessions", "exercise_sets",
-                "health_metrics", "daily_load", "weekly_muscle_volume",
-                "calendar_events", "planner_tasks"]:
+    for tbl in [
+        "activities",
+        "strength_sessions",
+        "exercise_sets",
+        "health_metrics",
+        "daily_load",
+        "weekly_muscle_volume",
+        "calendar_events",
+        "planner_tasks",
+    ]:
         n = conn.execute("SELECT COUNT(*) FROM ?", (tbl,)).fetchone()[0]
         print(f"  {tbl:<25} {n:>6} lignes")
     print()
@@ -1013,11 +1116,12 @@ def _print_audit(db_path: Path):
         ORDER BY d
     """).fetchall()
     from datetime import date as ddate
+
     prev = None
     for (d,) in acts:
         curr = ddate.fromisoformat(d)
         if prev and (curr - prev).days > 21:
-            print(f"  GAP {prev} → {d} ({(curr-prev).days}j)")
+            print(f"  GAP {prev} → {d} ({(curr - prev).days}j)")
         prev = curr
     print()
 
@@ -1045,7 +1149,9 @@ def _print_audit(db_path: Path):
     print("🔍 Atteint la section serveur...")
 
     # Debug: état des variables serveur
-    print(f"🐛 Debug: args.serve={args.serve}, serve_thread={serve_thread}, alive={serve_thread.is_alive() if serve_thread else 'None'}")
+    print(
+        f"🐛 Debug: args.serve={args.serve}, serve_thread={serve_thread}, alive={serve_thread.is_alive() if serve_thread else 'None'}"
+    )
 
     # Attendre le serveur si --serve
     if args.serve and serve_thread and serve_thread.is_alive():

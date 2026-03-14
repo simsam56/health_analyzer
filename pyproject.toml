@@ -1,25 +1,91 @@
+[project]
+name = "performos"
+version = "3.0.0"
+description = "Personal fitness/health analytics cockpit"
+requires-python = ">=3.11"
+
+# ─── Ruff ────────────────────────────────────────────────────────
 [tool.ruff]
 line-length = 100
-target-version = "py38"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = [
-    "E",  # pycodestyle errors
-    "W",  # pycodestyle warnings
-    "F",  # pyflakes
-    "I",  # isort
-    "B",  # flake8-bugbear
-    "C4", # flake8-comprehensions
-    "UP", # pyupgrade
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "S",   # bandit security rules
+    "N",   # pep8-naming
 ]
 ignore = [
-    "E501", # line too long, handled by formatter
-    "B008", # do not perform function calls in argument defaults
-    "C901", # too complex
+    "E501",  # line too long, handled by formatter
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "S101",  # assert used (OK in tests)
+    "S603",  # subprocess call - check for execution of untrusted input
+    "S607",  # start process with a partial path
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S106"]
+"diagnose*.py" = ["F401", "S110", "E722"]
+"launch.py" = ["F401"]
+"quick_launch.py" = ["F401", "S110"]
+"test_launch.py" = ["F401"]
+"setup_calendar.py" = ["F401"]
+"garmin_sync*.py" = ["S110", "S112"]
+"main.py" = ["S110", "S112", "N806", "E722"]
+"cockpit_server.py" = ["S110", "N806", "E722"]
+"build_dashboard.py" = ["S110", "N806", "F821", "E722"]
+"health_analyzer.py" = ["S110", "N806", "F821", "E722"]
 
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
+
+# ─── Pytest ──────────────────────────────────────────────────────
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=analytics --cov=pipeline --cov-report=term-missing -v"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+# ─── Coverage ────────────────────────────────────────────────────
+[tool.coverage.run]
+omit = [
+    "tests/*",
+    "dashboard/*",
+    "build_dashboard.py",
+    "*.sh",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__",
+    "if TYPE_CHECKING",
+]
+
+# ─── Mypy ────────────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "analytics.*"
+disallow_untyped_defs = true
+
+# ─── Bandit ──────────────────────────────────────────────────────
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "__pycache__"]
+skips = ["B101"]

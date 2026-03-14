@@ -2,60 +2,72 @@
 generator.py — PerformOS cockpit (v4)
 UI centered on weekly planning + health progression.
 """
+
 from __future__ import annotations
 
-from pathlib import Path
-from datetime import date, datetime, timedelta
 import json
+from datetime import date, datetime, timedelta
 from html import escape
-
+from pathlib import Path
 
 TYPE_DEFS = {
-    "cardio":       {"label": "Cardio",      "category": "sport",     "color": "#22c55e", "icon": "🏃"},
-    "musculation":  {"label": "Musculation", "category": "sport",     "color": "#f97316", "icon": "🏋️"},
-    "sport_libre":  {"label": "Sport",       "category": "sport",     "color": "#14b8a6", "icon": "🎾"},
-    "mobilite":     {"label": "Yoga",        "category": "yoga",      "color": "#a78bfa", "icon": "🧘"},
-    "yoga":         {"label": "Yoga",        "category": "yoga",      "color": "#a78bfa", "icon": "🧘"},
-    "travail":      {"label": "Travail",     "category": "travail",   "color": "#3b82f6", "icon": "💼"},
-    "formation":    {"label": "Formation",   "category": "formation", "color": "#f59e0b", "icon": "📚"},
-    "apprentissage":{"label": "Formation",   "category": "formation", "color": "#f59e0b", "icon": "📚"},
-    "lecon":        {"label": "Leçon",       "category": "lecon",     "color": "#06b6d4", "icon": "🎓"},
-    "social":       {"label": "Social",      "category": "social",    "color": "#ec4899", "icon": "💬"},
-    "relationnel":  {"label": "Social",      "category": "social",    "color": "#ec4899", "icon": "💬"},
-    "autre":        {"label": "Autre",       "category": "autre",     "color": "#64748b", "icon": "🧩"},
+    "cardio": {"label": "Cardio", "category": "sport", "color": "#22c55e", "icon": "🏃"},
+    "musculation": {"label": "Musculation", "category": "sport", "color": "#f97316", "icon": "🏋️"},
+    "sport_libre": {"label": "Sport", "category": "sport", "color": "#14b8a6", "icon": "🎾"},
+    "mobilite": {"label": "Yoga", "category": "yoga", "color": "#a78bfa", "icon": "🧘"},
+    "yoga": {"label": "Yoga", "category": "yoga", "color": "#a78bfa", "icon": "🧘"},
+    "travail": {"label": "Travail", "category": "travail", "color": "#3b82f6", "icon": "💼"},
+    "formation": {"label": "Formation", "category": "formation", "color": "#f59e0b", "icon": "📚"},
+    "apprentissage": {
+        "label": "Formation",
+        "category": "formation",
+        "color": "#f59e0b",
+        "icon": "📚",
+    },
+    "lecon": {"label": "Leçon", "category": "lecon", "color": "#06b6d4", "icon": "🎓"},
+    "social": {"label": "Social", "category": "social", "color": "#ec4899", "icon": "💬"},
+    "relationnel": {"label": "Social", "category": "social", "color": "#ec4899", "icon": "💬"},
+    "autre": {"label": "Autre", "category": "autre", "color": "#64748b", "icon": "🧩"},
 }
 
 # Couleurs par domaine (category)
 DOMAIN_COLORS = {
-    "sport":    "#22c55e",
-    "yoga":     "#a78bfa",
-    "travail":  "#3b82f6",
-    "formation":"#f59e0b",
-    "lecon":    "#06b6d4",
-    "social":   "#ec4899",
-    "autre":    "#64748b",
+    "sport": "#22c55e",
+    "yoga": "#a78bfa",
+    "travail": "#3b82f6",
+    "formation": "#f59e0b",
+    "lecon": "#06b6d4",
+    "social": "#ec4899",
+    "autre": "#64748b",
     # rétro-compat
-    "sante":    "#22c55e",
+    "sante": "#22c55e",
     "relationnel": "#ec4899",
     "apprentissage": "#f59e0b",
 }
 
 DOMAIN_ICONS = {
-    "sport": "🏃", "yoga": "🧘", "travail": "💼",
-    "formation": "📚", "lecon": "🎓", "social": "💬", "autre": "🧩",
-    "sante": "🏃", "relationnel": "💬", "apprentissage": "📚",
+    "sport": "🏃",
+    "yoga": "🧘",
+    "travail": "💼",
+    "formation": "📚",
+    "lecon": "🎓",
+    "social": "💬",
+    "autre": "🧩",
+    "sante": "🏃",
+    "relationnel": "💬",
+    "apprentissage": "📚",
 }
 
 CATEGORY_LABELS = {
-    "sport":     "Sport",
-    "yoga":      "Yoga",
-    "travail":   "Travail",
+    "sport": "Sport",
+    "yoga": "Yoga",
+    "travail": "Travail",
     "formation": "Formation",
-    "lecon":     "Leçon",
-    "social":    "Social",
-    "autre":     "Autre",
+    "lecon": "Leçon",
+    "social": "Social",
+    "autre": "Autre",
     # rétro-compat
-    "sante":     "Sport",
+    "sante": "Sport",
     "relationnel": "Social",
     "apprentissage": "Formation",
 }
@@ -115,23 +127,25 @@ def _prepare_pilot_events(pilot_events: list[dict]) -> list[dict]:
     for e in pilot_events:
         t = _infer_event_type(e)
         d = TYPE_DEFS.get(t, TYPE_DEFS["autre"])
-        rows.append({
-            "id": str(e.get("id") or ""),
-            "task_id": e.get("task_id"),
-            "title": e.get("title") or "Événement",
-            "start_at": e.get("start_at"),
-            "end_at": e.get("end_at"),
-            "source": e.get("source") or "local",
-            "calendar_name": e.get("calendar_name") or "",
-            "category": d["category"],
-            "type": t,
-            "icon": d["icon"],
-            "color": d["color"],
-            "triage_status": e.get("triage_status") or "a_planifier",
-            "scheduled": True,
-            "last_bucket_before_scheduling": e.get("last_bucket_before_scheduling"),
-            "calendar_uid": e.get("calendar_uid"),
-        })
+        rows.append(
+            {
+                "id": str(e.get("id") or ""),
+                "task_id": e.get("task_id"),
+                "title": e.get("title") or "Événement",
+                "start_at": e.get("start_at"),
+                "end_at": e.get("end_at"),
+                "source": e.get("source") or "local",
+                "calendar_name": e.get("calendar_name") or "",
+                "category": d["category"],
+                "type": t,
+                "icon": d["icon"],
+                "color": d["color"],
+                "triage_status": e.get("triage_status") or "a_planifier",
+                "scheduled": True,
+                "last_bucket_before_scheduling": e.get("last_bucket_before_scheduling"),
+                "calendar_uid": e.get("calendar_uid"),
+            }
+        )
     return rows
 
 
@@ -189,13 +203,17 @@ def generate_html(
     wbs_label = wakeboard.get("label", "-")
     acwr_val = float(acwr.get("acwr", 0) or 0)
     acwr_zone = acwr.get("zone", "-")
-    pred_10k = (running.get("estimated_10k") or {}).get("label") or running.get("predictions", {}).get("10km", "-")
+    pred_10k = (running.get("estimated_10k") or {}).get("label") or running.get(
+        "predictions", {}
+    ).get("10km", "-")
 
     hrv = float(health.get("hrv") or _latest_metric(metrics_history, "hrv_sdnn", 0))
     sleep_h = float(health.get("sleep_h") or _latest_metric(metrics_history, "sleep_h", 0))
     vo2max = float(health.get("vo2max") or _latest_metric(metrics_history, "vo2max", 0))
     steps = float(_latest_metric(metrics_history, "steps", 0))
-    body_battery = float(health.get("body_battery") or _latest_metric(metrics_history, "body_battery", 0))
+    body_battery = float(
+        health.get("body_battery") or _latest_metric(metrics_history, "body_battery", 0)
+    )
     rhr = float(health.get("rhr") or 0)
     hrv_days_old = health.get("hrv_days_old")
     sleep_days_old = health.get("sleep_days_old")
@@ -205,11 +223,17 @@ def generate_html(
         float(health.get("sleep_freshness", 0) or 0),
         float(health.get("rhr_freshness", 0) or 0),
     ]
-    freshness_score = round((sum(freshness_vals) / len(freshness_vals)) * 100.0, 1) if freshness_vals else 0.0
-    freshness_label = "Excellente" if freshness_score >= 80 else "Moyenne" if freshness_score >= 55 else "Faible"
+    freshness_score = (
+        round((sum(freshness_vals) / len(freshness_vals)) * 100.0, 1) if freshness_vals else 0.0
+    )
+    freshness_label = (
+        "Excellente" if freshness_score >= 80 else "Moyenne" if freshness_score >= 55 else "Faible"
+    )
     vo2_for_score = float(vo2max or 0)
     vo2_norm = min(100.0, max(0.0, (vo2_for_score - 25.0) * 2.5)) if vo2_for_score else 0.0
-    readiness_global = round(max(0.0, min(100.0, (wbs * 0.5) + (body_battery * 0.3) + (vo2_norm * 0.2))), 1)
+    readiness_global = round(
+        max(0.0, min(100.0, (wbs * 0.5) + (body_battery * 0.3) + (vo2_norm * 0.2))), 1
+    )
 
     # --- PMC metrics (TSB, CTL, ATL) ---
     pmc_today = training.get("pmc", {})
@@ -229,8 +253,10 @@ def generate_html(
 
     # --- 3 Rings (0-100) ---
     RING_CIRC = 220  # 2*pi*35 ≈ 219.9
+
     def _ring_color(s: float) -> str:
         return "#22c55e" if s >= 67 else ("#f59e0b" if s >= 34 else "#ef4444")
+
     def _ring_offset(s: float) -> str:
         return f"{RING_CIRC * (1.0 - max(0.0, min(100.0, s)) / 100.0):.1f}"
 
@@ -241,7 +267,9 @@ def generate_html(
     # --- TSB / ACWR colors ---
     tsb_color = "#22c55e" if tsb > 0 else ("#f59e0b" if tsb > -10 else "#ef4444")
     tsb_class = "danger" if tsb < -15 else ""
-    acwr_color = "#22c55e" if 0.8 <= acwr_val <= 1.3 else ("#f59e0b" if acwr_val <= 1.5 else "#ef4444")
+    acwr_color = (
+        "#22c55e" if 0.8 <= acwr_val <= 1.3 else ("#f59e0b" if acwr_val <= 1.5 else "#ef4444")
+    )
     acwr_class = "danger" if acwr_val > 1.5 else ""
     acwr_alert_display = "flex" if acwr_val > 1.5 else "none"
 
@@ -337,7 +365,9 @@ def generate_html(
         muscle_bars_html = '<div class="muted">Pas de données musculation disponibles.</div>'
 
     # Progress datasets
-    train_labels, train_values = _series_labels_values(progress.get("training_hours_weekly", []), limit=260)
+    train_labels, train_values = _series_labels_values(
+        progress.get("training_hours_weekly", []), limit=260
+    )
     run_labels, run_values = _series_labels_values(progress.get("running_km_weekly", []), limit=260)
     tenk_labels, tenk_values = _series_labels_values(progress.get("est_10k_weekly", []), limit=260)
     vo2_labels, vo2_values = _series_labels_values(progress.get("vo2max_series", []), limit=260)
@@ -351,9 +381,7 @@ def generate_html(
         h = float(row.get("hours", 0) or 0)
         pct = h / total_mix * 100
         sport_mix_html += (
-            '<div class="mix-row">'
-            f'<span>{t}</span><span>{h:.1f}h ({pct:.0f}%)</span>'
-            "</div>"
+            f'<div class="mix-row"><span>{t}</span><span>{h:.1f}h ({pct:.0f}%)</span></div>'
         )
     if not sport_mix_html:
         sport_mix_html = '<div class="muted">Pas assez de données sport.</div>'
@@ -363,7 +391,7 @@ def generate_html(
         at_raw = str(act.get("type") or "Activité")
         at = escape(at_raw)
         icon = ICONS_BY_ACTIVITY.get(at_raw, "🏃")
-        dt = escape(((act.get("started_at") or "")[:16].replace("T", " ")))
+        dt = escape((act.get("started_at") or "")[:16].replace("T", " "))
         dur = int(act.get("duration_s") or 0)
         dur_m = max(1, dur // 60) if dur else 0
         recent_html += (
@@ -378,8 +406,13 @@ def generate_html(
 
     # cal_enabled = True dès que macOS + EventKit disponible (permission vérifiée à runtime via /calendar/status)
     import sys as _sys
+
     _cal_err = calendar_sync.get("error", "")
-    cal_enabled = _sys.platform == "darwin" and _cal_err != "eventkit_unavailable" and _cal_err != "apple_calendar_macos_only"
+    cal_enabled = (
+        _sys.platform == "darwin"
+        and _cal_err != "eventkit_unavailable"
+        and _cal_err != "apple_calendar_macos_only"
+    )
     pending_sync = int(calendar_sync.get("pending_tasks", 0) or 0)
 
     # Recommendations
@@ -387,7 +420,9 @@ def generate_html(
     if acwr_val > 1.4:
         recommendations.append("Charge élevée: allège 2-3 jours (récup active, mobilité).")
     elif acwr_val < 0.8:
-        recommendations.append("Charge basse: remonte progressivement le volume (+10% max/semaine).")
+        recommendations.append(
+            "Charge basse: remonte progressivement le volume (+10% max/semaine)."
+        )
     else:
         recommendations.append("Charge équilibrée: maintiens le rythme actuel.")
 
@@ -397,14 +432,22 @@ def generate_html(
         recommendations.append("Readiness haute: fenêtre favorable pour une séance qualitative.")
 
     imbalances = muscles.get("imbalances", [])
-    weak = [im.get("muscle") for im in imbalances if (im.get("status") or im.get("level")) in ("faible", "critique")]
+    weak = [
+        im.get("muscle")
+        for im in imbalances
+        if (im.get("status") or im.get("level")) in ("faible", "critique")
+    ]
     weak = sorted({w for w in weak if w})
     if weak:
         recommendations.append("Priorité renforcement cette semaine: " + ", ".join(weak) + ".")
     if freshness_score < 55:
-        recommendations.append("Données santé peu fraîches: relance une sync Garmin/Apple pour fiabiliser les décisions.")
+        recommendations.append(
+            "Données santé peu fraîches: relance une sync Garmin/Apple pour fiabiliser les décisions."
+        )
     if pending_sync > 0:
-        recommendations.append(f"Synchronisation Apple incomplète: {pending_sync} tâche(s) à pousser depuis le cockpit.")
+        recommendations.append(
+            f"Synchronisation Apple incomplète: {pending_sync} tâche(s) à pousser depuis le cockpit."
+        )
     unresolved_unk = int(muscle_quality.get("unknown_sets_unresolved", 0) or 0)
     if unresolved_unk > 0:
         recommendations.append(
@@ -2263,7 +2306,7 @@ function showPlanModal(taskId) {
   ov.addEventListener('click',ev=>{ if(ev.target===ov) ov.remove(); });
   ov.querySelector('.pm-ok').addEventListener('click',async()=>{
     const dt=pmDate.value;
-    if(!dt||!/^\d{4}-\d{2}-\d{2}$/.test(dt)){showToast('Date invalide.','warn');return;}
+    if(!dt||!/^\\d{4}-\\d{2}-\\d{2}$/.test(dt)){showToast('Date invalide.','warn');return;}
     if(pmStart.value>=pmEnd.value){showToast('Heure fin \u2265 d\u00e9but.','warn');return;}
     ov.remove();
     const s=new Date(dt+'T'+pmStart.value+':00');
@@ -2713,7 +2756,9 @@ window.addEventListener('DOMContentLoaded', () => {
         # Laisser le placeholder pour injection dynamique par cockpit_server.py
         # Si api_token est fourni, l'injecter directement (mode fichier statique)
         # Sinon, garder le placeholder pour le serveur
-        "__API_TOKEN_JS__": "__API_TOKEN_JS__" if not api_token else json.dumps(api_token, ensure_ascii=False),
+        "__API_TOKEN_JS__": "__API_TOKEN_JS__"
+        if not api_token
+        else json.dumps(api_token, ensure_ascii=False),
         "__TSB__": f"{tsb:+.1f}",
         "__CTL__": f"{ctl:.1f}",
         "__ATL__": f"{atl:.1f}",

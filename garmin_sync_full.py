@@ -11,17 +11,19 @@ Usage :
 
 Ce script s'auto-installe comme tâche quotidienne (voir --install).
 """
-import sys
-import os
-import json
-import sqlite3
+
 import argparse
-import time
+import json
+import os
+import sqlite3
 import subprocess
+import sys
+import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).parent
+
 
 # ── Dépendances ───────────────────────────────────────────────────
 def check_deps():
@@ -36,35 +38,47 @@ def check_deps():
         print(f"   Lance : pip3 install {' '.join(missing)}")
         sys.exit(1)
 
+
 check_deps()
 
 from dotenv import load_dotenv
+
 load_dotenv(ROOT / ".env")
 import garminconnect
 
-EMAIL    = os.environ.get("GARMIN_EMAIL", "")
+EMAIL = os.environ.get("GARMIN_EMAIL", "")
 PASSWORD = os.environ.get("GARMIN_PASSWORD", "")
-DB_PATH  = ROOT / "athlete.db"
+DB_PATH = ROOT / "athlete.db"
 LOG_PATH = ROOT / "garmin_sync.log"
 PROGRESS = ROOT / ".garmin_sync_progress.json"  # Pour résumer si interrompu
 
 GARMIN_TYPE_MAP = {
-    "running": "Running", "trail_running": "Running",
-    "cycling": "Cycling", "mountain_biking": "Cycling",
-    "swimming": "Swimming", "open_water_swimming": "Swimming",
-    "strength_training": "Strength Training", "fitness_equipment": "Strength Training",
-    "yoga": "Yoga", "hiking": "Hiking", "walking": "Walking",
-    "snowboarding": "Snowboarding", "snow_skiing": "Snowboarding",
+    "running": "Running",
+    "trail_running": "Running",
+    "cycling": "Cycling",
+    "mountain_biking": "Cycling",
+    "swimming": "Swimming",
+    "open_water_swimming": "Swimming",
+    "strength_training": "Strength Training",
+    "fitness_equipment": "Strength Training",
+    "yoga": "Yoga",
+    "hiking": "Hiking",
+    "walking": "Walking",
+    "snowboarding": "Snowboarding",
+    "snow_skiing": "Snowboarding",
     "backcountry_skiing_snowboarding_ws": "Snowboarding",
     "cross_country_skiing": "Cross_country_skiing",
-    "stand_up_paddleboarding": "Paddling", "wakeboarding": "Wakeboarding",
-    "tennis": "Tennis", "rowing": "Rowing", "other": "Other",
+    "stand_up_paddleboarding": "Paddling",
+    "wakeboarding": "Wakeboarding",
+    "tennis": "Tennis",
+    "rowing": "Rowing",
+    "other": "Other",
 }
 
 
 # ── Logging ───────────────────────────────────────────────────────
 def log(msg: str):
-    ts  = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{ts}] {msg}"
     print(line)
     with open(LOG_PATH, "a") as f:
@@ -74,7 +88,7 @@ def log(msg: str):
 # ── Connexion ─────────────────────────────────────────────────────
 def connect_garmin() -> garminconnect.Garmin:
     tokendir = os.path.expanduser("~/.garth")
-    client   = garminconnect.Garmin()
+    client = garminconnect.Garmin()
 
     # Token sauvegardé
     try:
@@ -108,7 +122,7 @@ def connect_garmin() -> garminconnect.Garmin:
             log(f"⏳ Trop de requêtes, attente {wait}s...")
             time.sleep(wait)
         except Exception as e:
-            log(f"⚠️  Tentative {attempt+1}/{max_retries} — {e}")
+            log(f"⚠️  Tentative {attempt + 1}/{max_retries} — {e}")
             time.sleep(10)
 
     log("❌ Connexion impossible après plusieurs tentatives")
@@ -171,36 +185,47 @@ def fetch_and_insert_activities(client, conn, start: str, end: str) -> tuple[int
 
         duration_s = int(act.get("duration", 0) or 0)
         distance_m = float(act.get("distance", 0) or 0)
-        calories   = int(act.get("calories", 0) or 0)
-        avg_hr     = act.get("averageHR")
-        max_hr     = act.get("maxHR")
-        elev_gain  = act.get("elevationGain")
-        act_name   = act.get("activityName") or ""
-        act_id     = str(act.get("activityId", ""))
+        calories = int(act.get("calories", 0) or 0)
+        avg_hr = act.get("averageHR")
+        max_hr = act.get("maxHR")
+        elev_gain = act.get("elevationGain")
+        act_name = act.get("activityName") or ""
+        act_id = str(act.get("activityId", ""))
 
         avg_pace = None
         if act_type == "Running" and distance_m > 0 and duration_s > 0:
             avg_pace = (duration_s / 60) / (distance_m / 1000)
 
-        t8  = act_type[:8].lower().replace(" ", "_")
-        d   = started_at[:10]
+        t8 = act_type[:8].lower().replace(" ", "_")
+        d = started_at[:10]
         dur = round(duration_s / 300) * 300
-        ck  = f"{t8}|{d}|{dur}"
+        ck = f"{t8}|{d}|{dur}"
 
         try:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR IGNORE INTO activities
                   (source, source_id, type, name, started_at, duration_s,
                    distance_m, elev_gain_m, calories, avg_hr, max_hr,
                    avg_pace_mpm, canonical_key)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """, ("garmin_connect", act_id, act_type, act_name, started_at,
-                  duration_s, distance_m or None,
-                  float(elev_gain) if elev_gain else None,
-                  calories or None,
-                  float(avg_hr) if avg_hr else None,
-                  float(max_hr) if max_hr else None,
-                  avg_pace, ck))
+            """,
+                (
+                    "garmin_connect",
+                    act_id,
+                    act_type,
+                    act_name,
+                    started_at,
+                    duration_s,
+                    distance_m or None,
+                    float(elev_gain) if elev_gain else None,
+                    calories or None,
+                    float(avg_hr) if avg_hr else None,
+                    float(max_hr) if max_hr else None,
+                    avg_pace,
+                    ck,
+                ),
+            )
             if conn.execute("SELECT changes()").fetchone()[0]:
                 ins += 1
             else:
@@ -222,9 +247,11 @@ def fetch_day_metrics(client, ds: str) -> list[dict]:
     try:
         d = client.get_hrv_data(ds)
         if isinstance(d, dict):
-            val = ((d.get("lastNight") or {}).get("avg5MinHrv") or
-                   (d.get("hrvSummary") or {}).get("lastNight") or
-                   d.get("hrv5MinAvg"))
+            val = (
+                (d.get("lastNight") or {}).get("avg5MinHrv")
+                or (d.get("hrvSummary") or {}).get("lastNight")
+                or d.get("hrv5MinAvg")
+            )
             if val and float(val) > 0:
                 metrics.append({"date": ds, "metric": "hrv_sdnn", "value": float(val)})
     except Exception:
@@ -234,10 +261,13 @@ def fetch_day_metrics(client, ds: str) -> list[dict]:
     try:
         d = client.get_rhr_day(ds)
         if isinstance(d, dict):
-            mm  = ((d.get("allMetrics") or {}).get("metricsMap") or {})
+            mm = (d.get("allMetrics") or {}).get("metricsMap") or {}
             lst = mm.get("WELLNESS_RESTING_HEART_RATE", [{}])
-            val = (lst[0].get("value") if lst else None) or \
-                  d.get("restingHeartRate") or d.get("value")
+            val = (
+                (lst[0].get("value") if lst else None)
+                or d.get("restingHeartRate")
+                or d.get("value")
+            )
             if val and float(val) > 0:
                 metrics.append({"date": ds, "metric": "rhr", "value": float(val)})
     except Exception:
@@ -247,9 +277,12 @@ def fetch_day_metrics(client, ds: str) -> list[dict]:
     try:
         d = client.get_sleep_data(ds)
         if isinstance(d, dict):
-            dto  = d.get("dailySleepDTO") or {}
-            secs = (dto.get("sleepTimeSeconds") or dto.get("totalSleepSeconds") or
-                    d.get("sleepTimeSeconds"))
+            dto = d.get("dailySleepDTO") or {}
+            secs = (
+                dto.get("sleepTimeSeconds")
+                or dto.get("totalSleepSeconds")
+                or d.get("sleepTimeSeconds")
+            )
             if secs and int(secs) > 0:
                 h = round(secs / 3600, 2)
                 if 2 < h < 14:
@@ -261,11 +294,9 @@ def fetch_day_metrics(client, ds: str) -> list[dict]:
     try:
         d = client.get_body_battery(ds)
         if isinstance(d, list) and d:
-            vals = [r.get("charged") for r in d
-                    if (r.get("charged") or 0) > 0]
+            vals = [r.get("charged") for r in d if (r.get("charged") or 0) > 0]
             if vals:
-                metrics.append({"date": ds, "metric": "body_battery",
-                                 "value": float(max(vals))})
+                metrics.append({"date": ds, "metric": "body_battery", "value": float(max(vals))})
     except Exception:
         pass
 
@@ -275,28 +306,27 @@ def fetch_day_metrics(client, ds: str) -> list[dict]:
         if isinstance(d, dict):
             val = d.get("avgStressLevel")
             if val and float(val) > 0:
-                metrics.append({"date": ds, "metric": "stress_avg",
-                                 "value": float(val)})
+                metrics.append({"date": ds, "metric": "stress_avg", "value": float(val)})
         elif isinstance(d, list) and d:
             # Certaines versions retournent une liste
-            vals = [r.get("avgStressLevel") for r in d
-                    if (r.get("avgStressLevel") or 0) > 0]
+            vals = [r.get("avgStressLevel") for r in d if (r.get("avgStressLevel") or 0) > 0]
             if vals:
-                metrics.append({"date": ds, "metric": "stress_avg",
-                                 "value": float(sum(vals) / len(vals))})
+                metrics.append(
+                    {"date": ds, "metric": "stress_avg", "value": float(sum(vals) / len(vals))}
+                )
     except Exception:
         pass
 
     return metrics
 
 
-def fetch_and_insert_metrics(client, conn,
-                              start_date: date, end_date: date,
-                              skip_existing: bool = True) -> int:
+def fetch_and_insert_metrics(
+    client, conn, start_date: date, end_date: date, skip_existing: bool = True
+) -> int:
     existing = already_synced_dates(conn) if skip_existing else set()
     total_days = (end_date - start_date).days + 1
-    ins_total  = 0
-    errors     = 0
+    ins_total = 0
+    errors = 0
 
     log(f"💓 Métriques {start_date} → {end_date} ({total_days} jours)...")
 
@@ -329,10 +359,13 @@ def fetch_and_insert_metrics(client, conn,
         # Insertion
         for m in day_metrics:
             try:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR IGNORE INTO health_metrics (date, metric, value, source)
                     VALUES (?,?,?,?)
-                """, (m["date"], m["metric"], m["value"], "garmin_connect"))
+                """,
+                    (m["date"], m["metric"], m["value"], "garmin_connect"),
+                )
                 if conn.execute("SELECT changes()").fetchone()[0]:
                     ins_total += 1
             except sqlite3.Error:
@@ -349,9 +382,9 @@ def fetch_and_insert_metrics(client, conn,
             log(f"   {pct:.0f}% — {ds} — {ins_total} métriques insérées")
 
         # Sauvegarder la progression
-        PROGRESS.write_text(json.dumps({
-            "last_date": ds, "ins": ins_total, "ts": datetime.now().isoformat()
-        }))
+        PROGRESS.write_text(
+            json.dumps({"last_date": ds, "ins": ins_total, "ts": datetime.now().isoformat()})
+        )
 
         current -= timedelta(days=1)
 
@@ -366,14 +399,16 @@ def fetch_and_insert_metrics(client, conn,
 # ── PIPELINE PRINCIPAL ────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(description="Garmin Connect → athlete.db")
-    parser.add_argument("--days",    type=int,   default=60,
-                        help="Nb jours à synchroniser (défaut: 60)")
-    parser.add_argument("--from",    dest="from_date", default=None,
-                        help="Date de début YYYY-MM-DD (ex: 2024-01-01)")
-    parser.add_argument("--full",    action="store_true",
-                        help="Sync COMPLÈTE depuis 2017 (prend 10-20 min)")
-    parser.add_argument("--install", action="store_true",
-                        help="Installer la sync automatique quotidienne")
+    parser.add_argument("--days", type=int, default=60, help="Nb jours à synchroniser (défaut: 60)")
+    parser.add_argument(
+        "--from", dest="from_date", default=None, help="Date de début YYYY-MM-DD (ex: 2024-01-01)"
+    )
+    parser.add_argument(
+        "--full", action="store_true", help="Sync COMPLÈTE depuis 2017 (prend 10-20 min)"
+    )
+    parser.add_argument(
+        "--install", action="store_true", help="Installer la sync automatique quotidienne"
+    )
     args = parser.parse_args()
 
     # Installation auto-run
@@ -399,24 +434,21 @@ def main():
 
     # Connexion
     client = connect_garmin()
-    conn   = get_conn()
+    conn = get_conn()
 
     # Activités (par blocs de 100j pour éviter timeouts)
     total_ins_a = 0
-    chunk_end   = end_date
+    chunk_end = end_date
     while chunk_end >= start_date:
         chunk_start = max(start_date, chunk_end - timedelta(days=99))
-        ins, _      = fetch_and_insert_activities(
-            client, conn, str(chunk_start), str(chunk_end)
-        )
+        ins, _ = fetch_and_insert_activities(client, conn, str(chunk_start), str(chunk_end))
         total_ins_a += ins
-        chunk_end    = chunk_start - timedelta(days=1)
+        chunk_end = chunk_start - timedelta(days=1)
         if chunk_end >= start_date:
             time.sleep(2)  # Pause entre chunks
 
     # Métriques santé
-    fetch_and_insert_metrics(client, conn, start_date, end_date,
-                              skip_existing=not args.full)
+    fetch_and_insert_metrics(client, conn, start_date, end_date, skip_existing=not args.full)
 
     conn.close()
 
@@ -444,7 +476,7 @@ def main():
 # ── AUTO-RUN macOS (LaunchAgent) ──────────────────────────────────
 def install_launchagent():
     """Installe une tâche automatique quotidienne à 06:30."""
-    plist_id  = "com.performos.garmin-sync"
+    plist_id = "com.performos.garmin-sync"
     plist_dir = Path.home() / "Library" / "LaunchAgents"
     plist_path = plist_dir / f"{plist_id}.plist"
 
@@ -498,12 +530,12 @@ def install_launchagent():
     plist_dir.mkdir(parents=True, exist_ok=True)
 
     # Décharger l'ancien si existant
-    subprocess.run(["launchctl", "unload", str(plist_path)],
-                   capture_output=True, text=True)
+    subprocess.run(["launchctl", "unload", str(plist_path)], capture_output=True, text=True)
 
     plist_path.write_text(plist_content)
-    ret = subprocess.run(["launchctl", "load", str(plist_path)],
-                        capture_output=True, text=True).returncode
+    ret = subprocess.run(
+        ["launchctl", "load", str(plist_path)], capture_output=True, text=True
+    ).returncode
 
     if ret == 0:
         print(f"✅ LaunchAgent installé : {plist_path}")

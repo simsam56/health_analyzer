@@ -3,7 +3,7 @@
 
 import sys
 import threading
-from pathlib import Path
+
 
 def check_calendar_permissions():
     """Vérifie et demande les permissions calendrier Apple."""
@@ -44,6 +44,7 @@ def check_calendar_permissions():
         print("⏰ Timeout - pas de réponse de l'utilisateur")
         return False
 
+
 def test_calendar_access():
     """Test l'accès au calendrier après permissions."""
     print("\n🧪 Test de l'accès au calendrier...")
@@ -70,6 +71,7 @@ def test_calendar_access():
         print(f"❌ Accès refusé ou erreur: {e}")
         return False
 
+
 if __name__ == "__main__":
     print("🚀 PerformOS - Configuration calendrier Apple")
     print("=" * 50)
@@ -78,6 +80,7 @@ if __name__ == "__main__":
     try:
         import EventKit
         import Foundation
+
         print("✅ Dépendances EventKit/Foundation OK")
     except ImportError as e:
         print(f"❌ Dépendance manquante: {e}")
@@ -90,7 +93,9 @@ if __name__ == "__main__":
             test_calendar_access()
         else:
             print("\n💡 Pour corriger:")
-            print("   1. Allez dans Préférences Système > Sécurité et confidentialité > Confidentialité")
+            print(
+                "   1. Allez dans Préférences Système > Sécurité et confidentialité > Confidentialité"
+            )
             print("   2. Cliquez sur 'Calendriers' dans la barre latérale")
             print("   3. Cherchez 'Python' ou relancez l'application")
             sys.exit(1)

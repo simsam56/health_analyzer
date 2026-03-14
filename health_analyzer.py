@@ -5,40 +5,41 @@ Analyse les données Apple Health et génère un dashboard HTML interactif.
 Auteur : Simon Hingant — Généré automatiquement chaque dimanche soir.
 """
 
-from defusedxml import ElementTree as ET
-import pandas as pd
-import numpy as np
+import argparse
 import json
 import sys
-from datetime import timedelta, date
-from pathlib import Path
 from collections import defaultdict
-import argparse
+from datetime import date, timedelta
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from defusedxml import ElementTree as ET
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURATION
 # ─────────────────────────────────────────────────────────────────────────────
 SCRIPT_DIR = Path(__file__).parent
 EXPORT_PATH = SCRIPT_DIR / "export.xml"
-OUTPUT_DIR  = SCRIPT_DIR / "reports"
-BIRTH_DATE  = date(1992, 10, 28)
+OUTPUT_DIR = SCRIPT_DIR / "reports"
+BIRTH_DATE = date(1992, 10, 28)
 
 WORKOUT_LABELS = {
-    "HKWorkoutActivityTypeRunning":                   "🏃 Course",
-    "HKWorkoutActivityTypeCrossTraining":             "🏋️ Cross Training",
-    "HKWorkoutActivityTypeOther":                     "⚡ Autre",
-    "HKWorkoutActivityTypeSwimming":                  "🏊 Natation",
-    "HKWorkoutActivityTypeCycling":                   "🚴 Vélo",
-    "HKWorkoutActivityTypeTraditionalStrengthTraining":"💪 Musculation",
-    "HKWorkoutActivityTypeWalking":                   "🚶 Marche",
-    "HKWorkoutActivityTypeYoga":                      "🧘 Yoga",
-    "HKWorkoutActivityTypeSnowboarding":              "🏂 Snowboard",
-    "HKWorkoutActivityTypeDownhillSkiing":            "⛷️ Ski",
-    "HKWorkoutActivityTypeSnowSports":                "🎿 Sports neige",
-    "HKWorkoutActivityTypeSkatingSports":             "⛸️ Patinage",
-    "HKWorkoutActivityTypeElliptical":                "🔄 Elliptique",
-    "HKWorkoutActivityTypeTennis":                    "🎾 Tennis",
-    "HKWorkoutActivityTypeRowing":                    "🚣 Aviron",
+    "HKWorkoutActivityTypeRunning": "🏃 Course",
+    "HKWorkoutActivityTypeCrossTraining": "🏋️ Cross Training",
+    "HKWorkoutActivityTypeOther": "⚡ Autre",
+    "HKWorkoutActivityTypeSwimming": "🏊 Natation",
+    "HKWorkoutActivityTypeCycling": "🚴 Vélo",
+    "HKWorkoutActivityTypeTraditionalStrengthTraining": "💪 Musculation",
+    "HKWorkoutActivityTypeWalking": "🚶 Marche",
+    "HKWorkoutActivityTypeYoga": "🧘 Yoga",
+    "HKWorkoutActivityTypeSnowboarding": "🏂 Snowboard",
+    "HKWorkoutActivityTypeDownhillSkiing": "⛷️ Ski",
+    "HKWorkoutActivityTypeSnowSports": "🎿 Sports neige",
+    "HKWorkoutActivityTypeSkatingSports": "⛸️ Patinage",
+    "HKWorkoutActivityTypeElliptical": "🔄 Elliptique",
+    "HKWorkoutActivityTypeTennis": "🎾 Tennis",
+    "HKWorkoutActivityTypeRowing": "🚣 Aviron",
 }
 
 TARGET_RECORD_TYPES = {
@@ -53,12 +54,14 @@ TARGET_RECORD_TYPES = {
     "HKQuantityTypeIdentifierAppleExerciseTime",
 }
 
+
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
 def age_years(dob: date) -> int:
     today = date.today()
     return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
 
 def format_pace(pace_decimal: float) -> str:
     """Convertit les min/km décimaux en format mm:ss/km"""
@@ -68,30 +71,41 @@ def format_pace(pace_decimal: float) -> str:
     s = int(round((pace_decimal - m) * 60))
     return f"{m}:{s:02d}/km"
 
+
 def safe_float(val, default=0.0):
     try:
         return float(val or default)
     except (ValueError, TypeError):
         return default
 
+
 def score_color(s: float) -> str:
-    if s >= 75: return "#22c55e"
-    elif s >= 50: return "#f59e0b"
+    if s >= 75:
+        return "#22c55e"
+    elif s >= 50:
+        return "#f59e0b"
     return "#ef4444"
 
+
 def score_label(s: float) -> str:
-    if s >= 80: return "Excellent 🔥"
-    elif s >= 65: return "Bon 💪"
-    elif s >= 50: return "Moyen ⚡"
+    if s >= 80:
+        return "Excellent 🔥"
+    elif s >= 65:
+        return "Bon 💪"
+    elif s >= 50:
+        return "Moyen ⚡"
     return "À récupérer 😴"
+
 
 def pct_change(a, b) -> str:
     try:
-        if b == 0: return "~"
+        if b == 0:
+            return "~"
         pct = ((float(a) - float(b)) / float(b)) * 100
         return f"+{pct:.0f}%" if pct >= 0 else f"{pct:.0f}%"
     except:
         return "~"
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PARSING
@@ -105,24 +119,28 @@ def parse_health_data(export_path: Path):
     records = defaultdict(list)
     count = 0
 
-    for event, elem in ET.iterparse(str(export_path), events=("end",)):
+    for _event, elem in ET.iterparse(str(export_path), events=("end",)):
         tag = elem.tag
 
         if tag == "Workout":
             w = {
-                "type":         elem.get("workoutActivityType", ""),
-                "start":        elem.get("startDate", ""),
-                "end":          elem.get("endDate", ""),
+                "type": elem.get("workoutActivityType", ""),
+                "start": elem.get("startDate", ""),
+                "end": elem.get("endDate", ""),
                 "duration_min": safe_float(elem.get("duration")),
-                "distance_km":  safe_float(elem.get("totalDistance")),
-                "calories":     safe_float(elem.get("totalEnergyBurned")),
-                "source":       elem.get("sourceName", ""),
-                "avg_hr":       None,
+                "distance_km": safe_float(elem.get("totalDistance")),
+                "calories": safe_float(elem.get("totalEnergyBurned")),
+                "source": elem.get("sourceName", ""),
+                "avg_hr": None,
             }
             # Extraire distance, calories, FC depuis WorkoutStatistics
             for stat in elem.findall("WorkoutStatistics"):
                 stype = stat.get("type", "")
-                if "DistanceWalkingRunning" in stype or "DistanceCycling" in stype or "DistanceSwimming" in stype:
+                if (
+                    "DistanceWalkingRunning" in stype
+                    or "DistanceCycling" in stype
+                    or "DistanceSwimming" in stype
+                ):
                     d = safe_float(stat.get("sum"))
                     unit = stat.get("unit", "km")
                     if d > 0:
@@ -142,10 +160,12 @@ def parse_health_data(export_path: Path):
         elif tag == "Record":
             rtype = elem.get("type", "")
             if rtype in TARGET_RECORD_TYPES:
-                records[rtype].append({
-                    "date":  elem.get("startDate", ""),
-                    "value": safe_float(elem.get("value")),
-                })
+                records[rtype].append(
+                    {
+                        "date": elem.get("startDate", ""),
+                        "value": safe_float(elem.get("value")),
+                    }
+                )
             elem.clear()
             count += 1
             if count % 500_000 == 0:
@@ -153,6 +173,7 @@ def parse_health_data(export_path: Path):
 
     print(f"✅ {len(workouts)} entraînements · {sum(len(v) for v in records.values()):,} records")
     return workouts, records
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DATAFRAMES
@@ -167,23 +188,20 @@ def build_dataframes(workouts, records):
         s = pd.to_datetime(df_w["start"], utc=False, errors="coerce")
         df_w["start"] = s.dt.tz_convert("UTC").dt.tz_localize(None) if s.dt.tz is not None else s
         e = pd.to_datetime(df_w["end"], utc=False, errors="coerce")
-        df_w["end"]   = e.dt.tz_convert("UTC").dt.tz_localize(None) if e.dt.tz is not None else e
-        df_w["date"]     = df_w["start"].dt.date
-        df_w["year"]     = df_w["start"].dt.year
+        df_w["end"] = e.dt.tz_convert("UTC").dt.tz_localize(None) if e.dt.tz is not None else e
+        df_w["date"] = df_w["start"].dt.date
+        df_w["year"] = df_w["start"].dt.year
         import warnings
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             df_w["month"] = df_w["start"].dt.to_period("M").astype(str)
-        df_w["label"]    = df_w["type"].map(WORKOUT_LABELS).fillna(df_w["type"])
+        df_w["label"] = df_w["type"].map(WORKOUT_LABELS).fillna(df_w["type"])
         df_w["date_obj"] = df_w["date"]
 
         # Allure course en min/km
         mask = (df_w["type"] == "HKWorkoutActivityTypeRunning") & (df_w["distance_km"] > 0.5)
-        df_w["pace_min_km"] = np.where(
-            mask,
-            df_w["duration_min"] / df_w["distance_km"],
-            np.nan
-        )
+        df_w["pace_min_km"] = np.where(mask, df_w["duration_min"] / df_w["distance_km"], np.nan)
         # Filtre allures aberrantes (< 3 min/km ou > 15 min/km)
         df_w.loc[(df_w["pace_min_km"] < 3) | (df_w["pace_min_km"] > 15), "pace_min_km"] = np.nan
 
@@ -207,6 +225,7 @@ def build_dataframes(workouts, records):
         daily[key] = (agg.sum() if key in SUM_TYPES else agg.mean()).reset_index()
 
     return df_w, daily
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CHARGE D'ENTRAÎNEMENT (CTL / ATL / TSB)
@@ -232,10 +251,11 @@ def calculate_training_load(df_workouts: pd.DataFrame) -> pd.DataFrame:
     daily_load["tss"] = daily_load["kcal"] / 5.0
 
     daily_load["ctl"] = daily_load["tss"].ewm(span=42, min_periods=1).mean()
-    daily_load["atl"] = daily_load["tss"].ewm(span=7,  min_periods=1).mean()
+    daily_load["atl"] = daily_load["tss"].ewm(span=7, min_periods=1).mean()
     daily_load["tsb"] = daily_load["ctl"] - daily_load["atl"]
 
     return daily_load
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SCORES
@@ -305,10 +325,12 @@ def calculate_wakeboard_readiness(form_score, df_workouts, daily_metrics):
             "HKWorkoutActivityTypeTraditionalStrengthTraining",
             "HKWorkoutActivityTypeCrossTraining",
         }
-        n_strength = len(df_workouts[
-            (df_workouts["date_obj"] >= four_weeks_ago) &
-            (df_workouts["type"].isin(strength_types))
-        ])
+        n_strength = len(
+            df_workouts[
+                (df_workouts["date_obj"] >= four_weeks_ago)
+                & (df_workouts["type"].isin(strength_types))
+            ]
+        )
         components["force_haut_corps"] = float(np.clip(n_strength * 14, 0, 100))
 
     # VO2Max (cardio)
@@ -321,20 +343,31 @@ def calculate_wakeboard_readiness(form_score, df_workouts, daily_metrics):
 
     # Sports aquatiques / activité récente
     if not df_workouts.empty:
-        water_types = {"HKWorkoutActivityTypeSwimming", "HKWorkoutActivityTypeOther",
-                       "HKWorkoutActivityTypeCycling", "HKWorkoutActivityTypeRunning"}
-        n_active = len(df_workouts[
-            (df_workouts["date_obj"] >= four_weeks_ago) &
-            (df_workouts["type"].isin(water_types))
-        ])
+        water_types = {
+            "HKWorkoutActivityTypeSwimming",
+            "HKWorkoutActivityTypeOther",
+            "HKWorkoutActivityTypeCycling",
+            "HKWorkoutActivityTypeRunning",
+        }
+        n_active = len(
+            df_workouts[
+                (df_workouts["date_obj"] >= four_weeks_ago)
+                & (df_workouts["type"].isin(water_types))
+            ]
+        )
         components["activité_cardio"] = float(np.clip(n_active * 9, 0, 100))
 
-    weights = {"forme_générale": 0.30, "force_haut_corps": 0.25,
-               "cardio_vo2max": 0.25, "activité_cardio": 0.20}
+    weights = {
+        "forme_générale": 0.30,
+        "force_haut_corps": 0.25,
+        "cardio_vo2max": 0.25,
+        "activité_cardio": 0.20,
+    }
     total_w = sum(weights.get(k, 0.1) for k in components)
     ws = sum(components[k] * weights.get(k, 0.1) for k in components) / total_w
     ws = 50.0 if (np.isnan(ws) or np.isinf(ws)) else ws
     return int(round(float(np.clip(ws, 0, 100)))), components
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # GÉNÉRATION DU RAPPORT HTML
@@ -348,37 +381,37 @@ def generate_report(df_workouts, daily_metrics, training_load, output_path: Path
 
     # ── Filtre séances de course ──────────────────────────────────────────────
     run_df = df_workouts[
-        (df_workouts["type"] == "HKWorkoutActivityTypeRunning") &
-        df_workouts["pace_min_km"].notna()
+        (df_workouts["type"] == "HKWorkoutActivityTypeRunning") & df_workouts["pace_min_km"].notna()
     ].copy()
 
     # ── Cette semaine ──────────────────────────────────────────────────────────
     week_start = today - timedelta(days=today.weekday())
-    this_week  = df_workouts[df_workouts["date_obj"] >= week_start]
-    tw_workouts  = len(this_week)
-    tw_duration  = round(this_week["duration_min"].sum() / 60, 1)
-    tw_calories  = int(this_week["calories"].sum())
+    this_week = df_workouts[df_workouts["date_obj"] >= week_start]
+    tw_workouts = len(this_week)
+    tw_duration = round(this_week["duration_min"].sum() / 60, 1)
+    tw_calories = int(this_week["calories"].sum())
 
     # ── Allure récente ────────────────────────────────────────────────────────
     if not run_df.empty and len(run_df) >= 3:
-        last5     = run_df.nlargest(5, "start")
-        avg_pace  = last5["pace_min_km"].mean()
-        all_pace  = run_df["pace_min_km"].mean()
-        pace_str  = format_pace(avg_pace)
+        last5 = run_df.nlargest(5, "start")
+        avg_pace = last5["pace_min_km"].mean()
+        all_pace = run_df["pace_min_km"].mean()
+        pace_str = format_pace(avg_pace)
         trend_str = "📈 En progression" if avg_pace < all_pace else "Stable"
     else:
-        pace_str  = "—"
+        pace_str = "—"
         trend_str = "Pas encore de données"
 
     # ── Métriques clés ────────────────────────────────────────────────────────
     def latest_metric(key):
         df = daily_metrics.get(key)
-        if df is None or df.empty: return None
+        if df is None or df.empty:
+            return None
         return df["value"].iloc[-1]
 
-    vo2     = latest_metric("HKQuantityTypeIdentifierVO2Max")
-    rhr     = latest_metric("HKQuantityTypeIdentifierRestingHeartRate")
-    hrv     = latest_metric("HKQuantityTypeIdentifierHeartRateVariabilitySDNN")
+    vo2 = latest_metric("HKQuantityTypeIdentifierVO2Max")
+    rhr = latest_metric("HKQuantityTypeIdentifierRestingHeartRate")
+    hrv = latest_metric("HKQuantityTypeIdentifierHeartRateVariabilitySDNN")
     vo2_str = f"{vo2:.1f}" if vo2 else "—"
     rhr_str = f"{int(rhr)}" if rhr else "—"
     hrv_str = f"{int(hrv)}" if hrv else "—"
@@ -388,20 +421,41 @@ def generate_report(df_workouts, daily_metrics, training_load, output_path: Path
         df = df_workouts[df_workouts["year"] == y]
         run = df[df["type"] == "HKWorkoutActivityTypeRunning"]
         return {
-            "workouts":  len(df),
-            "total_km":  round(df["distance_km"].sum(), 1),
-            "total_h":   round(df["duration_min"].sum() / 60, 1),
-            "run_km":    round(run["distance_km"].sum(), 1),
+            "workouts": len(df),
+            "total_km": round(df["distance_km"].sum(), 1),
+            "total_h": round(df["duration_min"].sum() / 60, 1),
+            "run_km": round(run["distance_km"].sum(), 1),
             "total_cal": int(df["calories"].sum()),
         }
+
     this_y = year_stats(today.year)
     last_y = year_stats(today.year - 1)
 
     yoy_metrics = [
-        {"label": "Entraînements", "this": this_y["workouts"],  "last": last_y["workouts"],  "unit": ""},
-        {"label": "Km de course",  "this": this_y["run_km"],    "last": last_y["run_km"],    "unit": " km"},
-        {"label": "Heures sport",  "this": this_y["total_h"],   "last": last_y["total_h"],   "unit": " h"},
-        {"label": "Kcal brûlées",  "this": this_y["total_cal"], "last": last_y["total_cal"], "unit": " kcal"},
+        {
+            "label": "Entraînements",
+            "this": this_y["workouts"],
+            "last": last_y["workouts"],
+            "unit": "",
+        },
+        {
+            "label": "Km de course",
+            "this": this_y["run_km"],
+            "last": last_y["run_km"],
+            "unit": " km",
+        },
+        {
+            "label": "Heures sport",
+            "this": this_y["total_h"],
+            "last": last_y["total_h"],
+            "unit": " h",
+        },
+        {
+            "label": "Kcal brûlées",
+            "this": this_y["total_cal"],
+            "last": last_y["total_cal"],
+            "unit": " kcal",
+        },
     ]
     for m in yoy_metrics:
         m["change"] = pct_change(m["this"], m["last"])
@@ -409,7 +463,7 @@ def generate_report(df_workouts, daily_metrics, training_load, output_path: Path
     # ── Données graphiques ────────────────────────────────────────────────────
     cutoff_24m = pd.Timestamp(today - timedelta(days=730))
     cutoff_12m = pd.Timestamp(today - timedelta(days=365))
-    cutoff_6m  = pd.Timestamp(today - timedelta(days=180))
+    cutoff_6m = pd.Timestamp(today - timedelta(days=180))
     cutoff_26w = pd.Timestamp(today - timedelta(weeks=26))
 
     # Course : allure + distance hebdo
@@ -421,21 +475,29 @@ def generate_report(df_workouts, daily_metrics, training_load, output_path: Path
         run_df2["week_start"] = run_df2["start"].apply(
             lambda d: (d - timedelta(days=d.weekday())).date()
         )
-        wkly_run = (run_df2[run_df2["start"] >= cutoff_26w]
-                    .groupby("week_start")["distance_km"].sum()
-                    .reset_index())
+        wkly_run = (
+            run_df2[run_df2["start"] >= cutoff_26w]
+            .groupby("week_start")["distance_km"]
+            .sum()
+            .reset_index()
+        )
         wkly_run_dates = [str(d) for d in wkly_run["week_start"]]
-        wkly_run_km    = wkly_run["distance_km"].round(1).tolist()
+        wkly_run_km = wkly_run["distance_km"].round(1).tolist()
     else:
         wkly_run_dates, wkly_run_km = [], []
 
     # Charge d'entraînement
-    load_12m = training_load[training_load["date"] >= cutoff_12m].copy() if not training_load.empty else pd.DataFrame()
+    load_12m = (
+        training_load[training_load["date"] >= cutoff_12m].copy()
+        if not training_load.empty
+        else pd.DataFrame()
+    )
 
     # HRV & FC repos (6 derniers mois)
     def rolling_series(key, window=7, fallback_days=730):
         df = daily_metrics.get(key)
-        if df is None or df.empty: return [], [], []
+        if df is None or df.empty:
+            return [], [], []
         df = df.copy()
         df["date"] = pd.to_datetime(df["date"])
         # Try 6 months; if sparse, fall back to longer window
@@ -444,11 +506,15 @@ def generate_report(df_workouts, daily_metrics, training_load, output_path: Path
             recent = df[df["date"] >= pd.Timestamp(today - timedelta(days=fallback_days))]
         recent = recent.sort_values("date")
         recent["rolling"] = recent["value"].rolling(window, min_periods=1).mean()
-        return (recent["date"].dt.strftime("%Y-%m-%d").tolist(),
-                recent["value"].round(1).tolist(),
-                recent["rolling"].round(1).tolist())
+        return (
+            recent["date"].dt.strftime("%Y-%m-%d").tolist(),
+            recent["value"].round(1).tolist(),
+            recent["rolling"].round(1).tolist(),
+        )
 
-    hrv_dates, hrv_vals, hrv_roll = rolling_series("HKQuantityTypeIdentifierHeartRateVariabilitySDNN")
+    hrv_dates, hrv_vals, hrv_roll = rolling_series(
+        "HKQuantityTypeIdentifierHeartRateVariabilitySDNN"
+    )
     rhr_dates, rhr_vals, rhr_roll = rolling_series("HKQuantityTypeIdentifierRestingHeartRate")
 
     # VO2Max historique
@@ -458,7 +524,7 @@ def generate_report(df_workouts, daily_metrics, training_load, output_path: Path
         vo2_df["date"] = pd.to_datetime(vo2_df["date"])
         vo2_df = vo2_df.sort_values("date")
         vo2_dates = vo2_df["date"].dt.strftime("%Y-%m-%d").tolist()
-        vo2_vals  = vo2_df["value"].round(1).tolist()
+        vo2_vals = vo2_df["value"].round(1).tolist()
     else:
         vo2_dates, vo2_vals = [], []
 
@@ -466,16 +532,20 @@ def generate_report(df_workouts, daily_metrics, training_load, output_path: Path
     act12 = df_workouts[df_workouts["date_obj"] >= today - timedelta(days=365)]
     act_grp = act12.groupby("label")["duration_min"].sum().sort_values(ascending=False)
     act_labels = act_grp.index.tolist()
-    act_hours  = (act_grp / 60).round(1).tolist()
+    act_hours = (act_grp / 60).round(1).tolist()
 
     # Calories hebdo
     df_workouts["week_start_ts"] = df_workouts["start"].apply(
         lambda d: d - timedelta(days=d.weekday())
     )
-    wcal = (df_workouts[df_workouts["week_start_ts"] >= cutoff_26w]
-            .groupby("week_start_ts")["calories"].sum().reset_index())
+    wcal = (
+        df_workouts[df_workouts["week_start_ts"] >= cutoff_26w]
+        .groupby("week_start_ts")["calories"]
+        .sum()
+        .reset_index()
+    )
     wcal_dates = wcal["week_start_ts"].dt.strftime("%Y-%m-%d").tolist()
-    wcal_vals  = wcal["calories"].round().astype(int).tolist()
+    wcal_vals = wcal["calories"].round().astype(int).tolist()
 
     # Steps (derniers 3 mois)
     steps_key = "HKQuantityTypeIdentifierStepCount"
@@ -484,7 +554,7 @@ def generate_report(df_workouts, daily_metrics, training_load, output_path: Path
         sd["date"] = pd.to_datetime(sd["date"])
         sd = sd[sd["date"] >= pd.Timestamp(today - timedelta(days=90))].sort_values("date")
         steps_dates = sd["date"].dt.strftime("%Y-%m-%d").tolist()
-        steps_vals  = sd["value"].astype(int).tolist()
+        steps_vals = sd["value"].astype(int).tolist()
     else:
         steps_dates, steps_vals = [], []
 
@@ -492,49 +562,60 @@ def generate_report(df_workouts, daily_metrics, training_load, output_path: Path
     recent10 = df_workouts.nlargest(10, "start")[
         ["label", "date", "duration_min", "distance_km", "calories", "pace_min_km", "avg_hr"]
     ].copy()
-    recent10["date"]     = pd.to_datetime(recent10["date"]).apply(lambda d: d.strftime("%d/%m/%Y"))
+    recent10["date"] = pd.to_datetime(recent10["date"]).apply(lambda d: d.strftime("%d/%m/%Y"))
     recent10["duration"] = recent10["duration_min"].apply(
-        lambda x: f"{int(x//60)}h{int(x%60):02d}" if x >= 60 else f"{int(x)} min"
+        lambda x: f"{int(x // 60)}h{int(x % 60):02d}" if x >= 60 else f"{int(x)} min"
     )
     recent10["dist_str"] = recent10["distance_km"].apply(lambda x: f"{x:.1f} km" if x > 0 else "—")
     recent10["pace_str"] = recent10["pace_min_km"].apply(format_pace)
-    recent10["cal_str"]  = recent10["calories"].apply(lambda x: f"{int(x)}" if x > 0 else "—")
-    recent10["hr_str"]   = recent10["avg_hr"].apply(
+    recent10["cal_str"] = recent10["calories"].apply(lambda x: f"{int(x)}" if x > 0 else "—")
+    recent10["hr_str"] = recent10["avg_hr"].apply(
         lambda x: f"{int(x)} bpm" if (pd.notna(x) and x and x > 0) else "—"
     )
 
-    table_rows = recent10[["label", "date", "duration", "dist_str", "pace_str", "cal_str", "hr_str"]].to_dict("records")
+    table_rows = recent10[
+        ["label", "date", "duration", "dist_str", "pace_str", "cal_str", "hr_str"]
+    ].to_dict("records")
 
     # JSON pour Plotly
     cd = {
-        "run_dates":       run_chart["start"].dt.strftime("%Y-%m-%d").tolist(),
-        "run_pace":        run_chart["pace_min_km"].round(2).tolist(),
-        "run_pace_roll":   run_chart["pace_roll"].round(2).tolist(),
-        "run_dist":        run_chart["distance_km"].round(2).tolist(),
-
-        "load_dates":      load_12m["date"].dt.strftime("%Y-%m-%d").tolist() if not load_12m.empty else [],
-        "ctl":             load_12m["ctl"].round(1).tolist() if not load_12m.empty else [],
-        "atl":             load_12m["atl"].round(1).tolist() if not load_12m.empty else [],
-        "tsb":             load_12m["tsb"].round(1).tolist() if not load_12m.empty else [],
-
-        "hrv_dates": hrv_dates, "hrv_vals": hrv_vals, "hrv_roll": hrv_roll,
-        "rhr_dates": rhr_dates, "rhr_vals": rhr_vals, "rhr_roll": rhr_roll,
-
-        "vo2_dates": vo2_dates, "vo2_vals": vo2_vals,
-
-        "act_labels": act_labels, "act_hours": act_hours,
-
-        "wkly_run_dates": wkly_run_dates, "wkly_run_km": wkly_run_km,
-        "wcal_dates": wcal_dates, "wcal_vals": wcal_vals,
-
-        "steps_dates": steps_dates, "steps_vals": steps_vals,
+        "run_dates": run_chart["start"].dt.strftime("%Y-%m-%d").tolist(),
+        "run_pace": run_chart["pace_min_km"].round(2).tolist(),
+        "run_pace_roll": run_chart["pace_roll"].round(2).tolist(),
+        "run_dist": run_chart["distance_km"].round(2).tolist(),
+        "load_dates": load_12m["date"].dt.strftime("%Y-%m-%d").tolist()
+        if not load_12m.empty
+        else [],
+        "ctl": load_12m["ctl"].round(1).tolist() if not load_12m.empty else [],
+        "atl": load_12m["atl"].round(1).tolist() if not load_12m.empty else [],
+        "tsb": load_12m["tsb"].round(1).tolist() if not load_12m.empty else [],
+        "hrv_dates": hrv_dates,
+        "hrv_vals": hrv_vals,
+        "hrv_roll": hrv_roll,
+        "rhr_dates": rhr_dates,
+        "rhr_vals": rhr_vals,
+        "rhr_roll": rhr_roll,
+        "vo2_dates": vo2_dates,
+        "vo2_vals": vo2_vals,
+        "act_labels": act_labels,
+        "act_hours": act_hours,
+        "wkly_run_dates": wkly_run_dates,
+        "wkly_run_km": wkly_run_km,
+        "wcal_dates": wcal_dates,
+        "wcal_vals": wcal_vals,
+        "steps_dates": steps_dates,
+        "steps_vals": steps_vals,
     }
 
     # ── HTML ──────────────────────────────────────────────────────────────────
     report_date_str = today.strftime("%d %B %Y")
 
     def render_score_bar(label, val):
-        v = 0 if (val is None or (isinstance(val, float) and (np.isnan(val) or np.isinf(val)))) else int(round(float(np.clip(val, 0, 100))))
+        v = (
+            0
+            if (val is None or (isinstance(val, float) and (np.isnan(val) or np.isinf(val))))
+            else int(round(float(np.clip(val, 0, 100))))
+        )
         col = score_color(v)
         return f"""
         <div style="margin-top:10px">
@@ -548,8 +629,10 @@ def generate_report(df_workouts, daily_metrics, training_load, output_path: Path
         </div>"""
 
     def badge_cls(change_str):
-        if "+" in str(change_str): return "badge-green"
-        if "-" in str(change_str): return "badge-red"
+        if "+" in str(change_str):
+            return "badge-green"
+        if "-" in str(change_str):
+            return "badge-red"
         return "badge-neutral"
 
     html = f"""<!DOCTYPE html>
@@ -603,7 +686,9 @@ tr:hover td{{background:#1e293b44}}
     <h1>🏋️ Health Dashboard · Simon</h1>
     <div class="date">Rapport du {report_date_str} · Export Apple Watch & Health</div>
   </div>
-  <div style="font-size:13px;color:#334155">Age {age_years(BIRTH_DATE)} ans · {len(df_workouts)} séances totales enregistrées</div>
+  <div style="font-size:13px;color:#334155">Age {age_years(BIRTH_DATE)} ans · {
+        len(df_workouts)
+    } séances totales enregistrées</div>
 </div>
 
 <div class="container">
@@ -618,8 +703,11 @@ tr:hover td{{background:#1e293b44}}
         <div style="position:relative;width:120px;height:120px;margin-bottom:12px">
           <svg viewBox="0 0 120 120" style="width:120px;height:120px;transform:rotate(-90deg)">
             <circle cx="60" cy="60" r="50" fill="none" stroke="#1e293b" stroke-width="10"/>
-            <circle cx="60" cy="60" r="50" fill="none" stroke="{score_color(form_score)}" stroke-width="10"
-              stroke-dasharray="314" stroke-dashoffset="{314 - 314 * form_score / 100:.0f}" stroke-linecap="round"/>
+            <circle cx="60" cy="60" r="50" fill="none" stroke="{
+        score_color(form_score)
+    }" stroke-width="10"
+              stroke-dasharray="314" stroke-dashoffset="{
+        314 - 314 * form_score / 100:.0f}" stroke-linecap="round"/>
           </svg>
           <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center">
             <div class="ring-num" style="color:{score_color(form_score)}">{form_score}</div>
@@ -636,8 +724,11 @@ tr:hover td{{background:#1e293b44}}
         <div style="position:relative;width:120px;height:120px;margin-bottom:12px">
           <svg viewBox="0 0 120 120" style="width:120px;height:120px;transform:rotate(-90deg)">
             <circle cx="60" cy="60" r="50" fill="none" stroke="#1e293b" stroke-width="10"/>
-            <circle cx="60" cy="60" r="50" fill="none" stroke="{score_color(wake_score)}" stroke-width="10"
-              stroke-dasharray="314" stroke-dashoffset="{314 - 314 * wake_score / 100:.0f}" stroke-linecap="round"/>
+            <circle cx="60" cy="60" r="50" fill="none" stroke="{
+        score_color(wake_score)
+    }" stroke-width="10"
+              stroke-dasharray="314" stroke-dashoffset="{
+        314 - 314 * wake_score / 100:.0f}" stroke-linecap="round"/>
           </svg>
           <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center">
             <div class="ring-num" style="color:{score_color(wake_score)}">{wake_score}</div>
@@ -774,7 +865,9 @@ tr:hover td{{background:#1e293b44}}
           <div></div><div style="text-align:right;font-weight:600">{today.year - 1}</div>
           <div style="font-weight:600">{today.year}</div><div></div>
         </div>
-        {"".join(f'''
+        {
+        "".join(
+            f'''
         <div class="yoy-row">
           <div style="font-size:14px;color:#94a3b8">{m["label"]}</div>
           <div style="display:flex;gap:14px;align-items:center">
@@ -782,7 +875,10 @@ tr:hover td{{background:#1e293b44}}
             <span style="font-weight:700;color:#e2e8f0">{m["this"]}{m["unit"]}</span>
             <span class="badge {badge_cls(m["change"])}">{m["change"]}</span>
           </div>
-        </div>''' for m in yoy_metrics)}
+        </div>'''
+            for m in yoy_metrics
+        )
+    }
         <div id="ch-steps" style="height:140px;margin-top:20px"></div>
         <div style="font-size:11px;color:#334155;margin-top:4px">Pas quotidiens — 90 derniers jours</div>
       </div>
@@ -802,7 +898,9 @@ tr:hover td{{background:#1e293b44}}
           </tr>
         </thead>
         <tbody>
-          {"".join(f'''<tr>
+          {
+        "".join(
+            f'''<tr>
             <td>{r["label"]}</td>
             <td style="color:#475569">{r["date"]}</td>
             <td>{r["duration"]}</td>
@@ -810,7 +908,10 @@ tr:hover td{{background:#1e293b44}}
             <td style="color:#60a5fa;font-family:monospace">{r["pace_str"]}</td>
             <td>{r["cal_str"]}</td>
             <td style="color:#f87171">{r["hr_str"]}</td>
-          </tr>''' for r in table_rows)}
+          </tr>'''
+            for r in table_rows
+        )
+    }
         </tbody>
       </table>
     </div>
@@ -957,10 +1058,14 @@ Plotly.newPlot('ch-steps',[
 # ─────────────────────────────────────────────────────────────────────────────
 def main():
     parser = argparse.ArgumentParser(description="Health Analytics Dashboard Generator")
-    parser.add_argument("--export",    default=str(EXPORT_PATH), help="Chemin vers export.xml")
-    parser.add_argument("--output",    default=None,              help="Chemin du fichier HTML de sortie")
-    parser.add_argument("--open",      action="store_true",       help="Ouvre le rapport dans le navigateur après génération")
-    parser.add_argument("--no-cache",  action="store_true",       help="Force le re-parsing (ignore le cache)")
+    parser.add_argument("--export", default=str(EXPORT_PATH), help="Chemin vers export.xml")
+    parser.add_argument("--output", default=None, help="Chemin du fichier HTML de sortie")
+    parser.add_argument(
+        "--open", action="store_true", help="Ouvre le rapport dans le navigateur après génération"
+    )
+    parser.add_argument(
+        "--no-cache", action="store_true", help="Force le re-parsing (ignore le cache)"
+    )
     args = parser.parse_args()
 
     export_path = Path(args.export)
@@ -973,16 +1078,20 @@ def main():
     else:
         output_path = OUTPUT_DIR / f"health_report_{date.today().strftime('%Y-%m-%d')}.html"
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("  🏋️  Health Analytics Dashboard — Simon Hingant")
     print(f"  Date : {date.today().strftime('%d %B %Y')}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # Cache joblib pour accélérer les relances (sécurisé)
     import joblib
+
     cache_path = SCRIPT_DIR / ".health_cache.pkl"
-    use_cache = (cache_path.exists() and not args.no_cache and
-                 cache_path.stat().st_mtime >= export_path.stat().st_mtime)
+    use_cache = (
+        cache_path.exists()
+        and not args.no_cache
+        and cache_path.stat().st_mtime >= export_path.stat().st_mtime
+    )
 
     if use_cache:
         print("⚡ Chargement depuis le cache (utilisez --no-cache pour re-parser)…")
@@ -992,16 +1101,18 @@ def main():
         joblib.dump((workouts, records), cache_path, compress=3)
         print("💾 Cache sauvegardé")
 
-    df_workouts, daily   = build_dataframes(workouts, records)
-    training_load        = calculate_training_load(df_workouts)
-    report               = generate_report(df_workouts, daily, training_load, output_path)
+    df_workouts, daily = build_dataframes(workouts, records)
+    training_load = calculate_training_load(df_workouts)
+    report = generate_report(df_workouts, daily, training_load, output_path)
 
     print("\n🎉 Rapport prêt !")
     print(f"   → file://{report.resolve()}")
 
     if args.open:
         import subprocess
+
         subprocess.run(["open", str(report)], check=False)
+
 
 if __name__ == "__main__":
     main()

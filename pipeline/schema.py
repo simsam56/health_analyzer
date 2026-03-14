@@ -1,9 +1,9 @@
 """
 schema.py — PerformOS v3 · Schéma SQLite complet
 """
+
 import sqlite3
 from pathlib import Path
-
 
 DDL = """
 PRAGMA journal_mode=WAL;

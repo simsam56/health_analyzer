@@ -81,6 +81,25 @@ Thumbs.db
 .classpath
 .settings/
 
+# ── Frontend Next.js ─────────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# ── Fichiers debug/temp ─────────────────────────────────────────────────────
+server_*.txt
+sync_run*.txt
+db_check.txt
+diagnose_output.txt
+apple_calendars_debug.txt
+server.pid
+server_output.log
+server_run.log
+.coverage
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
 # ── Divers ────────────────────────────────────────────────────────────────────
 *.tmp
 *.bak

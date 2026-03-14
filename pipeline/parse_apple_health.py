@@ -23,47 +23,64 @@ Métriques importées (v3) :
   HKQuantityTypeIdentifierHeartRate                  → hr_avg (daily mean)
   HKQuantityTypeIdentifierBodyFatPercentage          → body_fat_pct
 """
-import sqlite3
+
 import hashlib
-from pathlib import Path
-from datetime import datetime
+import sqlite3
 from collections import defaultdict
+from datetime import datetime
+from pathlib import Path
 
 from defusedxml import ElementTree as ET
-
 
 # ─────────────────────────────────────────────────────────────────────
 # Mapping HK type → nom interne
 # ─────────────────────────────────────────────────────────────────────
 HK_QUANTITY_MAP = {
-    "HKQuantityTypeIdentifierHeartRateVariabilitySDNN":       "hrv_sdnn",
-    "HKQuantityTypeIdentifierRestingHeartRate":               "rhr",
-    "HKQuantityTypeIdentifierVO2Max":                         "vo2max",
-    "HKQuantityTypeIdentifierBodyMass":                       "weight_kg",
-    "HKQuantityTypeIdentifierStepCount":                      "steps",
-    "HKQuantityTypeIdentifierActiveEnergyBurned":             "active_cal",
-    "HKQuantityTypeIdentifierBasalEnergyBurned":              "basal_cal",
-    "HKQuantityTypeIdentifierDistanceWalkingRunning":         "distance_km",
-    "HKQuantityTypeIdentifierDistanceCycling":                "distance_cycling_km",
-    "HKQuantityTypeIdentifierFlightsClimbed":                 "flights",
-    "HKQuantityTypeIdentifierAppleExerciseTime":              "exercise_min",
-    "HKQuantityTypeIdentifierAppleStandTime":                 "stand_min",
-    "HKQuantityTypeIdentifierWalkingSpeed":                   "walk_speed_kmh",
-    "HKQuantityTypeIdentifierWalkingHeartRateAverage":        "walk_hr",
-    "HKQuantityTypeIdentifierWalkingAsymmetryPercentage":     "walk_asymmetry",
+    "HKQuantityTypeIdentifierHeartRateVariabilitySDNN": "hrv_sdnn",
+    "HKQuantityTypeIdentifierRestingHeartRate": "rhr",
+    "HKQuantityTypeIdentifierVO2Max": "vo2max",
+    "HKQuantityTypeIdentifierBodyMass": "weight_kg",
+    "HKQuantityTypeIdentifierStepCount": "steps",
+    "HKQuantityTypeIdentifierActiveEnergyBurned": "active_cal",
+    "HKQuantityTypeIdentifierBasalEnergyBurned": "basal_cal",
+    "HKQuantityTypeIdentifierDistanceWalkingRunning": "distance_km",
+    "HKQuantityTypeIdentifierDistanceCycling": "distance_cycling_km",
+    "HKQuantityTypeIdentifierFlightsClimbed": "flights",
+    "HKQuantityTypeIdentifierAppleExerciseTime": "exercise_min",
+    "HKQuantityTypeIdentifierAppleStandTime": "stand_min",
+    "HKQuantityTypeIdentifierWalkingSpeed": "walk_speed_kmh",
+    "HKQuantityTypeIdentifierWalkingHeartRateAverage": "walk_hr",
+    "HKQuantityTypeIdentifierWalkingAsymmetryPercentage": "walk_asymmetry",
     "HKQuantityTypeIdentifierWalkingDoubleSupportPercentage": "walk_double_support",
-    "HKQuantityTypeIdentifierHeartRate":                      "hr_sample",  # aggregated to hr_avg
-    "HKQuantityTypeIdentifierBodyFatPercentage":              "body_fat_pct",
+    "HKQuantityTypeIdentifierHeartRate": "hr_sample",  # aggregated to hr_avg
+    "HKQuantityTypeIdentifierBodyFatPercentage": "body_fat_pct",
 }
 
 # Métriques qui doivent être sommées par jour (pas moyennées)
-SUM_METRICS = {"steps", "active_cal", "basal_cal", "distance_km",
-               "distance_cycling_km", "flights", "exercise_min", "stand_min"}
+SUM_METRICS = {
+    "steps",
+    "active_cal",
+    "basal_cal",
+    "distance_km",
+    "distance_cycling_km",
+    "flights",
+    "exercise_min",
+    "stand_min",
+}
 
 # Métriques qui doivent être moyennées par jour
-AVG_METRICS = {"hrv_sdnn", "rhr", "vo2max", "weight_kg", "walk_speed_kmh",
-               "walk_hr", "walk_asymmetry", "walk_double_support",
-               "hr_sample", "body_fat_pct"}
+AVG_METRICS = {
+    "hrv_sdnn",
+    "rhr",
+    "vo2max",
+    "weight_kg",
+    "walk_speed_kmh",
+    "walk_hr",
+    "walk_asymmetry",
+    "walk_double_support",
+    "hr_sample",
+    "body_fat_pct",
+}
 
 # Conversions d'unités Apple Health → unités internes
 UNIT_CONVERSIONS = {
@@ -97,35 +114,35 @@ def parse_workouts(xml_path: str | Path) -> list[dict]:
             return float(default)
 
     AH_TYPE_MAP = {
-        "HKWorkoutActivityTypeRunning":          "Running",
-        "HKWorkoutActivityTypeCycling":          "Cycling",
-        "HKWorkoutActivityTypeSwimming":         "Swimming",
+        "HKWorkoutActivityTypeRunning": "Running",
+        "HKWorkoutActivityTypeCycling": "Cycling",
+        "HKWorkoutActivityTypeSwimming": "Swimming",
         "HKWorkoutActivityTypeTraditionalStrengthTraining": "Strength Training",
-        "HKWorkoutActivityTypeFunctionalStrengthTraining":  "Strength Training",
+        "HKWorkoutActivityTypeFunctionalStrengthTraining": "Strength Training",
         "HKWorkoutActivityTypeHighIntensityIntervalTraining": "HIIT",
-        "HKWorkoutActivityTypeWalking":          "Walking",
-        "HKWorkoutActivityTypeYoga":             "Yoga",
-        "HKWorkoutActivityTypeElliptical":       "Elliptical",
-        "HKWorkoutActivityTypeRowing":           "Rowing",
-        "HKWorkoutActivityTypeSurfingSports":    "Surfing",
-        "HKWorkoutActivityTypeSnowboarding":     "Snowboarding",
-        "HKWorkoutActivityTypeSkatingSports":    "Skating",
-        "HKWorkoutActivityTypeTennis":           "Tennis",
+        "HKWorkoutActivityTypeWalking": "Walking",
+        "HKWorkoutActivityTypeYoga": "Yoga",
+        "HKWorkoutActivityTypeElliptical": "Elliptical",
+        "HKWorkoutActivityTypeRowing": "Rowing",
+        "HKWorkoutActivityTypeSurfingSports": "Surfing",
+        "HKWorkoutActivityTypeSnowboarding": "Snowboarding",
+        "HKWorkoutActivityTypeSkatingSports": "Skating",
+        "HKWorkoutActivityTypeTennis": "Tennis",
         "HKWorkoutActivityTypeCrossCountrySkiing": "Cross Country Skiing",
-        "HKWorkoutActivityTypeMindAndBody":      "Mindfulness",
-        "HKWorkoutActivityTypeOther":            "Other",
-        "HKWorkoutActivityTypeCrossTraining":    "Cross Training",
-        "HKWorkoutActivityTypeMixedCardio":      "Cardio",
-        "HKWorkoutActivityTypePilates":          "Pilates",
-        "HKWorkoutActivityTypeBarre":            "Barre",
-        "HKWorkoutActivityTypeCoreTraining":     "Core Training",
-        "HKWorkoutActivityTypeDance":            "Dance",
-        "HKWorkoutActivityTypeFlexibility":      "Flexibility",
-        "HKWorkoutActivityTypeCooldown":         "Cooldown",
+        "HKWorkoutActivityTypeMindAndBody": "Mindfulness",
+        "HKWorkoutActivityTypeOther": "Other",
+        "HKWorkoutActivityTypeCrossTraining": "Cross Training",
+        "HKWorkoutActivityTypeMixedCardio": "Cardio",
+        "HKWorkoutActivityTypePilates": "Pilates",
+        "HKWorkoutActivityTypeBarre": "Barre",
+        "HKWorkoutActivityTypeCoreTraining": "Core Training",
+        "HKWorkoutActivityTypeDance": "Dance",
+        "HKWorkoutActivityTypeFlexibility": "Flexibility",
+        "HKWorkoutActivityTypeCooldown": "Cooldown",
     }
 
     # Important: utiliser l'événement "end" pour lire les WorkoutStatistics enfants
-    for event, elem in ET.iterparse(xml_path, events=["end"]):
+    for _event, elem in ET.iterparse(xml_path, events=["end"]):
         if elem.tag != "Workout":
             continue
 
@@ -149,18 +166,20 @@ def parse_workouts(xml_path: str | Path) -> list[dict]:
         key_raw = f"ah_{started}"
         canonical_key = hashlib.sha256(key_raw.encode()).hexdigest()[:16]
 
-        workouts.append({
-            "source":        "apple_health",
-            "source_id":     None,
-            "type":          activity_type,
-            "name":          None,
-            "started_at":    started,
-            "duration_s":    int(duration_s),
-            "distance_m":    distance_m if distance_m > 0 else None,
-            "calories":      int(calories) if calories else None,
-            "avg_hr":        avg_hr,
-            "canonical_key": canonical_key,
-        })
+        workouts.append(
+            {
+                "source": "apple_health",
+                "source_id": None,
+                "type": activity_type,
+                "name": None,
+                "started_at": started,
+                "duration_s": int(duration_s),
+                "distance_m": distance_m if distance_m > 0 else None,
+                "calories": int(calories) if calories else None,
+                "avg_hr": avg_hr,
+                "canonical_key": canonical_key,
+            }
+        )
         elem.clear()
 
     return workouts
@@ -175,7 +194,7 @@ def parse_health_records(xml_path: str | Path) -> dict[str, dict[str, float]]:
     xml_path = str(xml_path)
 
     # Accumulateurs par jour
-    sums  = defaultdict(lambda: defaultdict(float))
+    sums = defaultdict(lambda: defaultdict(float))
     counts = defaultdict(lambda: defaultdict(int))
 
     # Sleep : phases par date de réveil
@@ -188,7 +207,7 @@ def parse_health_records(xml_path: str | Path) -> dict[str, dict[str, float]]:
         "HKCategoryValueSleepAnalysisAsleepREM",
     }
 
-    for event, elem in ET.iterparse(xml_path, events=["start"]):
+    for _event, elem in ET.iterparse(xml_path, events=["start"]):
         tag = elem.tag
 
         if tag == "Record":
@@ -200,7 +219,7 @@ def parse_health_records(xml_path: str | Path) -> dict[str, dict[str, float]]:
                 if val in SLEEP_ASLEEP:
                     try:
                         start = datetime.fromisoformat(elem.get("startDate", "")[:19])
-                        end   = datetime.fromisoformat(elem.get("endDate",   "")[:19])
+                        end = datetime.fromisoformat(elem.get("endDate", "")[:19])
                         dur_h = (end - start).total_seconds() / 3600
                         if 0 < dur_h < 16:
                             # Attribuer au jour de réveil
@@ -220,14 +239,14 @@ def parse_health_records(xml_path: str | Path) -> dict[str, dict[str, float]]:
 
             try:
                 raw_val = float(elem.get("value", 0) or 0)
-                unit    = elem.get("unit", "")
-                value   = _convert(metric, raw_val, unit)
-                date    = elem.get("startDate", "")[:10]
+                unit = elem.get("unit", "")
+                value = _convert(metric, raw_val, unit)
+                date = elem.get("startDate", "")[:10]
                 if not date or value <= 0:
                     elem.clear()
                     continue
 
-                sums[date][metric]   += value
+                sums[date][metric] += value
                 counts[date][metric] += 1
 
             except (ValueError, TypeError):
@@ -271,9 +290,18 @@ def insert_activities(conn: sqlite3.Connection, workouts: list[dict]) -> tuple[i
                    (source, source_id, type, name, started_at, duration_s,
                     distance_m, calories, avg_hr, canonical_key)
                    VALUES (?,?,?,?,?,?,?,?,?,?)""",
-                (w["source"], w["source_id"], w["type"], w["name"],
-                 w["started_at"], w["duration_s"], w["distance_m"],
-                 w["calories"], w["avg_hr"], w["canonical_key"]),
+                (
+                    w["source"],
+                    w["source_id"],
+                    w["type"],
+                    w["name"],
+                    w["started_at"],
+                    w["duration_s"],
+                    w["distance_m"],
+                    w["calories"],
+                    w["avg_hr"],
+                    w["canonical_key"],
+                ),
             )
             if conn.execute("SELECT changes()").fetchone()[0]:
                 inserted += 1
@@ -285,8 +313,7 @@ def insert_activities(conn: sqlite3.Connection, workouts: list[dict]) -> tuple[i
     return inserted, skipped
 
 
-def insert_health_metrics(conn: sqlite3.Connection,
-                          daily: dict[str, dict]) -> dict[str, int]:
+def insert_health_metrics(conn: sqlite3.Connection, daily: dict[str, dict]) -> dict[str, int]:
     # Snapshot des métriques Apple existantes pour distinguer:
     # nouvelles insertions / mises à jour / valeurs inchangées.
     existing_rows = conn.execute(
@@ -372,18 +399,19 @@ def run(xml_path: str | Path, db_path: str | Path) -> dict:
     conn.close()
     return {
         "workouts_inserted": ins_w,
-        "workouts_skipped":  skip_w,
-        "metrics_inserted":  metrics_stats.get("new", 0),
-        "metrics_new":       metrics_stats.get("new", 0),
-        "metrics_updated":   metrics_stats.get("updated", 0),
+        "workouts_skipped": skip_w,
+        "metrics_inserted": metrics_stats.get("new", 0),
+        "metrics_new": metrics_stats.get("new", 0),
+        "metrics_updated": metrics_stats.get("updated", 0),
         "metrics_unchanged": metrics_stats.get("unchanged", 0),
-        "days_covered":      len(daily),
+        "days_covered": len(daily),
     }
 
 
 if __name__ == "__main__":
     import sys
+
     xml = sys.argv[1] if len(sys.argv) > 1 else "export.xml"
-    db  = sys.argv[2] if len(sys.argv) > 2 else "athlete.db"
+    db = sys.argv[2] if len(sys.argv) > 2 else "athlete.db"
     result = run(xml, db)
     print(result)

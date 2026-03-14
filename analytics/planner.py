@@ -1,12 +1,12 @@
 """
 planner.py — Pilotage hebdomadaire (planning + catégories de vie)
 """
+
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, date, time, timedelta
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
-
 
 CATEGORY_ALIASES = {
     # Nouveaux domaines
@@ -43,13 +43,27 @@ TRIAGE_STATUS_ALIASES = {
 }
 
 WEEKDAY_ALIASES = {
-    "lundi": 0, "monday": 0, "mon": 0,
-    "mardi": 1, "tuesday": 1, "tue": 1,
-    "mercredi": 2, "wednesday": 2, "wed": 2,
-    "jeudi": 3, "thursday": 3, "thu": 3,
-    "vendredi": 4, "friday": 4, "fri": 4,
-    "samedi": 5, "saturday": 5, "sat": 5,
-    "dimanche": 6, "sunday": 6, "sun": 6,
+    "lundi": 0,
+    "monday": 0,
+    "mon": 0,
+    "mardi": 1,
+    "tuesday": 1,
+    "tue": 1,
+    "mercredi": 2,
+    "wednesday": 2,
+    "wed": 2,
+    "jeudi": 3,
+    "thursday": 3,
+    "thu": 3,
+    "vendredi": 4,
+    "friday": 4,
+    "fri": 4,
+    "samedi": 5,
+    "saturday": 5,
+    "sat": 5,
+    "dimanche": 6,
+    "sunday": 6,
+    "sun": 6,
 }
 
 WEEK_REF_ALIASES = {
@@ -85,11 +99,58 @@ def normalize_triage_status(raw: str | None) -> str:
 def infer_category(title: str | None, calendar_name: str | None = None) -> str:
     text = f"{title or ''} {calendar_name or ''}".lower()
 
-    sport_kw = ["run", "course", "muscu", "gym", "tennis", "golf", "swim", "natation", "vélo", "velo", "sport", "workout", "crossfit", "trail"]
+    sport_kw = [
+        "run",
+        "course",
+        "muscu",
+        "gym",
+        "tennis",
+        "golf",
+        "swim",
+        "natation",
+        "vélo",
+        "velo",
+        "sport",
+        "workout",
+        "crossfit",
+        "trail",
+    ]
     yoga_kw = ["yoga", "méditation", "meditation", "mobilité", "stretching", "pilates"]
-    work_kw = ["client", "meeting", "rdv", "call", "prospect", "linkedin", "mail", "travail", "business", "entreprise"]
-    social_kw = ["famille", "ami", "diner", "déjeuner", "dej", "soirée", "sortie", "relation", "fête", "anniversaire"]
-    formation_kw = ["piano", "apprendre", "learning", "formation", "cours", "leçon", "lesson", "conférence", "webinaire"]
+    work_kw = [
+        "client",
+        "meeting",
+        "rdv",
+        "call",
+        "prospect",
+        "linkedin",
+        "mail",
+        "travail",
+        "business",
+        "entreprise",
+    ]
+    social_kw = [
+        "famille",
+        "ami",
+        "diner",
+        "déjeuner",
+        "dej",
+        "soirée",
+        "sortie",
+        "relation",
+        "fête",
+        "anniversaire",
+    ]
+    formation_kw = [
+        "piano",
+        "apprendre",
+        "learning",
+        "formation",
+        "cours",
+        "leçon",
+        "lesson",
+        "conférence",
+        "webinaire",
+    ]
 
     if any(k in text for k in yoga_kw):
         return "yoga"
@@ -217,6 +278,7 @@ def add_task(
     if sync_to_apple and start_at and end_at:
         try:
             from integrations.apple_calendar import create_apple_calendar_event
+
             res = create_apple_calendar_event(
                 title=title,
                 start_at=start_at,
@@ -333,22 +395,26 @@ def add_tasks_batch(
                 sync_to_apple=sync_apple,
                 apple_calendar_name=raw.get("calendar_name") or default_calendar_name,
             )
-            created.append({
-                "index": idx,
-                "title": title,
-                "task_id": res.get("task_id"),
-                "start_at": res.get("start_at"),
-                "end_at": res.get("end_at"),
-                "category": res.get("category"),
-                "apple_uid": res.get("apple_uid"),
-                "apple_sync_error": res.get("apple_sync_error"),
-            })
+            created.append(
+                {
+                    "index": idx,
+                    "title": title,
+                    "task_id": res.get("task_id"),
+                    "start_at": res.get("start_at"),
+                    "end_at": res.get("end_at"),
+                    "category": res.get("category"),
+                    "apple_uid": res.get("apple_uid"),
+                    "apple_sync_error": res.get("apple_sync_error"),
+                }
+            )
         except Exception as e:
-            errors.append({
-                "index": idx,
-                "title": raw.get("title"),
-                "error": str(e),
-            })
+            errors.append(
+                {
+                    "index": idx,
+                    "title": raw.get("title"),
+                    "error": str(e),
+                }
+            )
 
     return {
         "ok": len(errors) == 0,
@@ -391,17 +457,27 @@ def update_task(
         return {"ok": False, "error": "task_not_found"}
 
     # Appliquer les champs fournis ou garder l'existant
-    new_title     = (title.strip() if title is not None else row["title"]) or "Tâche"
-    new_category  = normalize_category(category) if category is not None else (row["category"] or "autre")
-    new_start     = start_at if start_at is not None else (row["start_at"] or "")
-    new_end       = end_at   if end_at   is not None else (row["end_at"]   or "")
-    new_notes     = (notes.strip() if notes else None) if notes is not None else row["notes"]
-    new_ts        = normalize_triage_status(triage_status) if triage_status is not None else (row["triage_status"] or "a_determiner")
+    new_title = (title.strip() if title is not None else row["title"]) or "Tâche"
+    new_category = (
+        normalize_category(category) if category is not None else (row["category"] or "autre")
+    )
+    new_start = start_at if start_at is not None else (row["start_at"] or "")
+    new_end = end_at if end_at is not None else (row["end_at"] or "")
+    new_notes = (notes.strip() if notes else None) if notes is not None else row["notes"]
+    new_ts = (
+        normalize_triage_status(triage_status)
+        if triage_status is not None
+        else (row["triage_status"] or "a_determiner")
+    )
     new_scheduled = int(scheduled) if scheduled is not None else (row["scheduled"] or 0)
-    new_sch_date  = scheduled_date  if scheduled_date  is not None else row["scheduled_date"]
+    new_sch_date = scheduled_date if scheduled_date is not None else row["scheduled_date"]
     new_sch_start = scheduled_start if scheduled_start is not None else row["scheduled_start"]
-    new_sch_end   = scheduled_end   if scheduled_end   is not None else row["scheduled_end"]
-    new_last_bkt  = last_bucket_before_scheduling if last_bucket_before_scheduling is not None else row["last_bucket_before_scheduling"]
+    new_sch_end = scheduled_end if scheduled_end is not None else row["scheduled_end"]
+    new_last_bkt = (
+        last_bucket_before_scheduling
+        if last_bucket_before_scheduling is not None
+        else row["last_bucket_before_scheduling"]
+    )
 
     calendar_uid = row["calendar_uid"]
     source = row["source"] or "local"
@@ -412,6 +488,7 @@ def update_task(
             # Mettre à jour l'événement Apple existant
             try:
                 from integrations.apple_calendar import update_apple_calendar_event
+
                 res = update_apple_calendar_event(
                     event_uid=calendar_uid,
                     title=new_title,
@@ -427,6 +504,7 @@ def update_task(
             # Tâche locale sans événement Apple — créer l'événement maintenant
             try:
                 from integrations.apple_calendar import create_apple_calendar_event
+
                 res = create_apple_calendar_event(
                     title=new_title,
                     start_at=new_sch_start,
@@ -500,6 +578,7 @@ def delete_task(
     if sync_apple and (row["source"] == "apple_calendar") and row["calendar_uid"]:
         try:
             from integrations.apple_calendar import delete_apple_calendar_event
+
             res = delete_apple_calendar_event(event_uid=row["calendar_uid"])
             if not res.get("enabled"):
                 sync_error = res.get("error")
@@ -507,6 +586,13 @@ def delete_task(
             sync_error = str(e)
 
     cur.execute("DELETE FROM planner_tasks WHERE id=?", (int(task_id),))
+    # Also remove from calendar_events so the event doesn't reappear as
+    # an "Apple-only" item before the next full sync.
+    if row["calendar_uid"]:
+        cur.execute(
+            "DELETE FROM calendar_events WHERE event_uid=?",
+            (row["calendar_uid"],),
+        )
     conn.commit()
     conn.close()
     return {"ok": True, "task_id": int(task_id), "sync_error": sync_error}
@@ -522,6 +608,7 @@ def update_apple_only_event(
     """Met à jour un événement Apple non géré par planner_tasks."""
     try:
         from integrations.apple_calendar import update_apple_calendar_event
+
         return update_apple_calendar_event(
             event_uid=event_uid,
             title=title,
@@ -533,11 +620,20 @@ def update_apple_only_event(
         return {"enabled": False, "error": str(e)}
 
 
-def delete_apple_only_event(event_uid: str) -> dict:
+def delete_apple_only_event(event_uid: str, db_path: str | Path | None = None) -> dict:
     """Supprime un événement Apple non géré par planner_tasks."""
     try:
         from integrations.apple_calendar import delete_apple_calendar_event
-        return delete_apple_calendar_event(event_uid=event_uid)
+
+        res = delete_apple_calendar_event(event_uid=event_uid)
+        # Also remove from local calendar_events table so it doesn't linger
+        # until the next full sync.
+        if db_path:
+            conn = connect_db(db_path)
+            conn.execute("DELETE FROM calendar_events WHERE event_uid=?", (event_uid,))
+            conn.commit()
+            conn.close()
+        return res
     except Exception as e:
         return {"enabled": False, "error": str(e)}
 
@@ -637,8 +733,10 @@ def get_planner_events(
     end_at: str,
 ) -> list[dict]:
     """Retourne les tâches planifiées (scheduled=1) + événements Apple dans la fenêtre."""
-    tasks = [dict(r) for r in conn.execute(
-        """
+    tasks = [
+        dict(r)
+        for r in conn.execute(
+            """
         SELECT
           id, title, category, start_at, end_at, notes, status, source, calendar_uid,
           triage_status, scheduled, scheduled_date, scheduled_start, scheduled_end,
@@ -650,19 +748,23 @@ def get_planner_events(
           AND scheduled_start >= ? AND scheduled_start <= ?
         ORDER BY scheduled_start
         """,
-        (start_at, end_at),
-    ).fetchall()]
+            (start_at, end_at),
+        ).fetchall()
+    ]
 
-    cals = [dict(r) for r in conn.execute(
-        """
+    cals = [
+        dict(r)
+        for r in conn.execute(
+            """
         SELECT
           event_uid, title, calendar_name, start_at, end_at, notes, source
         FROM calendar_events
         WHERE start_at>=? AND start_at<=?
         ORDER BY start_at
         """,
-        (start_at, end_at),
-    ).fetchall()]
+            (start_at, end_at),
+        ).fetchall()
+    ]
 
     rows: list[dict] = []
     task_calendar_keys = set()
@@ -672,22 +774,24 @@ def get_planner_events(
         if cal_uid and sch_start:
             task_calendar_keys.add((str(cal_uid), str(sch_start)[:16]))
 
-        rows.append({
-            "id": f"task:{t.get('id')}",
-            "task_id": t.get("id"),
-            "title": t.get("title") or "Tâche",
-            "category": normalize_category(t.get("category")),
-            "start_at": t.get("scheduled_start") or t.get("start_at"),
-            "end_at": t.get("scheduled_end") or t.get("end_at"),
-            "notes": t.get("notes"),
-            "source": t.get("source") or "local",
-            "calendar_uid": cal_uid,
-            "calendar_name": None,
-            "editable": True,
-            "triage_status": t.get("triage_status") or "a_planifier",
-            "scheduled": True,
-            "last_bucket_before_scheduling": t.get("last_bucket_before_scheduling"),
-        })
+        rows.append(
+            {
+                "id": f"task:{t.get('id')}",
+                "task_id": t.get("id"),
+                "title": t.get("title") or "Tâche",
+                "category": normalize_category(t.get("category")),
+                "start_at": t.get("scheduled_start") or t.get("start_at"),
+                "end_at": t.get("scheduled_end") or t.get("end_at"),
+                "notes": t.get("notes"),
+                "source": t.get("source") or "local",
+                "calendar_uid": cal_uid,
+                "calendar_name": None,
+                "editable": True,
+                "triage_status": t.get("triage_status") or "a_planifier",
+                "scheduled": True,
+                "last_bucket_before_scheduling": t.get("last_bucket_before_scheduling"),
+            }
+        )
 
     for e in cals:
         uid = str(e.get("event_uid") or "")
@@ -696,22 +800,24 @@ def get_planner_events(
             continue
         title = e.get("title") or "Événement"
         cal_name = e.get("calendar_name")
-        rows.append({
-            "id": f"apple:{uid}",
-            "task_id": None,
-            "title": title,
-            "category": infer_category(title, cal_name),
-            "start_at": e.get("start_at"),
-            "end_at": e.get("end_at"),
-            "notes": e.get("notes"),
-            "source": "apple_calendar",
-            "calendar_uid": uid,
-            "calendar_name": cal_name,
-            "editable": True,
-            "triage_status": "a_planifier",
-            "scheduled": True,
-            "last_bucket_before_scheduling": None,
-        })
+        rows.append(
+            {
+                "id": f"apple:{uid}",
+                "task_id": None,
+                "title": title,
+                "category": infer_category(title, cal_name),
+                "start_at": e.get("start_at"),
+                "end_at": e.get("end_at"),
+                "notes": e.get("notes"),
+                "source": "apple_calendar",
+                "calendar_uid": uid,
+                "calendar_name": cal_name,
+                "editable": True,
+                "triage_status": "a_planifier",
+                "scheduled": True,
+                "last_bucket_before_scheduling": None,
+            }
+        )
 
     rows.sort(key=lambda x: x.get("start_at") or "")
     return rows
@@ -719,8 +825,10 @@ def get_planner_events(
 
 def get_board_tasks(conn: sqlite3.Connection) -> list[dict]:
     """Retourne toutes les tâches non planifiées (board), y compris 'termine'."""
-    rows = [dict(r) for r in conn.execute(
-        """
+    rows = [
+        dict(r)
+        for r in conn.execute(
+            """
         SELECT
           id, title, category, notes, status, source, calendar_uid,
           triage_status, scheduled, created_at, updated_at
@@ -737,22 +845,25 @@ def get_board_tasks(conn: sqlite3.Connection) -> list[dict]:
           END,
           created_at DESC
         """
-    ).fetchall()]
+        ).fetchall()
+    ]
 
     result = []
     for r in rows:
-        result.append({
-            "id": f"task:{r.get('id')}",
-            "task_id": r.get("id"),
-            "title": r.get("title") or "Tâche",
-            "category": normalize_category(r.get("category")),
-            "notes": r.get("notes"),
-            "source": r.get("source") or "local",
-            "calendar_uid": r.get("calendar_uid"),
-            "triage_status": r.get("triage_status") or "a_determiner",
-            "scheduled": False,
-            "created_at": r.get("created_at"),
-        })
+        result.append(
+            {
+                "id": f"task:{r.get('id')}",
+                "task_id": r.get("id"),
+                "title": r.get("title") or "Tâche",
+                "category": normalize_category(r.get("category")),
+                "notes": r.get("notes"),
+                "source": r.get("source") or "local",
+                "calendar_uid": r.get("calendar_uid"),
+                "triage_status": r.get("triage_status") or "a_determiner",
+                "scheduled": False,
+                "created_at": r.get("created_at"),
+            }
+        )
     return result
 
 
@@ -805,28 +916,36 @@ def weekly_category_summary(events: list[dict], week_start: date) -> dict:
 
 def weekly_series(conn: sqlite3.Connection) -> dict:
     """Séries longues (2017+): heures entraînement/sem & pas/sem."""
-    training_h = [dict(r) for r in conn.execute(
-        """
+    training_h = [
+        dict(r)
+        for r in conn.execute(
+            """
         SELECT strftime('%Y-W%W', started_at) AS week, ROUND(SUM(COALESCE(duration_s,0))/3600.0,2) AS value
         FROM activities
         WHERE started_at IS NOT NULL
         GROUP BY week
         ORDER BY week
         """
-    ).fetchall()]
+        ).fetchall()
+    ]
 
-    steps_week = [dict(r) for r in conn.execute(
-        """
+    steps_week = [
+        dict(r)
+        for r in conn.execute(
+            """
         SELECT strftime('%Y-W%W', date) AS week, ROUND(SUM(value),0) AS value
         FROM health_metrics
         WHERE metric='steps'
         GROUP BY week
         ORDER BY week
         """
-    ).fetchall()]
+        ).fetchall()
+    ]
 
-    sport_mix = [dict(r) for r in conn.execute(
-        """
+    sport_mix = [
+        dict(r)
+        for r in conn.execute(
+            """
         SELECT type, ROUND(SUM(COALESCE(duration_s,0))/3600.0,2) AS hours
         FROM activities
         WHERE started_at IS NOT NULL
@@ -835,7 +954,8 @@ def weekly_series(conn: sqlite3.Connection) -> dict:
         ORDER BY hours DESC
         LIMIT 12
         """
-    ).fetchall()]
+        ).fetchall()
+    ]
 
     return {
         "training_hours_weekly": training_h,

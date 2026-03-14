@@ -8,11 +8,12 @@ Structure FIT Garmin :
   - session message         : résumé activité
   - workout message         : nom de la séance (wkt_name)
 """
+
+import csv
 import gzip
 import sqlite3
-import csv
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 try:
     import fitparse
@@ -20,8 +21,8 @@ except ImportError:
     print("⚠️  fitparse manquant — pip install fitparse --break-system-packages")
     fitparse = None
 
-ROOT       = Path(__file__).parent.parent
-DB_PATH    = ROOT / "athlete.db"
+ROOT = Path(__file__).parent.parent
+DB_PATH = ROOT / "athlete.db"
 STRAVA_DIR = ROOT / "export_strava"
 
 # ─────────────────────────────────────────────────────────────────
@@ -30,18 +31,18 @@ STRAVA_DIR = ROOT / "export_strava"
 # ─────────────────────────────────────────────────────────────────
 GARMIN_CAT_IDX = {
     # Pectoraux
-    0:  "bench_press",       # confirmé par exercise_title
-    1:  "cable_crossover",
-    2:  "fly",
-    3:  "chest_press",
+    0: "bench_press",  # confirmé par exercise_title
+    1: "cable_crossover",
+    2: "fly",
+    3: "chest_press",
     # Dos
-    4:  "lat_pulldown",
-    5:  "pull_up",
-    6:  "row",               # confirmé
-    7:  "deadlift",
-    8:  "back_extension",    # confirmé
+    4: "lat_pulldown",
+    5: "pull_up",
+    6: "row",  # confirmé
+    7: "deadlift",
+    8: "back_extension",  # confirmé
     # Épaules
-    9:  "shoulder_press",    # confirmé
+    9: "shoulder_press",  # confirmé
     10: "lateral_raise",
     11: "front_raise",
     12: "face_pull",
@@ -56,15 +57,15 @@ GARMIN_CAT_IDX = {
     19: "dip",
     20: "skull_crusher",
     # Jambes
-    21: "squat",             # confirmé
+    21: "squat",  # confirmé
     22: "leg_press",
-    23: "leg_curl",          # confirmé (cat=23 dans données réelles)
-    24: "leg_extension",     # confirmé (cat=24 dans données réelles)
+    23: "leg_curl",  # confirmé (cat=23 dans données réelles)
+    24: "leg_extension",  # confirmé (cat=24 dans données réelles)
     25: "lunge",
     26: "hip_thrust",
     27: "calf_raise",
     # Core
-    28: "sit_up",            # confirmé (cat=28 dans données réelles)
+    28: "sit_up",  # confirmé (cat=28 dans données réelles)
     29: "crunch",
     30: "plank",
     31: "leg_raise",
@@ -73,125 +74,118 @@ GARMIN_CAT_IDX = {
     34: "suspension",
     35: "push_up",
     36: "burpee",
-    65534: "unknown",        # valeur sentinel Garmin
+    65534: "unknown",  # valeur sentinel Garmin
 }
 
 # Mapping catégorie → (Groupe Musculaire, Sous-groupe)
 CATEGORY_TO_MUSCLE = {
-    "bench_press":      ("Pecs",      "Pecs Moyen"),
-    "cable_crossover":  ("Pecs",      "Pecs Bas"),
-    "fly":              ("Pecs",      "Pecs Moyen"),
-    "chest_press":      ("Pecs",      "Pecs Moyen"),
-    "incline_press":    ("Pecs",      "Pecs Haut"),
-    "decline_press":    ("Pecs",      "Pecs Bas"),
-    "push_up":          ("Pecs",      "Pecs Bas"),
-
-    "lat_pulldown":     ("Dos",       "Grand Dorsal"),
-    "pull_up":          ("Dos",       "Grand Dorsal"),
-    "row":              ("Dos",       "Rhomboïdes"),
-    "seated_row":       ("Dos",       "Rhomboïdes"),
-    "deadlift":         ("Dos",       "Lombaires"),
-    "back_extension":   ("Dos",       "Lombaires"),
-    "good_morning":     ("Dos",       "Lombaires"),
-
-    "shoulder_press":   ("Épaules",   "Faisceau Antérieur"),
-    "lateral_raise":    ("Épaules",   "Faisceau Latéral"),
-    "front_raise":      ("Épaules",   "Faisceau Antérieur"),
-    "face_pull":        ("Épaules",   "Faisceau Postérieur"),
-    "shrug":            ("Épaules",   "Trapèzes"),
-    "upright_row":      ("Épaules",   "Faisceau Latéral"),
-    "arnold_press":     ("Épaules",   "Faisceau Antérieur"),
-
-    "curl":             ("Biceps",    "Biceps Brachial"),
-    "bicep_curl":       ("Biceps",    "Biceps Brachial"),
-    "hammer_curl":      ("Biceps",    "Brachial"),
-    "preacher_curl":    ("Biceps",    "Biceps Brachial"),
-
-    "tricep_extension": ("Triceps",   "Chef Long"),
-    "triceps_extension":("Triceps",   "Chef Long"),
-    "skull_crusher":    ("Triceps",   "Chef Long"),
-    "tricep_pressdown": ("Triceps",   "Chef Latéral"),
-    "close_grip_press": ("Triceps",   "Chef Médial"),
-    "dip":              ("Triceps",   "Chef Long"),
-
-    "squat":            ("Jambes",    "Quadriceps"),
-    "leg_press":        ("Jambes",    "Quadriceps"),
-    "leg_extension":    ("Jambes",    "Quadriceps"),
-    "lunge":            ("Jambes",    "Quadriceps"),
-    "leg_curl":         ("Jambes",    "Ischio-Jambiers"),
-    "romanian_deadlift":("Jambes",    "Ischio-Jambiers"),
-    "hip_thrust":       ("Jambes",    "Fessiers"),
-    "hip_raise":        ("Jambes",    "Fessiers"),
-    "glute_bridge":     ("Jambes",    "Fessiers"),
-    "calf_raise":       ("Jambes",    "Mollets"),
-    "step_up":          ("Jambes",    "Quadriceps"),
-    "box_jump":         ("Jambes",    "Quadriceps"),
-
-    "sit_up":           ("Core",      "Abdominaux"),
-    "crunch":           ("Core",      "Abdominaux"),
-    "plank":            ("Core",      "Gainage"),
-    "russian_twist":    ("Core",      "Obliques"),
-    "leg_raise":        ("Core",      "Abdominaux Bas"),
-    "ab_wheel":         ("Core",      "Abdominaux"),
-    "flye":             ("Pecs",      "Pecs Moyen"),
-    "suspension":       ("Core",      "Gainage"),
-    "mountain_climber": ("Core",      "Gainage"),
-
-    "burpee":           ("Cardio",    "Full Body"),
-    "jumping_jack":     ("Cardio",    "Full Body"),
-    "unknown":          ("Inconnu",   "Inconnu"),
+    "bench_press": ("Pecs", "Pecs Moyen"),
+    "cable_crossover": ("Pecs", "Pecs Bas"),
+    "fly": ("Pecs", "Pecs Moyen"),
+    "chest_press": ("Pecs", "Pecs Moyen"),
+    "incline_press": ("Pecs", "Pecs Haut"),
+    "decline_press": ("Pecs", "Pecs Bas"),
+    "push_up": ("Pecs", "Pecs Bas"),
+    "lat_pulldown": ("Dos", "Grand Dorsal"),
+    "pull_up": ("Dos", "Grand Dorsal"),
+    "row": ("Dos", "Rhomboïdes"),
+    "seated_row": ("Dos", "Rhomboïdes"),
+    "deadlift": ("Dos", "Lombaires"),
+    "back_extension": ("Dos", "Lombaires"),
+    "good_morning": ("Dos", "Lombaires"),
+    "shoulder_press": ("Épaules", "Faisceau Antérieur"),
+    "lateral_raise": ("Épaules", "Faisceau Latéral"),
+    "front_raise": ("Épaules", "Faisceau Antérieur"),
+    "face_pull": ("Épaules", "Faisceau Postérieur"),
+    "shrug": ("Épaules", "Trapèzes"),
+    "upright_row": ("Épaules", "Faisceau Latéral"),
+    "arnold_press": ("Épaules", "Faisceau Antérieur"),
+    "curl": ("Biceps", "Biceps Brachial"),
+    "bicep_curl": ("Biceps", "Biceps Brachial"),
+    "hammer_curl": ("Biceps", "Brachial"),
+    "preacher_curl": ("Biceps", "Biceps Brachial"),
+    "tricep_extension": ("Triceps", "Chef Long"),
+    "triceps_extension": ("Triceps", "Chef Long"),
+    "skull_crusher": ("Triceps", "Chef Long"),
+    "tricep_pressdown": ("Triceps", "Chef Latéral"),
+    "close_grip_press": ("Triceps", "Chef Médial"),
+    "dip": ("Triceps", "Chef Long"),
+    "squat": ("Jambes", "Quadriceps"),
+    "leg_press": ("Jambes", "Quadriceps"),
+    "leg_extension": ("Jambes", "Quadriceps"),
+    "lunge": ("Jambes", "Quadriceps"),
+    "leg_curl": ("Jambes", "Ischio-Jambiers"),
+    "romanian_deadlift": ("Jambes", "Ischio-Jambiers"),
+    "hip_thrust": ("Jambes", "Fessiers"),
+    "hip_raise": ("Jambes", "Fessiers"),
+    "glute_bridge": ("Jambes", "Fessiers"),
+    "calf_raise": ("Jambes", "Mollets"),
+    "step_up": ("Jambes", "Quadriceps"),
+    "box_jump": ("Jambes", "Quadriceps"),
+    "sit_up": ("Core", "Abdominaux"),
+    "crunch": ("Core", "Abdominaux"),
+    "plank": ("Core", "Gainage"),
+    "russian_twist": ("Core", "Obliques"),
+    "leg_raise": ("Core", "Abdominaux Bas"),
+    "ab_wheel": ("Core", "Abdominaux"),
+    "flye": ("Pecs", "Pecs Moyen"),
+    "suspension": ("Core", "Gainage"),
+    "mountain_climber": ("Core", "Gainage"),
+    "burpee": ("Cardio", "Full Body"),
+    "jumping_jack": ("Cardio", "Full Body"),
+    "unknown": ("Inconnu", "Inconnu"),
 }
 
 # Mapping nom exercice FR → catégorie
 NAME_TO_CATEGORY = {
     "développé couché avec barre": "bench_press",
-    "développé couché":            "bench_press",
-    "développé incliné":           "incline_press",
-    "développé militaire":         "shoulder_press",
-    "développé épaules":           "shoulder_press",
-    "rowing barre":                "row",
-    "rowing haltère":              "row",
-    "tirage horizontal":           "seated_row",
-    "traction":                    "pull_up",
-    "tirage vertical":             "lat_pulldown",
-    "soulevé de terre":            "deadlift",
-    "soulevé de terre roumain":    "romanian_deadlift",
-    "squat arrière":               "squat",
-    "squat avant":                 "squat",
-    "leg extension":               "leg_extension",
-    "leg curl":                    "leg_curl",
-    "fentes":                      "lunge",
-    "hip thrust":                  "hip_thrust",
-    "mollets":                     "calf_raise",
-    "élévations latérales":        "lateral_raise",
-    "oiseau":                      "face_pull",
-    "curl barre":                  "curl",
-    "curl haltères":               "curl",
-    "curl marteau":                "hammer_curl",
-    "extension triceps":           "tricep_extension",
-    "barre au front":              "skull_crusher",
-    "dips":                        "dip",
-    "gainage":                     "plank",
-    "relevé de jambes":            "leg_raise",
-    "crunch":                      "crunch",
-    "abdominaux":                  "sit_up",
-    "rotation russe":              "russian_twist",
-    "suspension":                  "suspension",
-    "pompes":                      "push_up",
-    "hyperextension":              "back_extension",
-    "torsion du buste":            "russian_twist",
-    "superman":                    "back_extension",
-    "planche en suspension":       "suspension",
-    "planche avec":                "plank",
+    "développé couché": "bench_press",
+    "développé incliné": "incline_press",
+    "développé militaire": "shoulder_press",
+    "développé épaules": "shoulder_press",
+    "rowing barre": "row",
+    "rowing haltère": "row",
+    "tirage horizontal": "seated_row",
+    "traction": "pull_up",
+    "tirage vertical": "lat_pulldown",
+    "soulevé de terre": "deadlift",
+    "soulevé de terre roumain": "romanian_deadlift",
+    "squat arrière": "squat",
+    "squat avant": "squat",
+    "leg extension": "leg_extension",
+    "leg curl": "leg_curl",
+    "fentes": "lunge",
+    "hip thrust": "hip_thrust",
+    "mollets": "calf_raise",
+    "élévations latérales": "lateral_raise",
+    "oiseau": "face_pull",
+    "curl barre": "curl",
+    "curl haltères": "curl",
+    "curl marteau": "hammer_curl",
+    "extension triceps": "tricep_extension",
+    "barre au front": "skull_crusher",
+    "dips": "dip",
+    "gainage": "plank",
+    "relevé de jambes": "leg_raise",
+    "crunch": "crunch",
+    "abdominaux": "sit_up",
+    "rotation russe": "russian_twist",
+    "suspension": "suspension",
+    "pompes": "push_up",
+    "hyperextension": "back_extension",
+    "torsion du buste": "russian_twist",
+    "superman": "back_extension",
+    "planche en suspension": "suspension",
+    "planche avec": "plank",
     "développé écarté en suspension": "suspension",
     "extension triceps à la poulie": "tricep_pressdown",
-    "extension triceps":           "tricep_extension",
-    "extension du triceps":        "tricep_extension",
-    "extension jambe arrière":     "hip_thrust",
-    "course tapis":                "burpee",   # cardio
-    "oiseau avec haltères":        "face_pull",
-    "dip incliné":                 "dip",
+    "extension du triceps": "tricep_extension",
+    "extension jambe arrière": "hip_thrust",
+    "course tapis": "burpee",  # cardio
+    "oiseau avec haltères": "face_pull",
+    "dip incliné": "dip",
 }
+
 
 def resolve_muscle(cat_str: str) -> tuple[str, str]:
     """Retourne (muscle_group, muscle_subgroup) depuis catégorie string."""
@@ -199,6 +193,7 @@ def resolve_muscle(cat_str: str) -> tuple[str, str]:
         return "Inconnu", "Inconnu"
     key = cat_str.lower().strip()
     return CATEGORY_TO_MUSCLE.get(key, ("Inconnu", "Inconnu"))
+
 
 def name_to_cat(name: str) -> str | None:
     """Cherche catégorie depuis nom français (matching partiel)."""
@@ -232,15 +227,15 @@ def parse_fit_file(fit_path: Path) -> dict | None:
         return None
 
     activity = {
-        "type":       "Unknown",
-        "name":       None,
+        "type": "Unknown",
+        "name": None,
         "started_at": None,
         "duration_s": None,
         "distance_m": None,
-        "avg_hr":     None,
-        "max_hr":     None,
-        "calories":   None,
-        "elev_gain":  None,
+        "avg_hr": None,
+        "max_hr": None,
+        "calories": None,
+        "elev_gain": None,
     }
     sets = []
     set_index = 0
@@ -257,7 +252,7 @@ def parse_fit_file(fit_path: Path) -> dict | None:
             cat_str = str(d.get("exercise_category", "")).lower().replace(" ", "_")
             ex_name = d.get("wkt_step_name") or d.get("exercise_name")
             title_idx[mi] = {
-                "name":     str(ex_name) if ex_name else None,
+                "name": str(ex_name) if ex_name else None,
                 "category": cat_str if cat_str and cat_str != "none" else None,
             }
 
@@ -269,16 +264,16 @@ def parse_fit_file(fit_path: Path) -> dict | None:
 
         sport = str(d.get("sport", "")).lower()
         sport_map = {
-            "running":       "Running",
-            "cycling":       "Cycling",
-            "training":      "Strength Training",
+            "running": "Running",
+            "cycling": "Cycling",
+            "training": "Strength Training",
             "strength_training": "Strength Training",
-            "swimming":      "Swimming",
-            "hiking":        "Hiking",
-            "snowboarding":  "Snowboarding",
-            "rowing":        "Rowing",
+            "swimming": "Swimming",
+            "hiking": "Hiking",
+            "snowboarding": "Snowboarding",
+            "rowing": "Rowing",
             "stand_up_paddleboarding": "Paddling",
-            "tennis":        "Tennis",
+            "tennis": "Tennis",
             "cross_country_skiing": "Cross_country_skiing",
         }
         activity["type"] = sport_map.get(sport, sport.capitalize() if sport else "Unknown")
@@ -305,10 +300,10 @@ def parse_fit_file(fit_path: Path) -> dict | None:
                 pass
 
         for field, key in [
-            ("total_calories",  "calories"),
-            ("avg_heart_rate",  "avg_hr"),
-            ("max_heart_rate",  "max_hr"),
-            ("total_ascent",    "elev_gain"),
+            ("total_calories", "calories"),
+            ("avg_heart_rate", "avg_hr"),
+            ("max_heart_rate", "max_hr"),
+            ("total_ascent", "elev_gain"),
         ]:
             val = d.get(field)
             if val is not None:
@@ -384,7 +379,11 @@ def parse_fit_file(fit_path: Path) -> dict | None:
         # Poids (Garmin stocke en g)
         weight_raw = d.get("weight")
         try:
-            weight_kg = float(weight_raw) / 1000 if weight_raw is not None and float(weight_raw) > 0 else None
+            weight_kg = (
+                float(weight_raw) / 1000
+                if weight_raw is not None and float(weight_raw) > 0
+                else None
+            )
         except (ValueError, TypeError):
             weight_kg = None
 
@@ -398,18 +397,20 @@ def parse_fit_file(fit_path: Path) -> dict | None:
             ts_str = None
 
         set_index += 1
-        sets.append({
-            "started_at":        ts_str,
-            "exercise_name":     ex_name,
-            "exercise_category": cat_str or "unknown",
-            "muscle_group":      mg,
-            "muscle_subgroup":   sub,
-            "set_index":         set_index,
-            "set_type":          "active",
-            "reps":              reps,
-            "duration_s":        dur_s,
-            "weight_kg":         weight_kg,
-        })
+        sets.append(
+            {
+                "started_at": ts_str,
+                "exercise_name": ex_name,
+                "exercise_category": cat_str or "unknown",
+                "muscle_group": mg,
+                "muscle_subgroup": sub,
+                "set_index": set_index,
+                "set_type": "active",
+                "reps": reps,
+                "duration_s": dur_s,
+                "weight_kg": weight_kg,
+            }
+        )
 
     # Type par défaut si on a des sets
     if sets and activity["type"] in ("Unknown", ""):
@@ -422,17 +423,27 @@ def parse_fit_file(fit_path: Path) -> dict | None:
 # STRAVA CSV LOADER
 # ─────────────────────────────────────────────────────────────────
 FR_MONTHS = {
-    'janv.': 'Jan', 'févr.': 'Feb', 'mars': 'Mar', 'avr.': 'Apr',
-    'mai': 'May', 'juin': 'Jun', 'juil.': 'Jul', 'août': 'Aug',
-    'sept.': 'Sep', 'oct.': 'Oct', 'nov.': 'Nov', 'déc.': 'Dec'
+    "janv.": "Jan",
+    "févr.": "Feb",
+    "mars": "Mar",
+    "avr.": "Apr",
+    "mai": "May",
+    "juin": "Jun",
+    "juil.": "Jul",
+    "août": "Aug",
+    "sept.": "Sep",
+    "oct.": "Oct",
+    "nov.": "Nov",
+    "déc.": "Dec",
 }
+
 
 def parse_fr_date(s: str) -> str | None:
     if not isinstance(s, str):
         return None
     for fr, en in FR_MONTHS.items():
         s = s.replace(fr, en)
-    for fmt in ('%d %b %Y, %H:%M:%S', '%d %b %Y', '%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%SZ'):
+    for fmt in ("%d %b %Y, %H:%M:%S", "%d %b %Y", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%SZ"):
         try:
             return datetime.strptime(s.strip(), fmt).strftime("%Y-%m-%dT%H:%M:%S")
         except ValueError:
@@ -452,33 +463,33 @@ def load_strava_csv(strava_dir: Path) -> dict[str, dict]:
 
     # Mapping colonnes FR → clés internes
     FR_COL = {
-        "ID de l'activité":            "activity_id",
-        "Date de l'activité":          "Activity Date",
-        "Nom de l'activité":           "Activity Name",
-        "Type d'activité":             "Activity Type",
-        "Nom du fichier":              "Filename",
-        "Temps écoulé":                "Elapsed Time",
-        "Distance":                    "Distance",
+        "ID de l'activité": "activity_id",
+        "Date de l'activité": "Activity Date",
+        "Nom de l'activité": "Activity Name",
+        "Type d'activité": "Activity Type",
+        "Nom du fichier": "Filename",
+        "Temps écoulé": "Elapsed Time",
+        "Distance": "Distance",
         "Fréquence cardiaque moyenne": "Average Heart Rate",
-        "Fréquence cardiaque max.":    "Max Heart Rate",
-        "Calories":                    "Calories",
-        "Dénivelé positif":            "Elevation Gain",
-        "Vitesse moyenne":             "Average Speed",
+        "Fréquence cardiaque max.": "Max Heart Rate",
+        "Calories": "Calories",
+        "Dénivelé positif": "Elevation Gain",
+        "Vitesse moyenne": "Average Speed",
     }
     # Mapping EN → clés internes (export anglais)
     EN_COL = {
-        "Activity ID":     "activity_id",
-        "Activity Date":   "Activity Date",
-        "Activity Name":   "Activity Name",
-        "Activity Type":   "Activity Type",
-        "Filename":        "Filename",
-        "Elapsed Time":    "Elapsed Time",
-        "Distance":        "Distance",
+        "Activity ID": "activity_id",
+        "Activity Date": "Activity Date",
+        "Activity Name": "Activity Name",
+        "Activity Type": "Activity Type",
+        "Filename": "Filename",
+        "Elapsed Time": "Elapsed Time",
+        "Distance": "Distance",
         "Average Heart Rate": "Average Heart Rate",
-        "Max Heart Rate":  "Max Heart Rate",
-        "Calories":        "Calories",
-        "Elevation Gain":  "Elevation Gain",
-        "Average Speed":   "Average Speed",
+        "Max Heart Rate": "Max Heart Rate",
+        "Calories": "Calories",
+        "Elevation Gain": "Elevation Gain",
+        "Average Speed": "Average Speed",
     }
 
     index = {}
@@ -510,7 +521,9 @@ def load_strava_csv(strava_dir: Path) -> dict[str, dict]:
             basename = Path(fname).name
             index[basename] = norm
 
-    print(f"   → {len(index)} activités dans Strava CSV ({no_file} sans FIT, locale={'FR' if is_fr else 'EN'})")
+    print(
+        f"   → {len(index)} activités dans Strava CSV ({no_file} sans FIT, locale={'FR' if is_fr else 'EN'})"
+    )
     return index
 
 
@@ -518,8 +531,8 @@ def load_strava_csv(strava_dir: Path) -> dict[str, dict]:
 # CANONICAL KEY (déduplication)
 # ─────────────────────────────────────────────────────────────────
 def canonical_key(act_type: str, started_at: str, duration_s) -> str:
-    t8  = act_type[:8].lower().replace(" ", "_")
-    d   = started_at[:10] if started_at else "0000-00-00"
+    t8 = act_type[:8].lower().replace(" ", "_")
+    d = started_at[:10] if started_at else "0000-00-00"
     dur = round((int(duration_s) if duration_s else 0) / 300) * 300
     return f"{t8}|{d}|{dur}"
 
@@ -528,7 +541,7 @@ def canonical_key(act_type: str, started_at: str, duration_s) -> str:
 # INSERTION EN BASE
 # ─────────────────────────────────────────────────────────────────
 def insert_fit_data(conn: sqlite3.Connection, parsed: dict, csv_row: dict | None) -> bool:
-    act  = parsed["activity"]
+    act = parsed["activity"]
     sets = parsed["sets"]
 
     # Enrichissement depuis CSV
@@ -553,20 +566,34 @@ def insert_fit_data(conn: sqlite3.Connection, parsed: dict, csv_row: dict | None
     cursor = conn.cursor()
 
     # Insertion activité
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT OR IGNORE INTO activities
           (source, source_id, type, name, started_at, duration_s,
            distance_m, elev_gain_m, calories, avg_hr, max_hr,
            avg_pace_mpm, tss_proxy, training_load, canonical_key)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    """, (
-        "strava_fit", source_id, act["type"], act["name"],
-        act["started_at"], act["duration_s"], act["distance_m"],
-        act["elev_gain"], act["calories"], act["avg_hr"], act["max_hr"],
-        None, None, None, ck,
-    ))
+    """,
+        (
+            "strava_fit",
+            source_id,
+            act["type"],
+            act["name"],
+            act["started_at"],
+            act["duration_s"],
+            act["distance_m"],
+            act["elev_gain"],
+            act["calories"],
+            act["avg_hr"],
+            act["max_hr"],
+            None,
+            None,
+            None,
+            ck,
+        ),
+    )
 
-    activity_db_id  = cursor.lastrowid
+    activity_db_id = cursor.lastrowid
     activity_inserted = cursor.rowcount > 0
 
     if not activity_inserted:
@@ -578,36 +605,53 @@ def insert_fit_data(conn: sqlite3.Connection, parsed: dict, csv_row: dict | None
         total_reps = sum(s["reps"] or 0 for s in sets)
 
         existing = cursor.execute(
-            "SELECT id FROM strength_sessions WHERE started_at=?",
-            (act["started_at"],)
+            "SELECT id FROM strength_sessions WHERE started_at=?", (act["started_at"],)
         ).fetchone()
 
         if existing:
             session_id = existing[0]
         else:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO strength_sessions
                   (activity_id, started_at, workout_name, duration_s, total_sets, total_reps, source)
                 VALUES (?,?,?,?,?,?,?)
-            """, (
-                activity_db_id, act["started_at"], act["name"],
-                act["duration_s"], len(sets), total_reps, "strava_fit",
-            ))
+            """,
+                (
+                    activity_db_id,
+                    act["started_at"],
+                    act["name"],
+                    act["duration_s"],
+                    len(sets),
+                    total_reps,
+                    "strava_fit",
+                ),
+            )
             session_id = cursor.lastrowid
 
             for s in sets:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     INSERT INTO exercise_sets
                       (session_id, started_at, exercise_name, exercise_category,
                        muscle_group, muscle_subgroup, set_index, set_type,
                        reps, duration_s, weight_kg)
                     VALUES (?,?,?,?,?,?,?,?,?,?,?)
-                """, (
-                    session_id, s["started_at"], s["exercise_name"],
-                    s["exercise_category"], s["muscle_group"], s["muscle_subgroup"],
-                    s["set_index"], s["set_type"],
-                    s["reps"], s["duration_s"], s["weight_kg"],
-                ))
+                """,
+                    (
+                        session_id,
+                        s["started_at"],
+                        s["exercise_name"],
+                        s["exercise_category"],
+                        s["muscle_group"],
+                        s["muscle_subgroup"],
+                        s["set_index"],
+                        s["set_type"],
+                        s["reps"],
+                        s["duration_s"],
+                        s["weight_kg"],
+                    ),
+                )
 
     return activity_inserted
 
@@ -617,27 +661,24 @@ def insert_fit_data(conn: sqlite3.Connection, parsed: dict, csv_row: dict | None
 # ─────────────────────────────────────────────────────────────────
 def run(
     strava_dir: Path = STRAVA_DIR,
-    db_path:    Path = DB_PATH,
-    verbose:    bool = True,
+    db_path: Path = DB_PATH,
+    verbose: bool = True,
 ) -> dict:
     if fitparse is None:
         print("❌ fitparse non disponible")
         return {}
 
     from pipeline.schema import init_db
+
     conn = init_db(db_path)
 
     csv_index = load_strava_csv(strava_dir)
 
     activities_dir = strava_dir / "activities"
-    fit_files = sorted(
-        list(activities_dir.glob("*.fit")) +
-        list(activities_dir.glob("*.fit.gz"))
-    )
+    fit_files = sorted(list(activities_dir.glob("*.fit")) + list(activities_dir.glob("*.fit.gz")))
     print(f"📂 {len(fit_files)} fichiers FIT dans {activities_dir}")
 
-    stats = {"parsed": 0, "inserted": 0, "skipped": 0,
-             "strength": 0, "sets_total": 0, "errors": 0}
+    stats = {"parsed": 0, "inserted": 0, "skipped": 0, "strength": 0, "sets_total": 0, "errors": 0}
 
     for fit_path in fit_files:
         try:
@@ -650,7 +691,7 @@ def run(
 
             # Matching CSV
             basename = fit_path.name
-            csv_row  = csv_index.get(basename)
+            csv_row = csv_index.get(basename)
             if not csv_row:
                 for key in csv_index:
                     if basename.replace(".fit.gz", "").replace(".fit", "") in key:
@@ -685,8 +726,9 @@ def run(
 
 if __name__ == "__main__":
     import argparse
+
     p = argparse.ArgumentParser()
     p.add_argument("--strava", default=str(STRAVA_DIR))
-    p.add_argument("--db",     default=str(DB_PATH))
+    p.add_argument("--db", default=str(DB_PATH))
     args = p.parse_args()
     run(Path(args.strava), Path(args.db))

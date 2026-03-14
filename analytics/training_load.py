@@ -11,21 +11,22 @@ Calcule :
   - Prédictions de course (Riegel)
   - Score de forme quotidien (0-100)
 """
-import sqlite3
+
 import math
-from pathlib import Path
-from datetime import date, timedelta
+import sqlite3
 from collections import defaultdict
+from datetime import date, timedelta
+from pathlib import Path
 from statistics import median
 
-ROOT    = Path(__file__).parent.parent
+ROOT = Path(__file__).parent.parent
 DB_PATH = ROOT / "athlete.db"
 
 # ─────────────────────────────────────────────────────────────────
 # CONSTANTES PMC
 # ─────────────────────────────────────────────────────────────────
-CTL_DAYS = 42    # Chronic Training Load (fitness)
-ATL_DAYS = 7     # Acute Training Load (fatigue)
+CTL_DAYS = 42  # Chronic Training Load (fitness)
+ATL_DAYS = 7  # Acute Training Load (fatigue)
 
 # Fraîcheur maximale (jours) au-delà de laquelle la métrique est pénalisée
 FRESHNESS_DAYS = {
@@ -38,22 +39,22 @@ FRESHNESS_DAYS = {
 
 # Multiplicateurs fatigue neuromusculaire (musculation)
 NEURAL_FATIGUE_MULTIPLIERS = {
-    "jambe":    1.5,
-    "full":     1.2,
-    "wakeboard":1.2,
-    "dos":      1.1,
-    "upper":    1.0,
-    "pecs":     1.0,
-    "mixed":    1.1,
+    "jambe": 1.5,
+    "full": 1.2,
+    "wakeboard": 1.2,
+    "dos": 1.1,
+    "upper": 1.0,
+    "pecs": 1.0,
+    "mixed": 1.1,
 }
 
 # Zones ACWR (Acute:Chronic Workload Ratio)
 ACWR_ZONES = {
-    "repos":    (0.0,  0.5),
-    "léger":    (0.5,  0.8),
-    "optimal":  (0.8,  1.3),
-    "élevé":    (1.3,  1.5),
-    "danger":   (1.5, 10.0),
+    "repos": (0.0, 0.5),
+    "léger": (0.5, 0.8),
+    "optimal": (0.8, 1.3),
+    "élevé": (1.3, 1.5),
+    "danger": (1.5, 10.0),
 }
 
 # Exposant empirique de Riegel (1981) pour extrapolation performance endurance
@@ -128,11 +129,11 @@ def tss_from_activity(
     if row.get("training_load") and row["training_load"] > 0:
         return round(_clamp(float(row["training_load"]), 0.0, 300.0), 1)
 
-    act_type  = (row.get("type") or "").lower()
-    act_name  = (row.get("name") or "").lower()
-    duration  = row.get("duration_s") or 0
-    avg_hr    = row.get("avg_hr") or 0
-    calories  = row.get("calories") or 0
+    act_type = (row.get("type") or "").lower()
+    act_name = (row.get("name") or "").lower()
+    duration = row.get("duration_s") or 0
+    avg_hr = row.get("avg_hr") or 0
+    calories = row.get("calories") or 0
     strength_sets = int(row.get("strength_sets") or 0)
 
     if duration <= 0:
@@ -151,7 +152,7 @@ def tss_from_activity(
             return round(_clamp(trimp, 0.0, 300.0), 1)
 
     # 3. Musculation: densité de séries + fatigue neuromusculaire
-    if ("strength" in act_type or "training" in act_type or "muscu" in act_name):
+    if "strength" in act_type or "training" in act_type or "muscu" in act_name:
         mult = 1.0
         for key, val in NEURAL_FATIGUE_MULTIPLIERS.items():
             if key in act_name:
@@ -205,9 +206,14 @@ def build_daily_tss(conn: sqlite3.Connection) -> dict[str, float]:
 
     for row in rows:
         d = {
-            "type": row[1], "name": row[2], "training_load": row[3],
-            "avg_hr": row[4], "duration_s": row[5], "calories": row[6],
-            "distance_m": row[7], "strength_sets": row[8],
+            "type": row[1],
+            "name": row[2],
+            "training_load": row[3],
+            "avg_hr": row[4],
+            "duration_s": row[5],
+            "calories": row[6],
+            "distance_m": row[7],
+            "strength_sets": row[8],
         }
         tss = tss_from_activity(d, hr_rest=hr_rest, hr_max=hr_max)
         daily_tss[row[0]] += tss
@@ -246,20 +252,22 @@ def compute_pmc(
 
     current = start_date
     while current <= end_date:
-        ds   = current.strftime("%Y-%m-%d")
-        tss  = daily_tss.get(ds, 0.0)
+        ds = current.strftime("%Y-%m-%d")
+        tss = daily_tss.get(ds, 0.0)
 
         ctl = ctl + k_ctl * (tss - ctl)
         atl = atl + k_atl * (tss - atl)
         tsb = ctl - atl
 
-        pmc.append({
-            "date": ds,
-            "tss":  round(tss, 1),
-            "ctl":  round(ctl, 1),
-            "atl":  round(atl, 1),
-            "tsb":  round(tsb, 1),
-        })
+        pmc.append(
+            {
+                "date": ds,
+                "tss": round(tss, 1),
+                "ctl": round(ctl, 1),
+                "atl": round(atl, 1),
+                "tsb": round(tsb, 1),
+            }
+        )
 
         current += timedelta(days=1)
 
@@ -282,12 +290,11 @@ def compute_acwr(
 
     def avg_days(n: int) -> float:
         total = sum(
-            daily_tss.get((end_date - timedelta(days=i)).strftime("%Y-%m-%d"), 0)
-            for i in range(n)
+            daily_tss.get((end_date - timedelta(days=i)).strftime("%Y-%m-%d"), 0) for i in range(n)
         )
         return total / n
 
-    acute_roll   = avg_days(7)
+    acute_roll = avg_days(7)
     chronic_roll = avg_days(28)
     acwr_roll = acute_roll / chronic_roll if chronic_roll > 0.5 else 0.0
 
@@ -313,15 +320,15 @@ def compute_acwr(
             break
 
     return {
-        "acwr":    round(acwr, 2),
+        "acwr": round(acwr, 2),
         "acwr_roll": round(acwr_roll, 2),
         "acwr_ewma": round(acwr_ewma, 2),
-        "acute":   round(acute_roll, 1),
+        "acute": round(acute_roll, 1),
         "chronic": round(chronic_roll, 1),
         "acute_ewma": round(ewma_acute, 1),
         "chronic_ewma": round(ewma_chronic, 1),
         "method": "ewma",
-        "zone":    zone,
+        "zone": zone,
     }
 
 
@@ -348,23 +355,33 @@ def get_health_metrics(
         except Exception:
             return None
 
-    def latest_metric(metric: str, windows=[7, 14, 30, 60, 90, 180, 365]) -> tuple[float | None, str | None, int | None]:
+    def latest_metric(
+        metric: str, windows: list[int] | None = None
+    ) -> tuple[float | None, str | None, int | None]:
+        if windows is None:
+            windows = [7, 14, 30, 60, 90, 180, 365]
         for w in windows:
             cutoff = (end_date - timedelta(days=w)).strftime("%Y-%m-%d")
-            row = conn.execute("""
+            row = conn.execute(
+                """
                 SELECT AVG(value), MAX(date)
                 FROM health_metrics
                 WHERE metric=? AND date>=? AND date<=?
-            """, (metric, cutoff, str(end_date))).fetchone()
+            """,
+                (metric, cutoff, str(end_date)),
+            ).fetchone()
             if row and row[0] is not None:
                 dt = row[1]
                 return round(float(row[0]), 2), dt, _days_old(dt)
         # Fallback : 5 dernières valeurs sans limite de date
-        row = conn.execute("""
+        row = conn.execute(
+            """
             SELECT AVG(value), MAX(date)
             FROM (SELECT value, date FROM health_metrics
                   WHERE metric=? ORDER BY date DESC LIMIT 5)
-        """, (metric,)).fetchone()
+        """,
+            (metric,),
+        ).fetchone()
         if row and row[0] is not None:
             dt = row[1]
             return round(float(row[0]), 2), dt, _days_old(dt)
@@ -385,12 +402,12 @@ def get_health_metrics(
             return 0.0
         return max(0.0, 1.0 - (days_old - max_days) / fade_span)
 
-    hrv_val,     hrv_date,     hrv_days     = latest_metric("hrv_sdnn")
-    rhr_val,     rhr_date,     rhr_days     = latest_metric("rhr")
-    vo2max_val,  vo2max_date,  vo2max_days  = latest_metric("vo2max")
-    sleep_val,   sleep_date,   sleep_days   = latest_metric("sleep_h")
-    weight_val,  weight_date,  weight_days  = latest_metric("weight_kg")
-    bb_val,      bb_date,      bb_days      = latest_metric("body_battery")
+    hrv_val, hrv_date, hrv_days = latest_metric("hrv_sdnn")
+    rhr_val, rhr_date, rhr_days = latest_metric("rhr")
+    vo2max_val, vo2max_date, vo2max_days = latest_metric("vo2max")
+    sleep_val, sleep_date, sleep_days = latest_metric("sleep_h")
+    weight_val, weight_date, weight_days = latest_metric("weight_kg")
+    bb_val, bb_date, bb_days = latest_metric("body_battery")
 
     # Baseline HRV (percentile 50 des 6 derniers mois)
     hrv_baseline = conn.execute("""
@@ -412,26 +429,26 @@ def get_health_metrics(
     rhr_baseline = float(rhr_baseline[0]) if rhr_baseline and rhr_baseline[0] else rhr_val
 
     return {
-        "hrv":          hrv_val,
-        "hrv_date":     hrv_date,
+        "hrv": hrv_val,
+        "hrv_date": hrv_date,
         "hrv_days_old": hrv_days,
         "hrv_baseline": hrv_baseline,
         "hrv_freshness": freshness_factor("hrv_sdnn", hrv_days),
-        "rhr":          rhr_val,
+        "rhr": rhr_val,
         "rhr_baseline": rhr_baseline,
-        "rhr_date":     rhr_date,
+        "rhr_date": rhr_date,
         "rhr_days_old": rhr_days,
         "rhr_freshness": freshness_factor("rhr", rhr_days),
-        "vo2max":       vo2max_val,
-        "vo2max_date":  vo2max_date,
+        "vo2max": vo2max_val,
+        "vo2max_date": vo2max_date,
         "vo2max_days_old": vo2max_days,
         "vo2max_freshness": freshness_factor("vo2max", vo2max_days),
-        "sleep_h":      sleep_val,
-        "sleep_date":   sleep_date,
+        "sleep_h": sleep_val,
+        "sleep_date": sleep_date,
         "sleep_days_old": sleep_days,
         "sleep_freshness": freshness_factor("sleep_h", sleep_days),
-        "weight_kg":    weight_val,
-        "weight_date":  weight_date,
+        "weight_kg": weight_val,
+        "weight_date": weight_date,
         "weight_days_old": weight_days,
         "weight_freshness": freshness_factor("weight_kg", weight_days),
         "body_battery": bb_val,
@@ -445,14 +462,14 @@ def get_health_metrics(
 # WAKEBOARD READINESS SCORE
 # ─────────────────────────────────────────────────────────────────
 def compute_wakeboard_score(
-    hrv_val:     float | None,
-    hrv_baseline:float | None,
-    sleep_h:     float | None,
-    acwr_val:    float,
-    rhr_val:     float | None = None,
+    hrv_val: float | None,
+    hrv_baseline: float | None,
+    sleep_h: float | None,
+    acwr_val: float,
+    rhr_val: float | None = None,
     rhr_baseline: float | None = None,
     body_battery: float | None = None,
-    freshness:   dict | None = None,
+    freshness: dict | None = None,
 ) -> dict:
     """
     Wakeboard Readiness Score : 0-100
@@ -488,13 +505,13 @@ def compute_wakeboard_score(
     # ── Sommeil (30%) ────────────────────────────────────────────
     if sleep_h and sleep_h > 0:
         if sleep_h >= 7.5 and sleep_h <= 9.0:
-            s_sleep = 100
+            s_sleep = 100.0
         elif sleep_h >= 6.5:
             s_sleep = 60 + 40 * (sleep_h - 6.5) / 1.0
         elif sleep_h >= 5.0:
             s_sleep = 20 + 40 * (sleep_h - 5.0) / 1.5
         else:
-            s_sleep = 0
+            s_sleep = 0.0
         s_sleep = max(0, min(100, s_sleep))
     else:
         s_sleep = 60.0  # neutre (pas de données)
@@ -506,14 +523,14 @@ def compute_wakeboard_score(
     if rhr_val and rhr_baseline and rhr_baseline > 0:
         delta = (float(rhr_val) - float(rhr_baseline)) / float(rhr_baseline)
         if delta <= -0.05:
-            s_rhr = 95
+            s_rhr = 95.0
         elif delta >= 0.15:
-            s_rhr = 20
+            s_rhr = 20.0
         else:
-            s_rhr = 95 - ((delta + 0.05) / 0.20) * 75
+            s_rhr = 95.0 - ((delta + 0.05) / 0.20) * 75
     else:
         s_rhr = 60.0
-    s_rhr = _clamp(s_rhr, 0, 100)
+    s_rhr = _clamp(s_rhr, 0.0, 100.0)
     s_rhr = s_rhr * rhr_fresh + 60.0 * (1.0 - rhr_fresh)
     scores["rhr"] = round(s_rhr, 1)
 
@@ -527,34 +544,34 @@ def compute_wakeboard_score(
 
     # ── ACWR (20%) ───────────────────────────────────────────────
     if acwr_val <= 0:
-        s_acwr = 40  # repos
+        s_acwr = 40.0  # repos
     elif 0.8 <= acwr_val <= 1.3:
-        s_acwr = 100  # zone optimale
+        s_acwr = 100.0  # zone optimale
     elif acwr_val < 0.8:
-        s_acwr = 40 + 60 * (acwr_val / 0.8)
+        s_acwr = 40.0 + 60.0 * (acwr_val / 0.8)
     elif acwr_val <= 1.5:
-        s_acwr = 100 - 60 * (acwr_val - 1.3) / 0.2
+        s_acwr = 100.0 - 60.0 * (acwr_val - 1.3) / 0.2
     else:
-        s_acwr = max(0, 40 - 40 * (acwr_val - 1.5))
+        s_acwr = max(0.0, 40.0 - 40.0 * (acwr_val - 1.5))
 
     s_acwr = max(0, min(100, s_acwr))
     scores["acwr"] = round(s_acwr, 1)
 
     # ── Score composite ──────────────────────────────────────────
     total = (
-        scores["hrv"]         * 0.30 +
-        scores["sleep"]       * 0.25 +
-        scores["acwr"]        * 0.20 +
-        scores["rhr"]         * 0.15 +
-        scores["body_battery"] * 0.10
+        scores["hrv"] * 0.30
+        + scores["sleep"] * 0.25
+        + scores["acwr"] * 0.20
+        + scores["rhr"] * 0.15
+        + scores["body_battery"] * 0.10
     )
     total = round(total, 1)
     confidence = (
-        hrv_fresh * 0.30 +
-        sleep_fresh * 0.25 +
-        1.0 * 0.20 +  # ACWR calculé sur la charge interne
-        rhr_fresh * 0.15 +
-        bb_fresh * 0.10
+        hrv_fresh * 0.30
+        + sleep_fresh * 0.25
+        + 1.0 * 0.20  # ACWR calculé sur la charge interne
+        + rhr_fresh * 0.15
+        + bb_fresh * 0.10
     )
 
     # Label
@@ -570,9 +587,9 @@ def compute_wakeboard_score(
         label, color = "Repos conseillé", "#ff3b30"
 
     return {
-        "score":      total,
-        "label":      label,
-        "color":      color,
+        "score": total,
+        "label": label,
+        "color": color,
         "components": scores,
         "confidence": round(_clamp(confidence, 0.0, 1.0), 2),
         "freshness": {
@@ -597,7 +614,8 @@ def analyze_running(
         end_date = date.today()
     start_date = end_date - timedelta(weeks=weeks)
 
-    rows = conn.execute("""
+    rows = conn.execute(
+        """
         SELECT started_at, duration_s, distance_m, avg_hr, avg_pace_mpm
         FROM activities
         WHERE type='Running'
@@ -605,7 +623,9 @@ def analyze_running(
           AND duration_s > 0
           AND date(started_at) >= ?
         ORDER BY started_at DESC
-    """, (str(start_date),)).fetchall()
+    """,
+        (str(start_date),),
+    ).fetchall()
 
     if not rows:
         return {}
@@ -666,26 +686,32 @@ def analyze_running(
         predictions["Marathon"] = _fmt_time(pred_10k_base * ((42.2 / 10.0) ** RIEGEL_EXPONENT))
 
     # Format pace string
-    def fmt_pace(p):
+    def fmt_pace(p: float | None) -> str:
         if not p:
             return "—"
         m = int(p)
         s = int((p - m) * 60)
         return f"{m}'{s:02d}\""
 
-    recent_acts = [{
-        "started_at": r[0], "duration_s": r[1],
-        "distance_m": r[2], "avg_hr": r[3], "type": "Running"
-    } for r in rows[:5]]
+    recent_acts = [
+        {
+            "started_at": r[0],
+            "duration_s": r[1],
+            "distance_m": r[2],
+            "avg_hr": r[3],
+            "type": "Running",
+        }
+        for r in rows[:5]
+    ]
 
     return {
-        "sessions":         len(rows),
-        "total_km":         round(total_km, 1),
-        "km_per_week":      round(km_per_week, 1),
-        "avg_pace":         avg_pace,
-        "avg_pace_str":     fmt_pace(avg_pace),
-        "best_pace":        best_pace,
-        "predictions":      predictions,
+        "sessions": len(rows),
+        "total_km": round(total_km, 1),
+        "km_per_week": round(km_per_week, 1),
+        "avg_pace": avg_pace,
+        "avg_pace_str": fmt_pace(avg_pace),
+        "best_pace": best_pace,
+        "predictions": predictions,
         "pred_10k_base_min": round(pred_10k_base, 2) if pred_10k_base else None,
         "pred_10k_candidates_n": len(riegel_10k_candidates),
         "pred_10k_confidence": round(pred_confidence, 2),
@@ -752,10 +778,13 @@ def save_daily_load(conn: sqlite3.Connection, pmc: list[dict]) -> None:
     """Sauvegarde le PMC calculé dans la table daily_load."""
     cursor = conn.cursor()
     for row in pmc:
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT OR REPLACE INTO daily_load (date, tss, ctl, atl, tsb)
             VALUES (?,?,?,?,?)
-        """, (row["date"], row["tss"], row["ctl"], row["atl"], row["tsb"]))
+        """,
+            (row["date"], row["tss"], row["ctl"], row["atl"], row["tsb"]),
+        )
     conn.commit()
 
 
@@ -763,8 +792,8 @@ def save_daily_load(conn: sqlite3.Connection, pmc: list[dict]) -> None:
 # POINT D'ENTRÉE
 # ─────────────────────────────────────────────────────────────────
 def run(
-    db_path:   Path = DB_PATH,
-    verbose:   bool = True,
+    db_path: Path = DB_PATH,
+    verbose: bool = True,
 ) -> dict:
     """Calcul complet de la charge d'entraînement."""
     conn = sqlite3.connect(str(db_path))
@@ -791,9 +820,9 @@ def run(
     # 4. Métriques santé
     health = get_health_metrics(conn)
     print(
-        f"   HRV: {health['hrv']} ms (J-{health.get('hrv_days_old','?')}) | "
-        f"RHR: {health['rhr']} bpm (J-{health.get('rhr_days_old','?')}) | "
-        f"Sommeil: {health['sleep_h']} h (J-{health.get('sleep_days_old','?')})"
+        f"   HRV: {health['hrv']} ms (J-{health.get('hrv_days_old', '?')}) | "
+        f"RHR: {health['rhr']} bpm (J-{health.get('rhr_days_old', '?')}) | "
+        f"Sommeil: {health['sleep_h']} h (J-{health.get('sleep_days_old', '?')})"
     )
 
     # 5. Wakeboard Readiness
@@ -844,31 +873,39 @@ def run(
         SELECT type, name, started_at, duration_s, distance_m, avg_hr
         FROM activities ORDER BY started_at DESC LIMIT 10
     """).fetchall()
-    recent_activities = [{
-        "type": r[0], "name": r[1], "started_at": r[2],
-        "duration_s": r[3], "distance_m": r[4], "avg_hr": r[5],
-    } for r in recent_rows]
+    recent_activities = [
+        {
+            "type": r[0],
+            "name": r[1],
+            "started_at": r[2],
+            "duration_s": r[3],
+            "distance_m": r[4],
+            "avg_hr": r[5],
+        }
+        for r in recent_rows
+    ]
 
     conn.close()
 
     return {
-        "pmc":               today_pmc,
-        "pmc_series":        pmc,
-        "acwr":              acwr_data,
-        "health":            health,
-        "wakeboard":         wbs,
-        "running":           running or {},
-        "daily_tss":         daily_tss,
-        "total_activities":  total_acts,
-        "total_km":          round(total_km_all, 0),
+        "pmc": today_pmc,
+        "pmc_series": pmc,
+        "acwr": acwr_data,
+        "health": health,
+        "wakeboard": wbs,
+        "running": running or {},
+        "daily_tss": daily_tss,
+        "total_activities": total_acts,
+        "total_km": round(total_km_all, 0),
         "strength_sessions": strength_count,
         "recent_activities": recent_activities,
-        "garmin_connected":  False,  # mis à jour si Garmin OK
+        "garmin_connected": False,  # mis à jour si Garmin OK
     }
 
 
 if __name__ == "__main__":
     import argparse
+
     p = argparse.ArgumentParser()
     p.add_argument("--db", default=str(DB_PATH))
     args = p.parse_args()

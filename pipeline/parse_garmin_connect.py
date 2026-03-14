@@ -21,17 +21,19 @@ Auth :
 
   Les tokens sont sauvegardés dans ~/.garth/ (valides ~1 an)
 """
-import sqlite3
+
 import os
+import sqlite3
 import sys
-from datetime import date, timedelta, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
-ROOT    = Path(__file__).parent.parent
+ROOT = Path(__file__).parent.parent
 DB_PATH = ROOT / "athlete.db"
 
 try:
     import garminconnect
+
     GARMIN_AVAILABLE = True
 except ImportError:
     GARMIN_AVAILABLE = False
@@ -39,6 +41,7 @@ except ImportError:
 
 try:
     from dotenv import load_dotenv
+
     load_dotenv(ROOT / ".env")
 except ImportError:
     pass
@@ -47,26 +50,26 @@ except ImportError:
 # MAPPING TYPE ACTIVITÉ GARMIN → TYPE NORMALISÉ
 # ─────────────────────────────────────────────────────────────────
 GARMIN_TYPE_MAP = {
-    "running":              "Running",
-    "trail_running":        "Running",
-    "cycling":              "Cycling",
-    "mountain_biking":      "Cycling",
-    "swimming":             "Swimming",
-    "open_water_swimming":  "Swimming",
-    "strength_training":    "Strength Training",
-    "fitness_equipment":    "Strength Training",
-    "yoga":                 "Yoga",
-    "hiking":               "Hiking",
-    "walking":              "Walking",
-    "snowboarding":         "Snowboarding",
-    "snow_skiing":          "Snowboarding",
+    "running": "Running",
+    "trail_running": "Running",
+    "cycling": "Cycling",
+    "mountain_biking": "Cycling",
+    "swimming": "Swimming",
+    "open_water_swimming": "Swimming",
+    "strength_training": "Strength Training",
+    "fitness_equipment": "Strength Training",
+    "yoga": "Yoga",
+    "hiking": "Hiking",
+    "walking": "Walking",
+    "snowboarding": "Snowboarding",
+    "snow_skiing": "Snowboarding",
     "backcountry_skiing_snowboarding_ws": "Snowboarding",
     "cross_country_skiing": "Cross_country_skiing",
     "stand_up_paddleboarding": "Paddling",
-    "wakeboarding":         "Wakeboarding",
-    "tennis":               "Tennis",
-    "rowing":               "Rowing",
-    "other":                "Other",
+    "wakeboarding": "Wakeboarding",
+    "tennis": "Tennis",
+    "rowing": "Rowing",
+    "other": "Other",
 }
 
 # ─────────────────────────────────────────────────────────────────
@@ -74,50 +77,50 @@ GARMIN_TYPE_MAP = {
 # ─────────────────────────────────────────────────────────────────
 GARMIN_EX_CATEGORY_TO_MUSCLE = {
     # Pecs
-    "BENCH_PRESS":        ("Pecs", "Pecs Moyen"),
-    "CHEST_PRESS":        ("Pecs", "Pecs Moyen"),
-    "FLY":                ("Pecs", "Pecs Moyen"),
-    "PUSH_UP":            ("Pecs", "Pecs Bas"),
+    "BENCH_PRESS": ("Pecs", "Pecs Moyen"),
+    "CHEST_PRESS": ("Pecs", "Pecs Moyen"),
+    "FLY": ("Pecs", "Pecs Moyen"),
+    "PUSH_UP": ("Pecs", "Pecs Bas"),
     # Dos
-    "ROW":                ("Dos", "Rhomboïdes"),
-    "PULL_UP":            ("Dos", "Grand Dorsal"),
-    "LAT_PULLDOWN":       ("Dos", "Grand Dorsal"),
-    "DEADLIFT":           ("Dos", "Lombaires"),
-    "HYPEREXTENSION":     ("Dos", "Lombaires"),
+    "ROW": ("Dos", "Rhomboïdes"),
+    "PULL_UP": ("Dos", "Grand Dorsal"),
+    "LAT_PULLDOWN": ("Dos", "Grand Dorsal"),
+    "DEADLIFT": ("Dos", "Lombaires"),
+    "HYPEREXTENSION": ("Dos", "Lombaires"),
     # Épaules
-    "SHOULDER_PRESS":     ("Épaules", "Faisceau Antérieur"),
-    "LATERAL_RAISE":      ("Épaules", "Faisceau Latéral"),
-    "FRONT_RAISE":        ("Épaules", "Faisceau Antérieur"),
-    "FACE_PULL":          ("Épaules", "Faisceau Postérieur"),
-    "SHRUG":              ("Épaules", "Trapèzes"),
-    "UPRIGHT_ROW":        ("Épaules", "Faisceau Latéral"),
+    "SHOULDER_PRESS": ("Épaules", "Faisceau Antérieur"),
+    "LATERAL_RAISE": ("Épaules", "Faisceau Latéral"),
+    "FRONT_RAISE": ("Épaules", "Faisceau Antérieur"),
+    "FACE_PULL": ("Épaules", "Faisceau Postérieur"),
+    "SHRUG": ("Épaules", "Trapèzes"),
+    "UPRIGHT_ROW": ("Épaules", "Faisceau Latéral"),
     # Biceps
-    "CURL":               ("Biceps", "Biceps Brachial"),
+    "CURL": ("Biceps", "Biceps Brachial"),
     # Triceps
-    "TRICEPS_EXTENSION":  ("Triceps", "Chef Long"),
-    "DIP":                ("Triceps", "Chef Long"),
+    "TRICEPS_EXTENSION": ("Triceps", "Chef Long"),
+    "DIP": ("Triceps", "Chef Long"),
     # Jambes
-    "SQUAT":              ("Jambes", "Quadriceps"),
-    "LUNGE":              ("Jambes", "Quadriceps"),
-    "LEG_PRESS":          ("Jambes", "Quadriceps"),
-    "LEG_EXTENSION":      ("Jambes", "Quadriceps"),
-    "LEG_CURL":           ("Jambes", "Ischio-Jambiers"),
-    "HIP_THRUST":         ("Jambes", "Fessiers"),
-    "CALF_RAISE":         ("Jambes", "Mollets"),
+    "SQUAT": ("Jambes", "Quadriceps"),
+    "LUNGE": ("Jambes", "Quadriceps"),
+    "LEG_PRESS": ("Jambes", "Quadriceps"),
+    "LEG_EXTENSION": ("Jambes", "Quadriceps"),
+    "LEG_CURL": ("Jambes", "Ischio-Jambiers"),
+    "HIP_THRUST": ("Jambes", "Fessiers"),
+    "CALF_RAISE": ("Jambes", "Mollets"),
     # Core
-    "PLANK":              ("Core", "Gainage"),
-    "CORE":               ("Core", "Abdominaux"),
-    "SUSPENSION":         ("Core", "Gainage"),
-    "CRUNCH":             ("Core", "Abdominaux"),
-    "SIT_UP":             ("Core", "Abdominaux"),
-    "RUSSIAN_TWIST":      ("Core", "Obliques"),
-    "LEG_RAISE":          ("Core", "Abdominaux Bas"),
+    "PLANK": ("Core", "Gainage"),
+    "CORE": ("Core", "Abdominaux"),
+    "SUSPENSION": ("Core", "Gainage"),
+    "CRUNCH": ("Core", "Abdominaux"),
+    "SIT_UP": ("Core", "Abdominaux"),
+    "RUSSIAN_TWIST": ("Core", "Obliques"),
+    "LEG_RAISE": ("Core", "Abdominaux Bas"),
 }
 
 
 def canonical_key(act_type: str, started_at: str, duration_s) -> str:
-    t8  = act_type[:8].lower().replace(" ", "_")
-    d   = started_at[:10] if started_at else "0000-00-00"
+    t8 = act_type[:8].lower().replace(" ", "_")
+    d = started_at[:10] if started_at else "0000-00-00"
     dur = round((int(duration_s) if duration_s else 0) / 300) * 300
     return f"{t8}|{d}|{dur}"
 
@@ -137,7 +140,7 @@ def get_garmin_client(
     if not GARMIN_AVAILABLE:
         return None
 
-    email    = email    or os.environ.get("GARMIN_EMAIL")
+    email = email or os.environ.get("GARMIN_EMAIL")
     password = password or os.environ.get("GARMIN_PASSWORD")
     tokendir = tokenstore or os.path.expanduser("~/.garth")
 
@@ -213,12 +216,12 @@ def fetch_recent_activities(
 
         duration_s = int(act.get("duration", 0) or 0)
         distance_m = float(act.get("distance", 0) or 0)
-        calories   = int(act.get("calories", 0) or 0)
-        avg_hr     = act.get("averageHR")
-        max_hr     = act.get("maxHR")
-        elev_gain  = act.get("elevationGain")
-        act_name   = act.get("activityName", "")
-        act_id     = str(act.get("activityId", ""))
+        calories = int(act.get("calories", 0) or 0)
+        avg_hr = act.get("averageHR")
+        max_hr = act.get("maxHR")
+        elev_gain = act.get("elevationGain")
+        act_name = act.get("activityName", "")
+        act_id = str(act.get("activityId", ""))
 
         avg_pace = None
         if act_type == "Running" and distance_m > 0 and duration_s > 0:
@@ -226,23 +229,25 @@ def fetch_recent_activities(
 
         ck = canonical_key(act_type, started_at, duration_s)
 
-        parsed.append({
-            "source":       "garmin_connect",
-            "source_id":    act_id,
-            "type":         act_type,
-            "name":         act_name,
-            "started_at":   started_at,
-            "duration_s":   duration_s,
-            "distance_m":   distance_m if distance_m > 0 else None,
-            "elev_gain_m":  float(elev_gain) if elev_gain else None,
-            "calories":     calories if calories > 0 else None,
-            "avg_hr":       float(avg_hr) if avg_hr else None,
-            "max_hr":       float(max_hr) if max_hr else None,
-            "avg_pace_mpm": avg_pace,
-            "tss_proxy":    None,
-            "training_load": None,
-            "canonical_key": ck,
-        })
+        parsed.append(
+            {
+                "source": "garmin_connect",
+                "source_id": act_id,
+                "type": act_type,
+                "name": act_name,
+                "started_at": started_at,
+                "duration_s": duration_s,
+                "distance_m": distance_m if distance_m > 0 else None,
+                "elev_gain_m": float(elev_gain) if elev_gain else None,
+                "calories": calories if calories > 0 else None,
+                "avg_hr": float(avg_hr) if avg_hr else None,
+                "max_hr": float(max_hr) if max_hr else None,
+                "avg_pace_mpm": avg_pace,
+                "tss_proxy": None,
+                "training_load": None,
+                "canonical_key": ck,
+            }
+        )
 
     print(f"   → {len(parsed)} activités Garmin Connect ({start_date} → aujourd'hui)")
     return parsed
@@ -265,17 +270,24 @@ def _resolve_muscle_from_category(category: str | None, ex_name: str | None) -> 
     key = f"{cat} {str(ex_name or '').upper()}"
 
     # Fallback par mots-clés quand Garmin envoie des catégories non mappées
-    if any(k in key for k in ("ROW", "PULL_UP", "PULLDOWN", "PULL DOWN", "DEADLIFT", "HYPEREXTENSION")):
+    if any(
+        k in key for k in ("ROW", "PULL_UP", "PULLDOWN", "PULL DOWN", "DEADLIFT", "HYPEREXTENSION")
+    ):
         return "Dos", "Rhomboïdes"
     if any(k in key for k in ("SQUAT", "LUNGE", "LEG", "CALF", "GLUTE", "HIP_THRUST", "HIP_RAISE")):
         return "Jambes", "Quadriceps"
-    if any(k in key for k in ("PLANK", "CORE", "CRUNCH", "SIT_UP", "RUSSIAN", "TWIST", "LEG_RAISE")):
+    if any(
+        k in key for k in ("PLANK", "CORE", "CRUNCH", "SIT_UP", "RUSSIAN", "TWIST", "LEG_RAISE")
+    ):
         return "Core", "Abdominaux"
     if any(k in key for k in ("CURL", "CHIN_UP")):
         return "Biceps", "Biceps Brachial"
     if any(k in key for k in ("TRICEPS", "DIP", "SKULL", "TRICEPS_EXTENSION", "TRICEP_EXTENSION")):
         return "Triceps", "Chef Long"
-    if any(k in key for k in ("SHOULDER", "LATERAL", "FRONT_RAISE", "SHRUG", "FACE_PULL", "UPRIGHT_ROW")):
+    if any(
+        k in key
+        for k in ("SHOULDER", "LATERAL", "FRONT_RAISE", "SHRUG", "FACE_PULL", "UPRIGHT_ROW")
+    ):
         return "Épaules", "Faisceau Latéral"
     if any(k in key for k in ("BENCH", "CHEST", "FLY", "FLYE", "PUSH_UP")):
         return "Pecs", "Pecs Moyen"
@@ -357,7 +369,8 @@ def _upsert_strength_session_from_garmin_sets(
     if not active_sets:
         # Fallback: certaines payloads n'exposent pas "ACTIVE" explicitement.
         active_sets = [
-            s for s in garmin_sets
+            s
+            for s in garmin_sets
             if str(s.get("setType", "")).upper() not in {"REST", "RECOVERY", "WARMUP", "COOLDOWN"}
         ]
     if not active_sets:
@@ -366,12 +379,12 @@ def _upsert_strength_session_from_garmin_sets(
     parsed_sets = []
     for i, s in enumerate(active_sets, start=1):
         best = _pick_best_exercise(s.get("exercises"))
-        ex_cat = str(
-            best.get("category")
-            or s.get("exerciseCategory")
-            or s.get("category")
-            or ""
-        ).upper().strip() or None
+        ex_cat = (
+            str(best.get("category") or s.get("exerciseCategory") or s.get("category") or "")
+            .upper()
+            .strip()
+            or None
+        )
         ex_name_token = best.get("name") or s.get("exerciseName") or s.get("name")
         ex_name = _title_from_token(ex_name_token) or _title_from_token(ex_cat) or "Unknown"
         mg, sub = _resolve_muscle_from_category(ex_cat, ex_name_token)
@@ -394,18 +407,21 @@ def _upsert_strength_session_from_garmin_sets(
             )
         )
 
-        parsed_sets.append({
-            "started_at": str(s.get("startTime") or activity.get("started_at") or "")[:19] or None,
-            "exercise_name": ex_name,
-            "exercise_category": (ex_cat or "unknown").lower(),
-            "muscle_group": mg,
-            "muscle_subgroup": sub,
-            "set_index": i,
-            "set_type": "active",
-            "reps": reps,
-            "duration_s": duration_s,
-            "weight_kg": weight_kg,
-        })
+        parsed_sets.append(
+            {
+                "started_at": str(s.get("startTime") or activity.get("started_at") or "")[:19]
+                or None,
+                "exercise_name": ex_name,
+                "exercise_category": (ex_cat or "unknown").lower(),
+                "muscle_group": mg,
+                "muscle_subgroup": sub,
+                "set_index": i,
+                "set_type": "active",
+                "reps": reps,
+                "duration_s": duration_s,
+                "weight_kg": weight_kg,
+            }
+        )
 
     total_reps = sum(x["reps"] or 0 for x in parsed_sets)
 
@@ -560,7 +576,7 @@ def fetch_health_metrics(
 ) -> list[dict]:
     """Récupère HRV, FC repos, sommeil, Body Battery des N derniers jours."""
     metrics = []
-    end   = date.today()
+    end = date.today()
     start = end - timedelta(days=days)
     refresh_cutoff = end - timedelta(days=max(0, int(refresh_tail_days) - 1))
 
@@ -601,15 +617,19 @@ def fetch_health_metrics(
                 hrv_val = None
                 if isinstance(hrv_data, dict):
                     hrv_val = (
-                        hrv_data.get("lastNight", {}).get("avg5MinHrv") or
-                        hrv_data.get("hrvSummary", {}).get("lastNight") or
-                        hrv_data.get("hrv5MinAvg")
+                        hrv_data.get("lastNight", {}).get("avg5MinHrv")
+                        or hrv_data.get("hrvSummary", {}).get("lastNight")
+                        or hrv_data.get("hrv5MinAvg")
                     )
                     if hrv_val and hrv_val > 0:
-                        metrics.append({
-                            "date": ds, "metric": "hrv_sdnn",
-                            "value": float(hrv_val), "source": "garmin_connect",
-                        })
+                        metrics.append(
+                            {
+                                "date": ds,
+                                "metric": "hrv_sdnn",
+                                "value": float(hrv_val),
+                                "source": "garmin_connect",
+                            }
+                        )
         except Exception:
             pass
 
@@ -619,14 +639,23 @@ def fetch_health_metrics(
             if rhr_data:
                 rhr_val = None
                 if isinstance(rhr_data, dict):
-                    rhr_val = rhr_data.get("allMetrics", {}).get("metricsMap", {}).get("WELLNESS_RESTING_HEART_RATE", [{}])[0].get("value")
+                    rhr_val = (
+                        rhr_data.get("allMetrics", {})
+                        .get("metricsMap", {})
+                        .get("WELLNESS_RESTING_HEART_RATE", [{}])[0]
+                        .get("value")
+                    )
                     if not rhr_val:
                         rhr_val = rhr_data.get("restingHeartRate") or rhr_data.get("value")
                 if rhr_val and float(rhr_val) > 0:
-                    metrics.append({
-                        "date": ds, "metric": "rhr",
-                        "value": float(rhr_val), "source": "garmin_connect",
-                    })
+                    metrics.append(
+                        {
+                            "date": ds,
+                            "metric": "rhr",
+                            "value": float(rhr_val),
+                            "source": "garmin_connect",
+                        }
+                    )
         except Exception:
             pass
 
@@ -643,10 +672,14 @@ def fetch_health_metrics(
                 if sleep_secs and sleep_secs > 0:
                     sleep_h = round(sleep_secs / 3600, 2)
                     if 2 < sleep_h < 14:
-                        metrics.append({
-                            "date": ds, "metric": "sleep_h",
-                            "value": sleep_h, "source": "garmin_connect",
-                        })
+                        metrics.append(
+                            {
+                                "date": ds,
+                                "metric": "sleep_h",
+                                "value": sleep_h,
+                                "source": "garmin_connect",
+                            }
+                        )
         except Exception:
             pass
 
@@ -656,14 +689,19 @@ def fetch_health_metrics(
             if bb_data and isinstance(bb_data, list) and bb_data:
                 # Prendre la valeur max de la journée (matin = récupéré)
                 charged_vals = [
-                    r.get("charged") for r in bb_data
+                    r.get("charged")
+                    for r in bb_data
                     if r.get("charged") is not None and r.get("charged") > 0
                 ]
                 if charged_vals:
-                    metrics.append({
-                        "date": ds, "metric": "body_battery",
-                        "value": max(charged_vals), "source": "garmin_connect",
-                    })
+                    metrics.append(
+                        {
+                            "date": ds,
+                            "metric": "body_battery",
+                            "value": max(charged_vals),
+                            "source": "garmin_connect",
+                        }
+                    )
         except Exception:
             pass
 
@@ -673,17 +711,23 @@ def fetch_health_metrics(
             if stress and isinstance(stress, dict):
                 avg_stress = stress.get("avgStressLevel")
                 if avg_stress and avg_stress > 0:
-                    metrics.append({
-                        "date": ds, "metric": "stress_avg",
-                        "value": float(avg_stress), "source": "garmin_connect",
-                    })
+                    metrics.append(
+                        {
+                            "date": ds,
+                            "metric": "stress_avg",
+                            "value": float(avg_stress),
+                            "source": "garmin_connect",
+                        }
+                    )
         except Exception:
             pass
 
         current += timedelta(days=1)
 
     if skipped_days > 0:
-        print(f"   → {len(metrics)} métriques santé Garmin Connect ({skipped_days} jours historiques ignorés)")
+        print(
+            f"   → {len(metrics)} métriques santé Garmin Connect ({skipped_days} jours historiques ignorés)"
+        )
     else:
         print(f"   → {len(metrics)} métriques santé Garmin Connect")
     return metrics
@@ -697,19 +741,32 @@ def insert_activities(conn: sqlite3.Connection, activities: list[dict]) -> tuple
     cursor = conn.cursor()
     for a in activities:
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR IGNORE INTO activities
                   (source, source_id, type, name, started_at, duration_s,
                    distance_m, elev_gain_m, calories, avg_hr, max_hr,
                    avg_pace_mpm, tss_proxy, training_load, canonical_key)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """, (
-                a["source"], a["source_id"], a["type"], a["name"],
-                a["started_at"], a["duration_s"], a["distance_m"],
-                a["elev_gain_m"], a["calories"], a["avg_hr"], a["max_hr"],
-                a["avg_pace_mpm"], a["tss_proxy"], a["training_load"],
-                a["canonical_key"],
-            ))
+            """,
+                (
+                    a["source"],
+                    a["source_id"],
+                    a["type"],
+                    a["name"],
+                    a["started_at"],
+                    a["duration_s"],
+                    a["distance_m"],
+                    a["elev_gain_m"],
+                    a["calories"],
+                    a["avg_hr"],
+                    a["max_hr"],
+                    a["avg_pace_mpm"],
+                    a["tss_proxy"],
+                    a["training_load"],
+                    a["canonical_key"],
+                ),
+            )
             if cursor.rowcount:
                 ins += 1
             else:
@@ -725,10 +782,13 @@ def insert_health_metrics(conn: sqlite3.Connection, metrics: list[dict]) -> int:
     cursor = conn.cursor()
     for m in metrics:
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR IGNORE INTO health_metrics (date, metric, value, source)
                 VALUES (?,?,?,?)
-            """, (m["date"], m["metric"], m["value"], m["source"]))
+            """,
+                (m["date"], m["metric"], m["value"], m["source"]),
+            )
             if cursor.rowcount:
                 ins += 1
         except sqlite3.Error:
@@ -741,11 +801,11 @@ def insert_health_metrics(conn: sqlite3.Connection, metrics: list[dict]) -> int:
 # PIPELINE PRINCIPAL
 # ─────────────────────────────────────────────────────────────────
 def run(
-    db_path:    Path = DB_PATH,
-    days:       int  = 30,
-    email:      str | None = None,
-    password:   str | None = None,
-    verbose:    bool = True,
+    db_path: Path = DB_PATH,
+    days: int = 30,
+    email: str | None = None,
+    password: str | None = None,
+    verbose: bool = True,
     refresh_tail_days: int = 3,
 ) -> dict:
     """
@@ -793,13 +853,13 @@ def run(
     conn.close()
 
     return {
-        "activities_fetched":  len(activities),
+        "activities_fetched": len(activities),
         "activities_inserted": ins_a,
-        "activities_skipped":  skip_a,
+        "activities_skipped": skip_a,
         "strength_sessions_inserted": sess_new,
         "exercise_sets_inserted": sets_ins,
         "strength_sessions_skipped": sets_skip,
-        "metrics_inserted":    ins_m,
+        "metrics_inserted": ins_m,
     }
 
 
@@ -808,22 +868,26 @@ def run(
 # ─────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import argparse
+
     p = argparse.ArgumentParser(description="Sync Garmin Connect → SQLite")
-    p.add_argument("--db",       default=str(DB_PATH))
-    p.add_argument("--days",     type=int, default=30, help="Nb jours à récupérer")
-    p.add_argument("--refresh-tail-days", type=int, default=3,
-                   help="Ne refresh complètement que les N derniers jours")
-    p.add_argument("--email",    default=None)
+    p.add_argument("--db", default=str(DB_PATH))
+    p.add_argument("--days", type=int, default=30, help="Nb jours à récupérer")
+    p.add_argument(
+        "--refresh-tail-days",
+        type=int,
+        default=3,
+        help="Ne refresh complètement que les N derniers jours",
+    )
+    p.add_argument("--email", default=None)
     p.add_argument("--password", default=None)
-    p.add_argument("--login",    action="store_true",
-                   help="Force login interactif (stocke le token)")
+    p.add_argument("--login", action="store_true", help="Force login interactif (stocke le token)")
     args = p.parse_args()
 
     if args.login:
         # Login interactif avec saisie manuelle
-        email    = args.email    or input("Email Garmin : ").strip()
+        email = args.email or input("Email Garmin : ").strip()
         password = args.password or input("Mot de passe Garmin : ").strip()
-        client   = get_garmin_client(email=email, password=password)
+        client = get_garmin_client(email=email, password=password)
         if client:
             print("✅ Connecté et token sauvegardé.")
         sys.exit(0)

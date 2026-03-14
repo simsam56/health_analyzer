@@ -1,7 +1,7 @@
 """Apple Calendar sync (macOS) for PerformOS v3."""
+
 from __future__ import annotations
 
-import json
 import sqlite3
 import subprocess
 import sys
@@ -27,12 +27,14 @@ def _to_iso_from_nsdate(nsdate) -> str | None:
 
 def _nsdate_from_iso(iso_ts: str):
     try:
-        from Foundation import NSDate  # type: ignore
         import time as _time
+
+        from Foundation import NSDate  # type: ignore
+
         # Supprimer le 'Z' ou le fuseau horaire s'il existe
-        iso_clean = iso_ts.rstrip('Z').split('+')[0]
+        iso_clean = iso_ts.rstrip("Z").split("+")[0]
         # Si le format contient un fuseau horaire, on le supprime aussi
-        if '-' in iso_clean[10:]:  # Après la date YYYY-MM-DD
+        if "-" in iso_clean[10:]:  # Après la date YYYY-MM-DD
             iso_clean = iso_clean[:19]
 
         # Parser comme heure locale et convertir en timestamp
@@ -57,7 +59,7 @@ def _get_store_and_access():
     def _completion(granted, error):
         grant["ok"] = bool(granted)
         if error is not None:
-            grant["err"] = str(error)
+            grant["err"] = str(error)  # type: ignore[assignment]
         done.set()
 
     # Utiliser l'API moderne (macOS 17+) puis fallback sur l'ancienne
@@ -73,10 +75,9 @@ def _get_store_and_access():
     # quand Python tourne hors d'une app Cocoa avec boucle événementielle)
     try:
         from Foundation import NSDate, NSRunLoop  # type: ignore
+
         for _ in range(50):  # 5 secondes max
-            NSRunLoop.currentRunLoop().runUntilDate_(
-                NSDate.dateWithTimeIntervalSinceNow_(0.1)
-            )
+            NSRunLoop.currentRunLoop().runUntilDate_(NSDate.dateWithTimeIntervalSinceNow_(0.1))
             if done.is_set():
                 break
     except Exception:
@@ -105,7 +106,9 @@ def _osascript(script: str, timeout: int = 15) -> str:
     """Run an AppleScript and return stdout."""
     r = subprocess.run(
         ["osascript", "-e", script],
-        capture_output=True, text=True, timeout=timeout,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
     )
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip() or f"osascript exit {r.returncode}")
@@ -119,7 +122,7 @@ def _fetch_with_applescript(days_ahead: int) -> tuple[list[dict], str | None]:
 
     # Exclure les calendriers système lents (Rappels, Anniversaires, Siri, Fêtes)
     skip_names = {"Rappels programmés", "Anniversaires", "Suggestions de Siri"}
-    script = f'''
+    script = f"""
 set startDate to current date
 set endDate to startDate + {days_ahead} * days
 set skipNames to {{{", ".join('"' + n + '"' for n in skip_names)}}}
@@ -153,7 +156,7 @@ tell application "Calendar"
     end repeat
 end tell
 return output
-'''
+"""
     try:
         raw = _osascript(script, timeout=60)
     except Exception as e:
@@ -167,6 +170,7 @@ return output
     # pending record's raw text, and we parse fields from the assembled
     # block at flush time.
     import re
+
     _iso_re = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
 
     parsed: list[dict] = []
@@ -201,24 +205,28 @@ return output
             notes = notes.replace(ch, " ")
             title = title.replace(ch, " ")
             location = location.replace(ch, " ")
-        parsed.append({
-            "event_uid": uid.strip(),
-            "calendar_name": cal_name.strip(),
-            "title": title.strip(),
-            "location": location.strip(),
-            "notes": notes.strip(),
-            "start_at": start_at,
-            "end_at": end_at,
-            "is_all_day": 1 if all_day.lower() in ("true", "1") else 0,
-            "source": "apple_calendar",
-        })
+        parsed.append(
+            {
+                "event_uid": uid.strip(),
+                "calendar_name": cal_name.strip(),
+                "title": title.strip(),
+                "location": location.strip(),
+                "notes": notes.strip(),
+                "start_at": start_at,
+                "end_at": end_at,
+                "is_all_day": 1 if all_day.lower() in ("true", "1") else 0,
+                "source": "apple_calendar",
+            }
+        )
 
     for line in raw.split("\n"):
         parts = line.split("\t")
         # A new record starts when we see >=6 tab fields with ISO dates at [3] & [4]
-        is_new = (len(parts) >= 6
-                  and _iso_re.match(parts[3] if len(parts) > 3 else "")
-                  and _iso_re.match(parts[4] if len(parts) > 4 else ""))
+        is_new = (
+            len(parts) >= 6
+            and _iso_re.match(parts[3] if len(parts) > 3 else "")
+            and _iso_re.match(parts[4] if len(parts) > 4 else "")
+        )
         if is_new:
             if pending_raw is not None:
                 _flush(pending_raw)
@@ -237,8 +245,11 @@ return output
 
 
 def _create_event_applescript(
-    title: str, start_at: str, end_at: str,
-    notes: str | None = None, location: str | None = None,
+    title: str,
+    start_at: str,
+    end_at: str,
+    notes: str | None = None,
+    location: str | None = None,
     calendar_name: str | None = None,
 ) -> dict:
     """Create a calendar event via AppleScript."""
@@ -252,7 +263,6 @@ def _create_event_applescript(
     start_iso = start_at[:19]
     end_iso = end_at[:19]
 
-    props_lines = [f'summary:"{escaped_title}"']
     note_set = ""
     loc_set = ""
     if notes:
@@ -310,17 +320,17 @@ def _update_event_applescript(
 
     set_lines = []
     if title is not None:
-        set_lines.append(f'set summary of e to "{title.replace(chr(34), chr(92)+chr(34))}"')
+        set_lines.append(f'set summary of e to "{title.replace(chr(34), chr(92) + chr(34))}"')
     if notes is not None:
-        set_lines.append(f'set description of e to "{notes.replace(chr(34), chr(92)+chr(34))}"')
+        set_lines.append(f'set description of e to "{notes.replace(chr(34), chr(92) + chr(34))}"')
     if location is not None:
-        set_lines.append(f'set location of e to "{location.replace(chr(34), chr(92)+chr(34))}"')
+        set_lines.append(f'set location of e to "{location.replace(chr(34), chr(92) + chr(34))}"')
 
     # Construire les dates via AppleScript natif (évite l'erreur -10000)
     date_setup = ""
     if start_at is not None:
         s = start_at[:19]
-        date_setup += f'''
+        date_setup += f"""
             set sDate to current date
             set year of sDate to {s[:4]}
             set month of sDate to {int(s[5:7])}
@@ -328,10 +338,10 @@ def _update_event_applescript(
             set hours of sDate to {int(s[11:13])}
             set minutes of sDate to {int(s[14:16])}
             set seconds of sDate to {int(s[17:19])}
-            set start date of e to sDate'''
+            set start date of e to sDate"""
     if end_at is not None:
         e_iso = end_at[:19]
-        date_setup += f'''
+        date_setup += f"""
             set eDate to current date
             set year of eDate to {e_iso[:4]}
             set month of eDate to {int(e_iso[5:7])}
@@ -339,7 +349,7 @@ def _update_event_applescript(
             set hours of eDate to {int(e_iso[11:13])}
             set minutes of eDate to {int(e_iso[14:16])}
             set seconds of eDate to {int(e_iso[17:19])}
-            set end date of e to eDate'''
+            set end date of e to eDate"""
 
     if not set_lines and not date_setup:
         return {"enabled": True, "error": None, "event_uid": event_uid}
@@ -403,7 +413,9 @@ def _applescript_available() -> bool:
         return False
 
 
-def _fetch_with_eventkit(days_ahead: int, calendar_name: str | None = None) -> tuple[list[dict], str | None]:
+def _fetch_with_eventkit(
+    days_ahead: int, calendar_name: str | None = None
+) -> tuple[list[dict], str | None]:
     """Fetch calendar events via EventKit, fallback to AppleScript."""
     try:
         from Foundation import NSDate  # type: ignore
@@ -486,7 +498,8 @@ def create_apple_calendar_event(
     if err:
         if err.startswith("calendar_status_unknown"):
             try:
-                from EventKit import EKEventStore, EKEntityTypeEvent  # type: ignore
+                from EventKit import EKEntityTypeEvent, EKEventStore  # type: ignore
+
                 store = EKEventStore.alloc().init()
                 entity_type = EKEntityTypeEvent
                 err = None
@@ -524,7 +537,7 @@ def create_apple_calendar_event(
         preferred = None
         for c in calendars:
             try:
-                src = c.source() if hasattr(c, 'source') else None
+                src = c.source() if hasattr(c, "source") else None
                 src_title = str(src.title()).lower() if src is not None else ""
             except Exception:
                 src_title = ""
@@ -553,8 +566,12 @@ def create_apple_calendar_event(
         # Fallback AppleScript si EventKit ne voit aucun calendrier
         if _applescript_available():
             return _create_event_applescript(
-                title=title, start_at=start_at, end_at=end_at,
-                notes=notes, location=location, calendar_name=calendar_name,
+                title=title,
+                start_at=start_at,
+                end_at=end_at,
+                notes=notes,
+                location=location,
+                calendar_name=calendar_name,
             )
         return {"enabled": False, "error": "no_writable_calendar"}
     event.setCalendar_(calendar)
@@ -603,13 +620,16 @@ def update_apple_calendar_event(
         if err.startswith("calendar_status_unknown"):
             try:
                 from EventKit import EKEventStore  # type: ignore
+
                 store = EKEventStore.alloc().init()
                 err = None
             except Exception:
                 pass
         if err:
             if _applescript_available():
-                return _update_event_applescript(event_uid, title, start_at, end_at, notes, location)
+                return _update_event_applescript(
+                    event_uid, title, start_at, end_at, notes, location
+                )
             return {"enabled": False, "error": err}
 
     event = _find_event_by_uid(store, event_uid)
@@ -723,7 +743,9 @@ def sync_apple_calendar(
     conn = sqlite3.connect(str(db_path))
     now = _now_iso()
     start_cutoff = datetime.now().replace(microsecond=0).isoformat()
-    end_cutoff = (datetime.now() + timedelta(days=days_ahead + 2)).replace(microsecond=0).isoformat()
+    end_cutoff = (
+        (datetime.now() + timedelta(days=days_ahead + 2)).replace(microsecond=0).isoformat()
+    )
 
     conn.execute(
         """
@@ -757,6 +779,26 @@ def sync_apple_calendar(
         )
         inserted += 1
 
+    # ── Reconciliation: remove orphaned planner_tasks whose Apple event
+    #    no longer exists in calendar_events (deleted from Apple Calendar).
+    orphan_ids = [
+        row[0]
+        for row in conn.execute(
+            """
+        SELECT pt.id
+        FROM planner_tasks pt
+        WHERE pt.source = 'apple_calendar'
+          AND pt.calendar_uid IS NOT NULL
+          AND pt.calendar_uid NOT IN (SELECT event_uid FROM calendar_events)
+        """,
+        ).fetchall()
+    ]
+    if orphan_ids:
+        conn.execute(
+            f"DELETE FROM planner_tasks WHERE id IN ({','.join('?' * len(orphan_ids))})",
+            orphan_ids,
+        )
+
     conn.commit()
     conn.close()
 
@@ -764,6 +806,7 @@ def sync_apple_calendar(
         "enabled": True,
         "error": None,
         "events_synced": inserted,
+        "orphaned_tasks_removed": len(orphan_ids) if orphan_ids else 0,
         "window_days": days_ahead,
         "synced_at": now,
     }

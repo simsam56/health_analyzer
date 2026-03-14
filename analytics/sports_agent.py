@@ -9,18 +9,19 @@ Analyses performed:
   - Weekly summary: AI-style narrative insights
   - Recommendations: prioritized, actionable, with severity
 """
+
 from __future__ import annotations
 
 import sqlite3
+from collections import defaultdict
 from datetime import date, timedelta
 from pathlib import Path
-from collections import defaultdict
 from statistics import mean
-
 
 # ─────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────
+
 
 def _conn(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(db_path))
@@ -56,7 +57,9 @@ def _pace_str(mpm: float | None) -> str:
     return f"{m}'{s:02d}\""
 
 
-def _trend_arrow(current: float | None, previous: float | None, higher_is_better: bool = True) -> str:
+def _trend_arrow(
+    current: float | None, previous: float | None, higher_is_better: bool = True
+) -> str:
     """Returns ↑ ↓ → based on change."""
     if current is None or previous is None or previous == 0:
         return "→"
@@ -71,16 +74,20 @@ def _trend_arrow(current: float | None, previous: float | None, higher_is_better
 # RUNNING ANALYSIS AGENT
 # ─────────────────────────────────────────────────────────────────
 
+
 def analyze_running(conn: sqlite3.Connection, months: int = 12) -> dict:
     since = (date.today() - timedelta(days=months * 30)).isoformat()
-    rows = list(conn.execute(
-        """
+    rows = list(
+        conn.execute(
+            """
         SELECT started_at, duration_s, distance_m, avg_hr, max_hr, avg_pace_mpm, calories
         FROM activities
         WHERE type = 'Running' AND distance_m > 0 AND started_at >= ?
         ORDER BY started_at ASC
-        """, (since,)
-    ))
+        """,
+            (since,),
+        )
+    )
 
     if not rows:
         return {"sessions": 0, "status": "no_data"}
@@ -90,15 +97,17 @@ def analyze_running(conn: sqlite3.Connection, months: int = 12) -> dict:
         d = _to_date(r["started_at"])
         dist_km = (r["distance_m"] or 0) / 1000
         pace = r["avg_pace_mpm"]
-        sessions.append({
-            "date": str(d),
-            "dist_km": round(dist_km, 2),
-            "duration_min": round((r["duration_s"] or 0) / 60, 1),
-            "pace_mpm": pace,
-            "pace_str": _pace_str(pace),
-            "avg_hr": r["avg_hr"],
-            "calories": r["calories"],
-        })
+        sessions.append(
+            {
+                "date": str(d),
+                "dist_km": round(dist_km, 2),
+                "duration_min": round((r["duration_s"] or 0) / 60, 1),
+                "pace_mpm": pace,
+                "pace_str": _pace_str(pace),
+                "avg_hr": r["avg_hr"],
+                "calories": r["calories"],
+            }
+        )
 
     total_km = sum(s["dist_km"] for s in sessions)
     total_sessions = len(sessions)
@@ -116,13 +125,15 @@ def analyze_running(conn: sqlite3.Connection, months: int = 12) -> dict:
     for k in sorted(monthly.keys())[-12:]:
         m = monthly[k]
         avg_pace = _safe_mean(m["paces"])
-        monthly_list.append({
-            "month": k,
-            "sessions": m["sessions"],
-            "km": round(m["km"], 1),
-            "avg_pace_mpm": round(avg_pace, 2) if avg_pace else None,
-            "avg_pace_str": _pace_str(avg_pace),
-        })
+        monthly_list.append(
+            {
+                "month": k,
+                "sessions": m["sessions"],
+                "km": round(m["km"], 1),
+                "avg_pace_mpm": round(avg_pace, 2) if avg_pace else None,
+                "avg_pace_str": _pace_str(avg_pace),
+            }
+        )
 
     # Recent trend (last 8 sessions)
     recent = sessions[-8:] if len(sessions) >= 2 else sessions
@@ -153,7 +164,12 @@ def analyze_running(conn: sqlite3.Connection, months: int = 12) -> dict:
         ref_pace = best_run["pace_mpm"]
         ref_time = ref_dist * ref_pace  # minutes
 
-        for target_name, target_km in [("5km", 5), ("10km", 10), ("semi", 21.1), ("marathon", 42.2)]:
+        for target_name, target_km in [
+            ("5km", 5),
+            ("10km", 10),
+            ("semi", 21.1),
+            ("marathon", 42.2),
+        ]:
             if target_km >= ref_dist * 0.5:  # Only predict distances near or above reference
                 pred_time = ref_time * ((target_km / ref_dist) ** 1.06)
                 h, r = divmod(pred_time, 60)
@@ -199,30 +215,36 @@ def analyze_running(conn: sqlite3.Connection, months: int = 12) -> dict:
 # STRENGTH TRAINING AGENT
 # ─────────────────────────────────────────────────────────────────
 
+
 def analyze_strength(conn: sqlite3.Connection, weeks: int = 12) -> dict:
     since = (date.today() - timedelta(weeks=weeks)).isoformat()
-    rows = list(conn.execute(
-        """
+    rows = list(
+        conn.execute(
+            """
         SELECT started_at, name, duration_s, avg_hr, calories
         FROM activities
         WHERE type IN ('Strength Training', 'Cross Training')
           AND started_at >= ?
         ORDER BY started_at DESC
-        """, (since,)
-    ))
+        """,
+            (since,),
+        )
+    )
 
     if not rows:
         return {"sessions": 0, "status": "no_data"}
 
     sessions = []
     for r in rows:
-        sessions.append({
-            "date": str(r["started_at"])[:10],
-            "name": r["name"] or "Muscu",
-            "duration_min": round((r["duration_s"] or 0) / 60, 0),
-            "avg_hr": r["avg_hr"],
-            "calories": r["calories"],
-        })
+        sessions.append(
+            {
+                "date": str(r["started_at"])[:10],
+                "name": r["name"] or "Muscu",
+                "duration_min": round((r["duration_s"] or 0) / 60, 0),
+                "avg_hr": r["avg_hr"],
+                "calories": r["calories"],
+            }
+        )
 
     # Frequency per week
     week_counts: dict[str, int] = defaultdict(int)
@@ -236,11 +258,11 @@ def analyze_strength(conn: sqlite3.Connection, weeks: int = 12) -> dict:
     avg_per_week = _safe_mean([week_counts[w] for w in recent_weeks]) or 0
 
     # Recovery gaps (days between sessions)
-    dates = sorted([_to_date(s["date"]) for s in sessions if _to_date(s["date"])])
+    dates: list[date] = [d for s in sessions if (d := _to_date(s["date"])) is not None]
+    dates.sort()
     gaps = []
     for i in range(1, len(dates)):
-        if dates[i] and dates[i-1]:
-            gaps.append((dates[i] - dates[i-1]).days)
+        gaps.append((dates[i] - dates[i - 1]).days)
 
     avg_gap = _safe_mean(gaps)
     last_session = dates[0] if dates else None  # sorted desc from query
@@ -260,13 +282,14 @@ def analyze_strength(conn: sqlite3.Connection, weeks: int = 12) -> dict:
 # RECOVERY AGENT
 # ─────────────────────────────────────────────────────────────────
 
+
 def analyze_recovery(conn: sqlite3.Connection, days: int = 30) -> dict:
     since = (date.today() - timedelta(days=days)).isoformat()
 
     def fetch_metric(metric: str, limit: int = 30) -> list[dict]:
         rows = conn.execute(
             "SELECT date, value FROM health_metrics WHERE metric=? AND date >= ? ORDER BY date DESC LIMIT ?",
-            (metric, since, limit)
+            (metric, since, limit),
         ).fetchall()
         return [{"date": r["date"], "value": r["value"]} for r in rows]
 
@@ -297,35 +320,35 @@ def analyze_recovery(conn: sqlite3.Connection, days: int = 30) -> dict:
     latest_stress = stress_vals[0] if stress_vals else None
 
     # Recovery score (0-100)
-    score = 0
-    weight_sum = 0
+    score = 0.0
+    weight_sum = 0.0
 
     # RHR component (lower = better) — 40 bpm = perfect, 80 = 0
     if latest_rhr:
-        rhr_score = max(0, min(100, (80 - latest_rhr) / (80 - 40) * 100))
+        rhr_score = max(0.0, min(100.0, (80 - latest_rhr) / (80 - 40) * 100))
         score += rhr_score * 0.25
         weight_sum += 0.25
 
     # Sleep component — 8h = 100, 4h = 0
     if latest_sleep:
-        sleep_score = max(0, min(100, (latest_sleep / 8.0) * 100))
+        sleep_score = max(0.0, min(100.0, (latest_sleep / 8.0) * 100))
         score += sleep_score * 0.25
         weight_sum += 0.25
 
     # Body battery — direct 0-100
     if latest_battery:
-        score += latest_battery * 0.30
+        score += float(latest_battery) * 0.30
         weight_sum += 0.30
 
     # HRV component — 80ms = 100, 20ms = 0
     if avg_hrv:
-        hrv_score = max(0, min(100, ((avg_hrv - 20) / 60) * 100))
+        hrv_score = max(0.0, min(100.0, ((avg_hrv - 20) / 60) * 100))
         score += hrv_score * 0.15
         weight_sum += 0.15
 
     # Stress (lower = better) — 0 = 100, 100 = 0
     if latest_stress:
-        stress_score = max(0, 100 - latest_stress)
+        stress_score = max(0.0, 100.0 - float(latest_stress))
         score += stress_score * 0.05
         weight_sum += 0.05
 
@@ -441,8 +464,9 @@ SPORT_COLORS = {
 
 def analyze_sport_breakdown(conn: sqlite3.Connection, months: int = 12) -> dict:
     since = (date.today() - timedelta(days=months * 30)).isoformat()
-    rows = list(conn.execute(
-        """
+    rows = list(
+        conn.execute(
+            """
         SELECT type, COUNT(*) as n,
                SUM(duration_s) as total_s,
                SUM(CASE WHEN distance_m > 0 THEN distance_m ELSE 0 END) as total_m,
@@ -452,29 +476,36 @@ def analyze_sport_breakdown(conn: sqlite3.Connection, months: int = 12) -> dict:
         WHERE started_at >= ?
         GROUP BY type
         ORDER BY n DESC
-        """, (since,)
-    ))
+        """,
+            (since,),
+        )
+    )
 
     sports = []
     total_sessions = sum(r["n"] for r in rows)
     for r in rows:
         pct = round(r["n"] / total_sessions * 100) if total_sessions > 0 else 0
-        sports.append({
-            "type": r["type"],
-            "icon": SPORT_ICONS.get(r["type"], "🏅"),
-            "color": SPORT_COLORS.get(r["type"], "#6b7280"),
-            "sessions": r["n"],
-            "hours": round((r["total_s"] or 0) / 3600, 1),
-            "km": round((r["total_m"] or 0) / 1000, 1),
-            "calories": r["total_cal"] or 0,
-            "pct": pct,
-            "last_session": str(r["last_session"])[:10] if r["last_session"] else None,
-            "days_since": _days_ago(_to_date(str(r["last_session"])[:10] if r["last_session"] else None)),
-        })
+        sports.append(
+            {
+                "type": r["type"],
+                "icon": SPORT_ICONS.get(r["type"], "🏅"),
+                "color": SPORT_COLORS.get(r["type"], "#6b7280"),
+                "sessions": r["n"],
+                "hours": round((r["total_s"] or 0) / 3600, 1),
+                "km": round((r["total_m"] or 0) / 1000, 1),
+                "calories": r["total_cal"] or 0,
+                "pct": pct,
+                "last_session": str(r["last_session"])[:10] if r["last_session"] else None,
+                "days_since": _days_ago(
+                    _to_date(str(r["last_session"])[:10] if r["last_session"] else None)
+                ),
+            }
+        )
 
     # Monthly sport heatmap data
-    monthly_rows = list(conn.execute(
-        """
+    monthly_rows = list(
+        conn.execute(
+            """
         SELECT strftime('%Y-%m', started_at) as month,
                type,
                COUNT(*) as n,
@@ -483,8 +514,10 @@ def analyze_sport_breakdown(conn: sqlite3.Connection, months: int = 12) -> dict:
         WHERE started_at >= ?
         GROUP BY month, type
         ORDER BY month DESC
-        """, (since,)
-    ))
+        """,
+            (since,),
+        )
+    )
 
     monthly_by_month: dict[str, dict] = defaultdict(dict)
     for r in monthly_rows:
@@ -504,6 +537,7 @@ def analyze_sport_breakdown(conn: sqlite3.Connection, months: int = 12) -> dict:
 # RECOMMENDATIONS AGENT
 # ─────────────────────────────────────────────────────────────────
 
+
 def generate_recommendations(
     running: dict,
     strength: dict,
@@ -518,120 +552,142 @@ def generate_recommendations(
     battery = recovery.get("latest", {}).get("body_battery")
     rhr = recovery.get("latest", {}).get("rhr")
     sleep = recovery.get("latest", {}).get("sleep_h")
-    recovery_score = recovery.get("score", 50)
+    recovery.get("score", 50)
 
     if battery is not None and battery < 20:
-        recs.append({
-            "severity": "critical",
-            "icon": "🔋",
-            "title": "Body Battery très bas",
-            "body": f"Body Battery à {int(battery)}/100. Ton corps est épuisé. Priorité : sommeil et repos actif aujourd'hui.",
-            "action": "Repos ou marche légère uniquement",
-            "category": "recovery",
-        })
+        recs.append(
+            {
+                "severity": "critical",
+                "icon": "🔋",
+                "title": "Body Battery très bas",
+                "body": f"Body Battery à {int(battery)}/100. Ton corps est épuisé. Priorité : sommeil et repos actif aujourd'hui.",
+                "action": "Repos ou marche légère uniquement",
+                "category": "recovery",
+            }
+        )
     elif battery is not None and battery < 40:
-        recs.append({
-            "severity": "warning",
-            "icon": "⚡",
-            "title": "Récupération incomplète",
-            "body": f"Body Battery à {int(battery)}/100. Évite les séances intenses. Opte pour mobilité ou cardio léger.",
-            "action": "Séance légère ou récupération active",
-            "category": "recovery",
-        })
+        recs.append(
+            {
+                "severity": "warning",
+                "icon": "⚡",
+                "title": "Récupération incomplète",
+                "body": f"Body Battery à {int(battery)}/100. Évite les séances intenses. Opte pour mobilité ou cardio léger.",
+                "action": "Séance légère ou récupération active",
+                "category": "recovery",
+            }
+        )
 
     if rhr is not None and rhr > 65:
-        recs.append({
-            "severity": "warning",
-            "icon": "❤️",
-            "title": "FC repos élevée",
-            "body": f"RHR à {int(rhr)} bpm (ta normale ~50-58 bpm). Signe de fatigue ou début d'infection. Surveille l'évolution.",
-            "action": "Limiter l'intensité, bien s'hydrater",
-            "category": "recovery",
-        })
+        recs.append(
+            {
+                "severity": "warning",
+                "icon": "❤️",
+                "title": "FC repos élevée",
+                "body": f"RHR à {int(rhr)} bpm (ta normale ~50-58 bpm). Signe de fatigue ou début d'infection. Surveille l'évolution.",
+                "action": "Limiter l'intensité, bien s'hydrater",
+                "category": "recovery",
+            }
+        )
 
     # ─── ACWR recommendations ───
     if acwr_val > 1.5:
-        recs.append({
-            "severity": "critical",
-            "icon": "⚠️",
-            "title": "Risque blessure élevé (ACWR)",
-            "body": f"ACWR = {round(acwr_val, 2)}. Tu t'entraînes trop vite après une période de repos. Risque de blessure significatif.",
-            "action": "Réduire le volume de 20-30% cette semaine",
-            "category": "load",
-        })
+        recs.append(
+            {
+                "severity": "critical",
+                "icon": "⚠️",
+                "title": "Risque blessure élevé (ACWR)",
+                "body": f"ACWR = {round(acwr_val, 2)}. Tu t'entraînes trop vite après une période de repos. Risque de blessure significatif.",
+                "action": "Réduire le volume de 20-30% cette semaine",
+                "category": "load",
+            }
+        )
     elif acwr_val > 1.3:
-        recs.append({
-            "severity": "warning",
-            "icon": "📈",
-            "title": "Charge d'entraînement élevée",
-            "body": f"ACWR = {round(acwr_val, 2)}. Zone de risque modéré. Maintiens le volume sans augmenter.",
-            "action": "Stabiliser le volume cette semaine",
-            "category": "load",
-        })
+        recs.append(
+            {
+                "severity": "warning",
+                "icon": "📈",
+                "title": "Charge d'entraînement élevée",
+                "body": f"ACWR = {round(acwr_val, 2)}. Zone de risque modéré. Maintiens le volume sans augmenter.",
+                "action": "Stabiliser le volume cette semaine",
+                "category": "load",
+            }
+        )
     elif acwr_val < 0.5:
-        recs.append({
-            "severity": "info",
-            "icon": "💤",
-            "title": "Volume très faible",
-            "body": f"ACWR = {round(acwr_val, 2)}. Période de sous-entraînement. C'est OK si c'est voulu (déload, vacances).",
-            "action": "Reprendre progressivement si pas de déload planifié",
-            "category": "load",
-        })
+        recs.append(
+            {
+                "severity": "info",
+                "icon": "💤",
+                "title": "Volume très faible",
+                "body": f"ACWR = {round(acwr_val, 2)}. Période de sous-entraînement. C'est OK si c'est voulu (déload, vacances).",
+                "action": "Reprendre progressivement si pas de déload planifié",
+                "category": "load",
+            }
+        )
     elif 0.8 <= acwr_val <= 1.3:
-        recs.append({
-            "severity": "success",
-            "icon": "✅",
-            "title": "Zone optimale d'entraînement",
-            "body": f"ACWR = {round(acwr_val, 2)}. Tu es dans la zone verte. C'est le bon moment pour progresser.",
-            "action": "Maintien possible ou légère augmentation du volume",
-            "category": "load",
-        })
+        recs.append(
+            {
+                "severity": "success",
+                "icon": "✅",
+                "title": "Zone optimale d'entraînement",
+                "body": f"ACWR = {round(acwr_val, 2)}. Tu es dans la zone verte. C'est le bon moment pour progresser.",
+                "action": "Maintien possible ou légère augmentation du volume",
+                "category": "load",
+            }
+        )
 
     # ─── Running recommendations ───
     last_run_days = running.get("last_run_days_ago", 999)
     if last_run_days > 14:
-        recs.append({
-            "severity": "info",
-            "icon": "🏃",
-            "title": "Reprise running recommandée",
-            "body": f"Dernière sortie running il y a {last_run_days} jours. Une séance légère (30-40min) maintient la base cardio.",
-            "action": "Run facile 5km, allure conversation",
-            "category": "sport",
-        })
+        recs.append(
+            {
+                "severity": "info",
+                "icon": "🏃",
+                "title": "Reprise running recommandée",
+                "body": f"Dernière sortie running il y a {last_run_days} jours. Une séance légère (30-40min) maintient la base cardio.",
+                "action": "Run facile 5km, allure conversation",
+                "category": "sport",
+            }
+        )
 
     consistency = running.get("consistency_score", 0)
     if consistency < 40 and running.get("sessions", 0) > 0:
-        recs.append({
-            "severity": "info",
-            "icon": "📅",
-            "title": "Régularité running à améliorer",
-            "body": f"Score de régularité : {consistency}/100. Vise 4-6 sorties par mois pour progresser.",
-            "action": "Planifier 2 runs cette semaine dans le calendrier",
-            "category": "sport",
-        })
+        recs.append(
+            {
+                "severity": "info",
+                "icon": "📅",
+                "title": "Régularité running à améliorer",
+                "body": f"Score de régularité : {consistency}/100. Vise 4-6 sorties par mois pour progresser.",
+                "action": "Planifier 2 runs cette semaine dans le calendrier",
+                "category": "sport",
+            }
+        )
 
     # ─── Strength recommendations ───
     last_strength_days = strength.get("last_session_days_ago", 999)
     if last_strength_days > 7:
-        recs.append({
-            "severity": "info",
-            "icon": "🏋️",
-            "title": "Séance muscu recommandée",
-            "body": f"Dernière séance de force il y a {last_strength_days} jours. Pour maintenir la masse, vise 2-3x/semaine.",
-            "action": "Séance Push ou Full Body",
-            "category": "sport",
-        })
+        recs.append(
+            {
+                "severity": "info",
+                "icon": "🏋️",
+                "title": "Séance muscu recommandée",
+                "body": f"Dernière séance de force il y a {last_strength_days} jours. Pour maintenir la masse, vise 2-3x/semaine.",
+                "action": "Séance Push ou Full Body",
+                "category": "sport",
+            }
+        )
 
     # ─── Sleep recommendation ───
     if sleep is not None and sleep < 7:
-        recs.append({
-            "severity": "warning",
-            "icon": "😴",
-            "title": "Sommeil insuffisant",
-            "body": f"{round(sleep, 1)}h de sommeil. En dessous des 7-9h recommandés. Impact sur récupération et performance.",
-            "action": "Coucher 30min plus tôt ce soir",
-            "category": "recovery",
-        })
+        recs.append(
+            {
+                "severity": "warning",
+                "icon": "😴",
+                "title": "Sommeil insuffisant",
+                "body": f"{round(sleep, 1)}h de sommeil. En dessous des 7-9h recommandés. Impact sur récupération et performance.",
+                "action": "Coucher 30min plus tôt ce soir",
+                "category": "recovery",
+            }
+        )
 
     # Sort by severity
     order = {"critical": 0, "warning": 1, "info": 2, "success": 3}
@@ -643,6 +699,7 @@ def generate_recommendations(
 # ─────────────────────────────────────────────────────────────────
 # WEEKLY SUMMARY AGENT
 # ─────────────────────────────────────────────────────────────────
+
 
 def generate_weekly_summary(
     running: dict,
@@ -656,10 +713,9 @@ def generate_weekly_summary(
     week_start = today - timedelta(days=today.weekday())
 
     # This week's activities
-    since_week = week_start.isoformat()
-    sessions_this_week = []
-    for sport in sport_breakdown.get("sports", []):
-        mo = sport_breakdown.get("monthly_breakdown", {}).get(today.strftime("%Y-%m"), {})
+    week_start.isoformat()
+    for _sport in sport_breakdown.get("sports", []):
+        sport_breakdown.get("monthly_breakdown", {}).get(today.strftime("%Y-%m"), {})
         # Just approximate from recent sessions
         pass
 
@@ -695,6 +751,7 @@ def generate_weekly_summary(
 # ─────────────────────────────────────────────────────────────────
 # MAIN AGENT ENTRY POINT
 # ─────────────────────────────────────────────────────────────────
+
 
 def run_sports_agent(db_path: Path, acwr_val: float = 1.0) -> dict:
     """
@@ -742,5 +799,12 @@ def run_sports_agent(db_path: Path, acwr_val: float = 1.0) -> dict:
         }
 
     except Exception as e:
-        return {"error": str(e), "running": {}, "strength": {}, "recovery": {},
-                "sport_breakdown": {}, "recommendations": [], "weekly_summary": {}}
+        return {
+            "error": str(e),
+            "running": {},
+            "strength": {},
+            "recovery": {},
+            "sport_breakdown": {},
+            "recommendations": [],
+            "weekly_summary": {},
+        }

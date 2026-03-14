@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """PerformOS local cockpit server (dashboard + planner API)."""
+
 from __future__ import annotations
 
 import argparse
 import json
 import mimetypes
-from datetime import date, timedelta, datetime
+from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse, unquote
+from urllib.parse import parse_qs, unquote, urlparse
 
 from analytics import planner
 from integrations.apple_calendar import diagnose_apple_calendar, sync_apple_calendar
-from pipeline.schema import migrate_db, get_connection
+from pipeline.schema import get_connection, migrate_db
 
 
 def _json_bytes(obj: dict | list) -> bytes:
@@ -95,11 +96,15 @@ class CockpitHandler(BaseHTTPRequestHandler):
             return False, "duration_too_long"
         return True, ""
 
-    def _window_bounds(self, start_q: str | None = None, end_q: str | None = None) -> tuple[str, str]:
+    def _window_bounds(
+        self, start_q: str | None = None, end_q: str | None = None
+    ) -> tuple[str, str]:
         if start_q and end_q:
             return start_q, end_q
         start = (date.today() - timedelta(days=14)).strftime("%Y-%m-%dT00:00:00")
-        end = (date.today() + timedelta(days=self.planner_window_days)).strftime("%Y-%m-%dT23:59:59")
+        end = (date.today() + timedelta(days=self.planner_window_days)).strftime(
+            "%Y-%m-%dT23:59:59"
+        )
         return start, end
 
     def _read_events(self, start_at: str | None = None, end_at: str | None = None) -> list[dict]:
@@ -166,47 +171,63 @@ class CockpitHandler(BaseHTTPRequestHandler):
             diag = diagnose_apple_calendar()  # no db_path for fast probe
             permission = diag.get("permission", "unknown")
             error = diag.get("error")
-            self._send_json(200, {
-                "ok": diag.get("enabled", False),
-                "permission": permission,
-                "error": error,
-                "eventkit": diag.get("eventkit", "unknown"),
-                "calendars_count": diag.get("calendars_count", 0),
-                "default_calendar": diag.get("default_calendar"),
-            })
+            self._send_json(
+                200,
+                {
+                    "ok": diag.get("enabled", False),
+                    "permission": permission,
+                    "error": error,
+                    "eventkit": diag.get("eventkit", "unknown"),
+                    "calendars_count": diag.get("calendars_count", 0),
+                    "default_calendar": diag.get("default_calendar"),
+                },
+            )
             return
 
         if path == "/api/planner/calendar/debug":
             if not self._auth_or_401():
                 return
-            self._send_json(200, {"ok": True, "debug": diagnose_apple_calendar(db_path=self.db_path)})
+            self._send_json(
+                200, {"ok": True, "debug": diagnose_apple_calendar(db_path=self.db_path)}
+            )
             return
 
         if path == "/api/planner/agent/capabilities":
-            self._send_json(200, {
-                "ok": True,
-                "tools": [
-                    {
-                        "name": "create_tasks_batch",
-                        "description": "Crée plusieurs tâches planner en une requête",
-                        "input_example": {
-                            "tasks": [
-                                {
-                                    "title": "10km tempo",
-                                    "type": "cardio",
-                                    "week_ref": "next_week",
-                                    "weekday": "mardi",
-                                    "time": "07:30",
-                                    "duration_min": 60,
-                                    "sync_apple": True
-                                }
-                            ]
+            self._send_json(
+                200,
+                {
+                    "ok": True,
+                    "tools": [
+                        {
+                            "name": "create_tasks_batch",
+                            "description": "Crée plusieurs tâches planner en une requête",
+                            "input_example": {
+                                "tasks": [
+                                    {
+                                        "title": "10km tempo",
+                                        "type": "cardio",
+                                        "week_ref": "next_week",
+                                        "weekday": "mardi",
+                                        "time": "07:30",
+                                        "duration_min": 60,
+                                        "sync_apple": True,
+                                    }
+                                ]
+                            },
                         }
-                    }
-                ],
-                "week_ref_values": ["this_week", "next_week", "week_plus_2"],
-                "weekday_values": ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"],
-            })
+                    ],
+                    "week_ref_values": ["this_week", "next_week", "week_plus_2"],
+                    "weekday_values": [
+                        "lundi",
+                        "mardi",
+                        "mercredi",
+                        "jeudi",
+                        "vendredi",
+                        "samedi",
+                        "dimanche",
+                    ],
+                },
+            )
             return
 
         self.send_error(404, "Not Found")
@@ -223,13 +244,21 @@ class CockpitHandler(BaseHTTPRequestHandler):
             title = title[:120]
             task_type = str(body.get("type") or "autre")
             type_map = {
-                "cardio": "sport", "musculation": "sport", "mobilite": "yoga",
-                "sport_libre": "sport", "travail": "travail",
-                "apprentissage": "formation", "formation": "formation",
-                "relationnel": "social", "social": "social",
-                "yoga": "yoga", "autre": "autre",
+                "cardio": "sport",
+                "musculation": "sport",
+                "mobilite": "yoga",
+                "sport_libre": "sport",
+                "travail": "travail",
+                "apprentissage": "formation",
+                "formation": "formation",
+                "relationnel": "social",
+                "social": "social",
+                "yoga": "yoga",
+                "autre": "autre",
             }
-            category = planner.normalize_category(body.get("category") or type_map.get(task_type, "autre"))
+            category = planner.normalize_category(
+                body.get("category") or type_map.get(task_type, "autre")
+            )
             triage_status = planner.normalize_triage_status(body.get("triage_status"))
             notes = body.get("notes")
             if notes is not None:
@@ -339,6 +368,7 @@ class CockpitHandler(BaseHTTPRequestHandler):
             if not self._auth_or_401():
                 return
             from integrations.apple_calendar import create_apple_calendar_event
+
             title = str(body.get("title", "")).strip()
             start_at = body.get("start_at")
             end_at = body.get("end_at")
@@ -356,7 +386,7 @@ class CockpitHandler(BaseHTTPRequestHandler):
                 end_at=end_at,
                 notes=notes,
                 location=location,
-                calendar_name=calendar_name
+                calendar_name=calendar_name,
             )
 
             if result.get("enabled"):
@@ -392,13 +422,13 @@ class CockpitHandler(BaseHTTPRequestHandler):
             sync_apple = bool(body.get("sync_apple", True))
 
             # Préparer les champs de planning
-            start_at     = body.get("start_at") or body.get("scheduled_start")
-            end_at       = body.get("end_at") or body.get("scheduled_end")
-            scheduled    = body.get("scheduled")
-            sch_date     = body.get("scheduled_date")
-            sch_start    = body.get("scheduled_start") or start_at
-            sch_end      = body.get("scheduled_end") or end_at
-            last_bucket  = body.get("last_bucket_before_scheduling")
+            start_at = body.get("start_at") or body.get("scheduled_start")
+            end_at = body.get("end_at") or body.get("scheduled_end")
+            scheduled = body.get("scheduled")
+            sch_date = body.get("scheduled_date")
+            sch_start = body.get("scheduled_start") or start_at
+            sch_end = body.get("scheduled_end") or end_at
+            last_bucket = body.get("last_bucket_before_scheduling")
             triage_status = body.get("triage_status")
 
             # Validation si dates fournies
@@ -439,7 +469,9 @@ class CockpitHandler(BaseHTTPRequestHandler):
             if not self._auth_or_401():
                 return
             uid = unquote(path.rsplit("/", 1)[-1])
-            ok, err = self._validate_event_bounds(str(body.get("start_at") or ""), str(body.get("end_at") or ""))
+            ok, err = self._validate_event_bounds(
+                str(body.get("start_at") or ""), str(body.get("end_at") or "")
+            )
             if not ok:
                 self._send_json(400, {"ok": False, "error": err})
                 return
@@ -459,7 +491,7 @@ class CockpitHandler(BaseHTTPRequestHandler):
         if path.startswith("/api/calendar/events/"):
             if not self._auth_or_401():
                 return
-            event_uid = unquote(path.rsplit("/", 1)[-1])
+            unquote(path.rsplit("/", 1)[-1])
 
             # Pour l'instant, on ne permet que la modification via planner
             # TODO: Implémenter modification directe d'événements calendrier
@@ -485,14 +517,16 @@ class CockpitHandler(BaseHTTPRequestHandler):
             self._sync_calendar_soft()
             events = self._read_events()
             board = planner.get_board_tasks_db(self.db_path)
-            self._send_json(200, {"ok": bool(res.get("ok")), "result": res, "events": events, "board": board})
+            self._send_json(
+                200, {"ok": bool(res.get("ok")), "result": res, "events": events, "board": board}
+            )
             return
 
         if path.startswith("/api/planner/apple/"):
             if not self._auth_or_401():
                 return
             uid = unquote(path.rsplit("/", 1)[-1])
-            res = planner.delete_apple_only_event(uid)
+            res = planner.delete_apple_only_event(uid, db_path=self.db_path)
             self._sync_calendar_soft()
             events = self._read_events()
             self._send_json(200, {"ok": bool(res.get("enabled")), "result": res, "events": events})
@@ -503,12 +537,9 @@ class CockpitHandler(BaseHTTPRequestHandler):
     def _get_calendar_events(self, days: int = 30) -> list[dict]:
         """Get calendar events from DB for the next N days."""
         from integrations.apple_calendar import get_upcoming_events
+
         try:
-            return get_upcoming_events(
-                db_path=self.db_path,
-                days_ahead=days,
-                limit=100
-            )
+            return get_upcoming_events(db_path=self.db_path, days_ahead=days, limit=100)
         except Exception:
             return []
 
