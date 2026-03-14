@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"$(git rev-parse --show-toplevel)\" && echo \"=== Bord — Diagnostic ===\"; echo \"\"; python3 --version 2>/dev/null && echo \"  Python: OK\" || echo \"  Python: MANQUANT\"; node --version 2>/dev/null && echo \"  Node.js: OK\" || echo \"  Node.js: MANQUANT\"; [ -d frontend/node_modules ] && echo \"  frontend/node_modules: OK\" || echo \"  frontend/node_modules: MANQUANT (npm install)\"; [ -f athlete.db ] && echo \"  athlete.db: OK ($(python3 -c \"import sqlite3; c=sqlite3.connect(\\\"athlete.db\\\"); print(c.execute(\\\"SELECT COUNT(*) FROM activities\\\").fetchone()[0])\" 2>/dev/null || echo 0) activités)\" || echo \"  athlete.db: ABSENT (lancer start_bord.sh pour initialiser)\"; echo \"\"; echo \"Lancement: bash start_bord.sh\"; echo \"Créer icône bureau: bash create_app.sh\"'"
+          }
+        ]
+      }
+    ]
+  }
+}

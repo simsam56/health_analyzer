@@ -1,12 +1,16 @@
 #!/bin/bash
-# Créer une application macOS pour PerformOS avec icône
+# Créer l'application macOS Bord (bureau)
+# Usage: bash create_app.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_NAME="PerformOS"
+APP_NAME="Bord"
 APP_PATH="$HOME/Desktop/$APP_NAME.app"
-SCRIPT_PATH="$SCRIPT_DIR/quick_launch.py"
 
 echo "🎯 Création de l'application $APP_NAME..."
+
+# Supprimer l'ancienne app si elle existe (PerformOS ou Bord)
+rm -rf "$HOME/Desktop/PerformOS.app" 2>/dev/null
+rm -rf "$APP_PATH" 2>/dev/null
 
 # Créer la structure de l'app
 mkdir -p "$APP_PATH/Contents/MacOS"
@@ -16,7 +20,7 @@ mkdir -p "$APP_PATH/Contents/Resources"
 cat > "$APP_PATH/Contents/MacOS/$APP_NAME" << EOF
 #!/bin/bash
 cd "$SCRIPT_DIR"
-exec python3 quick_launch.py
+exec bash start_bord.sh
 EOF
 
 chmod +x "$APP_PATH/Contents/MacOS/$APP_NAME"
@@ -30,31 +34,34 @@ cat > "$APP_PATH/Contents/Info.plist" << EOF
     <key>CFBundleExecutable</key>
     <string>$APP_NAME</string>
     <key>CFBundleIdentifier</key>
-    <string>com.performos.healthanalyzer</string>
+    <string>com.bord.app</string>
     <key>CFBundleName</key>
     <string>$APP_NAME</string>
     <key>CFBundleVersion</key>
-    <string>3.0</string>
+    <string>4.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>3.0</string>
+    <string>4.0</string>
     <key>LSMinimumSystemVersion</key>
-    <string>10.12</string>
+    <string>12.0</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>LSUIElement</key>
+    <false/>
 </dict>
 </plist>
 EOF
 
-# Créer une icône simple (utiliser une icône système)
-# Pour une vraie icône, il faudrait créer un .icns
-cp "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns" "$APP_PATH/Contents/Resources/AppIcon.icns" 2>/dev/null || echo "Icône système non trouvée"
+# Icône système par défaut (remplacer par une icône custom si disponible)
+cp "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns" \
+    "$APP_PATH/Contents/Resources/AppIcon.icns" 2>/dev/null || true
 
-echo "✅ Application créée: $APP_PATH"
 echo ""
-echo "🚀 Double-cliquez sur l'icône pour lancer PerformOS"
-echo "📅 Calendrier Apple intégré et modifiable"
-echo "🌐 Interface web automatique"
+echo "✅ Application créée : $APP_PATH"
 echo ""
-echo "🔧 Pour supprimer: rm -rf '$APP_PATH'"
+echo "🚀 Double-cliquez sur Bord.app pour lancer l'application"
+echo "   Backend API  → http://127.0.0.1:8765"
+echo "   Frontend     → http://localhost:3000"
+echo ""
+echo "🔧 Pour supprimer : rm -rf '$APP_PATH'"
