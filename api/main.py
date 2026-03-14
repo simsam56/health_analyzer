@@ -104,7 +104,14 @@ def serve_dashboard():
     if deps.API_TOKEN:
         token_js = json.dumps(deps.API_TOKEN, ensure_ascii=False)
         raw = raw.replace("__API_TOKEN_JS__", token_js)
-    return HTMLResponse(raw)
+    return HTMLResponse(
+        raw,
+        headers={
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
 
 
 # ── Endpoint agrégat /api/dashboard ────────────────────────────────
