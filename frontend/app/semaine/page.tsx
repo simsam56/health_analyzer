@@ -1,178 +1,156 @@
 "use client";
 
+import { useCallback, useMemo, useState } from "react";
+import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { useDashboard } from "@/lib/queries/use-dashboard";
+import { usePlannerEvents, useBoardTasks, useUpdateTask } from "@/lib/queries/use-planner";
+import { CATEGORY_COLORS } from "@/lib/constants";
+import type { BoardTask, Category, PlannerEvent } from "@/lib/types";
+import {
+  getMonday,
+  addWeeks,
+  getDayColumns,
+  groupEventsByDay,
+  toISODate,
+} from "@/lib/week-utils";
+import { KpiBar } from "@/components/semaine/kpi-bar";
+import { WeekNav } from "@/components/semaine/week-nav";
+import { WeekGrid } from "@/components/semaine/week-grid";
+import { SidePanel } from "@/components/semaine/side-panel";
+import { EventModal } from "@/components/semaine/event-modal";
+
+interface ModalState {
+  mode: "create" | "edit";
+  data: Partial<PlannerEvent> & { date?: string; hour?: number };
+}
 
 export default function SemainePage() {
-  const { data, isLoading, error } = useDashboard();
+  const [currentMonday, setCurrentMonday] = useState(() => getMonday(new Date()));
+  const [sidePanelOpen, setSidePanelOpen] = useState(true);
+  const [modalState, setModalState] = useState<ModalState | null>(null);
+  const [draggingTask, setDraggingTask] = useState<BoardTask | null>(null);
 
-  if (isLoading) {
+  // Data
+  const weekStart = toISODate(currentMonday) + "T00:00:00";
+  const weekEndDate = addWeeks(currentMonday, 1);
+  weekEndDate.setDate(weekEndDate.getDate() - 1);
+  const weekEnd = toISODate(weekEndDate) + "T23:59:59";
+
+  const { data: eventsData, isLoading: eventsLoading } = usePlannerEvents(weekStart, weekEnd);
+  const { data: boardData } = useBoardTasks();
+  const { data: dashData } = useDashboard();
+  const updateTask = useUpdateTask();
+
+  // Derived
+  const days = useMemo(() => getDayColumns(currentMonday), [currentMonday]);
+  const eventsByDay = useMemo(
+    () => groupEventsByDay(eventsData?.events ?? [], currentMonday),
+    [eventsData, currentMonday],
+  );
+
+  // DnD handlers
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const task = event.active.data.current?.task as BoardTask | undefined;
+    setDraggingTask(task ?? null);
+  }, []);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      setDraggingTask(null);
+      const { active, over } = event;
+      if (!over) return;
+      const taskId = active.id as number;
+      const dayIso = (over.id as string).replace("droppable-", "");
+      const startAt = `${dayIso}T09:00:00`;
+      const endAt = `${dayIso}T10:00:00`;
+      updateTask.mutate({
+        id: taskId,
+        start_at: startAt,
+        end_at: endAt,
+        scheduled: true,
+        scheduled_date: dayIso,
+      });
+    },
+    [updateTask],
+  );
+
+  // Keyboard shortcuts
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (modalState) {
+        if (e.key === "Escape") setModalState(null);
+        return;
+      }
+      if (e.key === "ArrowLeft") setCurrentMonday((m) => addWeeks(m, -1));
+      if (e.key === "ArrowRight") setCurrentMonday((m) => addWeeks(m, 1));
+    },
+    [modalState],
+  );
+
+  // Loading
+  if (eventsLoading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-blue border-t-transparent" />
+      <div className="space-y-4">
+        <div className="glass h-10 animate-pulse rounded-xl" />
+        <div className="glass h-10 animate-pulse rounded-xl" />
+        <div className="glass h-[60vh] animate-pulse rounded-xl" />
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="glass rounded-2xl p-6 text-center text-accent-red">
-        Erreur de connexion à l&apos;API Python. Vérifiez que le serveur tourne sur le port 8765.
-      </div>
-    );
-  }
-
-  const summary = data?.week?.summary;
-  const events = data?.week?.events ?? [];
-  const board = data?.week?.board ?? [];
-  const readiness = data?.readiness;
-
   return (
-    <div className="space-y-6">
-      {/* Métriques en haut */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <MetricPill
-          label="Readiness"
-          value={readiness?.score ?? 0}
-          unit="/100"
-          color={readiness?.color ?? "#64748b"}
-        />
-        <MetricPill
-          label="Sport"
-          value={summary?.sante_h ?? 0}
-          unit="h"
-          color="var(--color-sport)"
-        />
-        <MetricPill
-          label="Travail"
-          value={summary?.travail_h ?? 0}
-          unit="h"
-          color="var(--color-travail)"
-        />
-        <MetricPill
-          label="Social"
-          value={summary?.relationnel_h ?? 0}
-          unit="h"
-          color="var(--color-social)"
-        />
-      </div>
+    <div onKeyDown={handleKeyDown} tabIndex={-1} className="outline-none space-y-3">
+      <KpiBar
+        summary={dashData?.week?.summary}
+        readiness={dashData?.readiness}
+      />
+      <WeekNav currentMonday={currentMonday} onChange={setCurrentMonday} />
 
-      {/* Événements de la semaine */}
-      <div className="glass rounded-2xl p-5">
-        <h2 className="mb-4 text-lg font-semibold">
-          Cette semaine
-          <span className="ml-2 text-sm font-normal text-text-muted">
-            {events.length} événements
-          </span>
-        </h2>
-        {events.length === 0 ? (
-          <p className="text-text-muted">Aucun événement cette semaine.</p>
-        ) : (
-          <div className="space-y-2">
-            {events.slice(0, 15).map((e) => (
-              <div
-                key={e.id}
-                className="flex items-center gap-3 rounded-lg bg-surface-0 px-3 py-2"
-              >
-                <div
-                  className="h-2 w-2 rounded-full"
-                  style={{ background: getCategoryColor(e.category) }}
-                />
-                <span className="flex-1 text-sm">{e.title}</span>
-                <span className="text-xs text-text-muted">
-                  {formatTime(e.start_at)}
-                </span>
-              </div>
-            ))}
+      <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <div className="flex gap-3">
+          <div className="min-w-0 flex-1">
+            <WeekGrid
+              days={days}
+              eventsByDay={eventsByDay}
+              onSlotClick={(date, hour) =>
+                setModalState({ mode: "create", data: { date, hour } })
+              }
+              onEventClick={(event) =>
+                setModalState({ mode: "edit", data: event })
+              }
+            />
           </div>
-        )}
-      </div>
+          <SidePanel
+            tasks={boardData?.tasks ?? []}
+            isOpen={sidePanelOpen}
+            onToggle={() => setSidePanelOpen((v) => !v)}
+          />
+        </div>
 
-      {/* Board (kanban simplifié) */}
-      <div className="glass rounded-2xl p-5">
-        <h2 className="mb-4 text-lg font-semibold">
-          Backlog
-          <span className="ml-2 text-sm font-normal text-text-muted">
-            {board.length} tâches
-          </span>
-        </h2>
-        {board.length === 0 ? (
-          <p className="text-text-muted">Aucune tâche en backlog.</p>
-        ) : (
-          <div className="space-y-2">
-            {board.map((t) => (
-              <div
-                key={t.id}
-                className="flex items-center gap-3 rounded-lg bg-surface-0 px-3 py-2"
-              >
-                <span
-                  className="rounded px-1.5 py-0.5 text-[10px] font-medium uppercase"
-                  style={{
-                    background: `${getCategoryColor(t.category)}20`,
-                    color: getCategoryColor(t.category),
-                  }}
-                >
-                  {t.category}
-                </span>
-                <span className="flex-1 text-sm">{t.title}</span>
-                <span className="text-[10px] uppercase text-text-muted">
-                  {t.triage_status?.replace(/_/g, " ")}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+        <DragOverlay>
+          {draggingTask && (
+            <div
+              className="rounded-lg bg-surface-2 px-3 py-2 text-xs font-medium text-text-primary shadow-lg"
+              style={{
+                borderLeft: `3px solid ${
+                  CATEGORY_COLORS[draggingTask.category as Category] ??
+                  "var(--color-autre)"
+                }`,
+              }}
+            >
+              {draggingTask.title}
+            </div>
+          )}
+        </DragOverlay>
+      </DndContext>
+
+      {modalState && (
+        <EventModal
+          mode={modalState.mode}
+          initialData={modalState.data}
+          onClose={() => setModalState(null)}
+        />
+      )}
     </div>
   );
-}
-
-function MetricPill({
-  label,
-  value,
-  unit,
-  color,
-}: {
-  label: string;
-  value: number;
-  unit: string;
-  color: string;
-}) {
-  return (
-    <div className="glass rounded-xl px-4 py-3">
-      <div className="text-xs font-medium text-text-muted">{label}</div>
-      <div className="mt-1 flex items-baseline gap-1">
-        <span className="text-2xl font-bold" style={{ color }}>
-          {typeof value === "number" ? value.toFixed(1) : value}
-        </span>
-        <span className="text-sm text-text-muted">{unit}</span>
-      </div>
-    </div>
-  );
-}
-
-function getCategoryColor(cat: string): string {
-  const colors: Record<string, string> = {
-    sport: "#22c55e",
-    yoga: "#a855f7",
-    travail: "#3b82f6",
-    formation: "#06b6d4",
-    social: "#ec4899",
-    lecon: "#f59e0b",
-    autre: "#64748b",
-  };
-  return colors[cat] ?? "#64748b";
-}
-
-function formatTime(iso: string): string {
-  try {
-    const d = new Date(iso);
-    return d.toLocaleDateString("fr-FR", {
-      weekday: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  } catch {
-    return "";
-  }
 }
