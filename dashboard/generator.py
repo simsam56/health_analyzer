@@ -1665,6 +1665,32 @@ input:focus, select:focus {
       <div class="board-grid" id="boardGrid"></div>
     </div>
 
+    <!-- ═══ IDÉES — Quick Capture ═══ -->
+    <div class="card" style="margin-top:16px;">
+      <div class="idea-inbox-header">
+        <h3 style="margin:0;font-size:16px;font-weight:800;">Idées</h3>
+        <div class="idea-filter-tabs" id="ideaFilterTabs">
+          <button class="idea-filter-tab active" data-filter="all">Tout</button>
+          <button class="idea-filter-tab" data-filter="sport">Sport</button>
+          <button class="idea-filter-tab" data-filter="travail">Travail</button>
+          <button class="idea-filter-tab" data-filter="formation">Formation</button>
+          <button class="idea-filter-tab" data-filter="autre">Autre</button>
+        </div>
+      </div>
+      <div class="quick-add-row" style="margin-bottom:10px;">
+        <input id="ideaText" type="text" placeholder="Capturer une idée…" />
+        <select id="ideaDomain">
+          <option value="sport">🏃 Sport</option>
+          <option value="travail">💼 Travail</option>
+          <option value="formation">📚 Formation</option>
+          <option value="social">💬 Social</option>
+          <option value="autre">🧩 Autre</option>
+        </select>
+        <button class="btn-primary" id="addIdeaBtn">+ Idée</button>
+      </div>
+      <div id="ideasList" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+
   </section>
 
   <section class="section" id="sec-sante">
@@ -2475,6 +2501,47 @@ function handleBoardDrop(ev, targetTriage) {
   if(tid&&targetTriage) updateTaskTriage(tid,targetTriage);
 }
 
+// ─── Ideas section ────────────────────────────────────────────────────────────
+let currentIdeasFilter = 'all';
+
+function renderIdeas() {
+  const list = document.getElementById('ideasList'); if(!list) return;
+  // Ideas = board tasks that are NOT scheduled (backlog items)
+  const ideas = (currentBoard||[]).filter(t => !t.scheduled);
+  const filtered = currentIdeasFilter === 'all' ? ideas : ideas.filter(t => normCat(t.category||'autre') === currentIdeasFilter);
+  if(filtered.length === 0) {
+    list.innerHTML = '<div style="padding:12px;color:var(--muted);font-size:12px;text-align:center;">Aucune idée pour le moment.</div>';
+    return;
+  }
+  list.innerHTML = filtered.map(t => {
+    const cat = normCat(t.category||'autre');
+    const color = domainColor(cat);
+    const icon = domainIcon(cat);
+    const tid = t.task_id || t.id;
+    return '<div class="idea-item" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-left:3px solid '+color+';border-radius:8px;">'
+      +'<span style="font-size:14px;">'+icon+'</span>'
+      +'<span class="idea-title" style="flex:1;font-size:12px;font-weight:600;">'+escapeHtml(t.title||'')+'</span>'
+      +'<span style="font-size:10px;color:var(--muted);text-transform:uppercase;">'+escapeHtml(CATEGORY_LABELS[cat]||cat)+'</span>'
+      +'<button class="bc-btn" onclick="planFromBoard('+tid+')" style="font-size:10px;padding:2px 6px;">📅</button>'
+      +'<button class="bc-btn danger" onclick="deleteBoardTask('+tid+')" style="font-size:10px;padding:2px 6px;">✕</button>'
+      +'</div>';
+  }).join('');
+}
+
+async function addIdea() {
+  const inp = document.getElementById('ideaText'); if(!inp) return;
+  const title = inp.value.trim(); if(!title) { inp.focus(); return; }
+  const domain = document.getElementById('ideaDomain').value;
+  try {
+    const out = await apiCreateTask({title, category:domain, triage_status:'a_determiner', scheduled:false, sync_apple:false});
+    if(out.board) currentBoard = out.board;
+    else currentBoard.push({task_id:out.created?.task_id, title, category:domain, triage_status:'a_determiner', scheduled:false});
+    inp.value = '';
+    renderBoard(); renderIdeas();
+    showToast('Idée capturée.','ok');
+  } catch(_) { showToast('Erreur.','err'); }
+}
+
 // ─── Trend charts ─────────────────────────────────────────────────────────────
 async function computeAndRenderTrendCharts(currentWeekEvents) {
   const MS_WEEK=7*24*60*60*1000; const today=new Date();
@@ -2684,6 +2751,18 @@ window.addEventListener('DOMContentLoaded', () => {
   const addBtn=document.getElementById('addTaskBtn'); if(addBtn) addBtn.addEventListener('click',addBoardTask);
   const taskInput=document.getElementById('taskText');
   if(taskInput) taskInput.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();addBoardTask();}});
+  // Ideas
+  const addIdeaBtn=document.getElementById('addIdeaBtn'); if(addIdeaBtn) addIdeaBtn.addEventListener('click',addIdea);
+  const ideaInput=document.getElementById('ideaText');
+  if(ideaInput) ideaInput.addEventListener('keydown',ev=>{if(ev.key==='Enter'){ev.preventDefault();addIdea();}});
+  document.querySelectorAll('.idea-filter-tab').forEach(tab=>{
+    tab.addEventListener('click',()=>{
+      document.querySelectorAll('.idea-filter-tab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      currentIdeasFilter=tab.dataset.filter;
+      renderIdeas();
+    });
+  });
 
   updateSyncUI(CAL_SYNC_ENABLED,null,false);
 
@@ -2691,7 +2770,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const boardGrid = document.getElementById('boardGrid');
     if (boardGrid) boardGrid.innerHTML = '<div style="padding:20px;color:var(--muted);font-size:12px;text-align:center">Chargement\u2026</div>';
     try{ if(API_ENABLED) currentBoard=await fetchBoardTasks(); } catch(_){}
-    renderBoard();
+    renderBoard(); renderIdeas();
     await renderWeek();
     initRings(); initMascot();
     // Auto-sync calendrier au chargement
