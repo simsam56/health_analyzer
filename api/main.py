@@ -10,24 +10,25 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import HTMLResponse
 
 from analytics import planner
+from analytics.muscle_groups import (
+    analyze_imbalances,
+    get_cumulative_volume,
+    get_weekly_volume,
+)
 from analytics.training_load import (
+    analyze_running,
     build_daily_tss,
     compute_acwr,
     compute_pmc,
     compute_wakeboard_score,
     get_health_metrics,
-    analyze_running,
-)
-from analytics.muscle_groups import (
-    get_cumulative_volume,
-    get_weekly_volume,
-    analyze_imbalances,
 )
 from api import deps
-from api.routes import activities, calendar, health, muscles, planner as planner_routes, training
+from api.routes import activities, calendar, health, muscles, training
+from api.routes import planner as planner_routes
 from pipeline.schema import get_connection, migrate_db
 
 
@@ -52,7 +53,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠️  Migration DB: {e}")
 
-    print(f"🚀 Bord API démarrée")
+    print("🚀 Bord API démarrée")
     print(f"   DB: {db_path}")
     print(f"   Dashboard: {dashboard_path}")
     if api_token:

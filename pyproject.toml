@@ -1,7 +1,7 @@
 [project]
-name = "performos"
+name = "bord"
 version = "3.0.0"
-description = "Personal fitness/health analytics cockpit"
+description = "Bord — Dashboard personnel santé/sport/vie"
 requires-python = ">=3.11"
 
 # ─── Ruff ────────────────────────────────────────────────────────
@@ -32,16 +32,10 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "S106"]
-"diagnose*.py" = ["F401", "S110", "E722"]
-"launch.py" = ["F401"]
-"quick_launch.py" = ["F401", "S110"]
-"test_launch.py" = ["F401"]
-"setup_calendar.py" = ["F401"]
 "garmin_sync*.py" = ["S110", "S112"]
-"main.py" = ["S110", "S112", "N806", "E722"]
-"cockpit_server.py" = ["S110", "N806", "E722"]
-"build_dashboard.py" = ["S110", "N806", "F821", "E722"]
-"health_analyzer.py" = ["S110", "N806", "F821", "E722"]
+"_legacy/*" = ["ALL"]
+"_debug/*" = ["ALL"]
+"scripts/*" = ["ALL"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -61,8 +55,8 @@ filterwarnings = [
 [tool.coverage.run]
 omit = [
     "tests/*",
-    "dashboard/*",
-    "build_dashboard.py",
+    "_legacy/*",
+    "_debug/*",
     "*.sh",
 ]
 

@@ -1,5 +1,5 @@
 """
-Pytest configuration for PerformOS tests
+Pytest configuration for Bord tests
 """
 
 import tempfile

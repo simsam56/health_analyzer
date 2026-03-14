@@ -307,7 +307,7 @@ def main():
     args = parser.parse_args()
 
     print("╔══════════════════════════════════════════════╗")
-    print("║  Garmin Connect Sync — PerformOS v3          ║")
+    print("║  Garmin Connect Sync — Bord          ║")
     print(f"║  {date.today()} · {args.days} derniers jours          ║")
     print("╚══════════════════════════════════════════════╝")
 

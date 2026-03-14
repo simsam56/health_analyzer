@@ -22,7 +22,6 @@ from analytics.planner import (
 )
 from pipeline.schema import init_db
 
-
 # ── Fixtures ─────────────────────────────────────────────────────
 
 

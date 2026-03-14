@@ -2,33 +2,22 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "PerformOS Cockpit (Full)",
+      "name": "Bord Backend (FastAPI)",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["main.py", "--skip-parse", "--garmin", "--days", "90", "--garmin-refresh-tail-days", "3", "--serve", "--serve-port", "8765"],
+      "runtimeArgs": ["-m", "uvicorn", "api.main:app", "--port", "8765", "--reload"],
       "port": 8765
     },
     {
-      "name": "PerformOS Cockpit (Fast)",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["main.py", "--skip-parse", "--serve", "--serve-port", "8765"],
-      "port": 8765
-    },
-    {
-      "name": "PerformOS Cockpit Server (Standalone)",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["cockpit_server.py", "--dashboard", "reports/dashboard_smoke.html", "--db", "athlete.db", "--port", "8765"],
-      "port": 8765
+      "name": "Bord Frontend (Next.js)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "frontend",
+      "port": 3000
     },
     {
       "name": "Garmin Full Sync",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["garmin_sync_full.py", "--from", "2025-01-01"],
-      "port": null
-    },
-    {
-      "name": "Health Report Generation",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["build_dashboard.py"],
       "port": null
     }
   ]

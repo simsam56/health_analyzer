@@ -1,86 +1,72 @@
-# SKILL — PerformOS v2 : Sport Performance Dashboard
+# SKILL — Bord : Dashboard personnel santé/sport/vie
 
 ## Description
-Génère un dashboard HTML de performance sportive (Apple Dark, iPhone-first) en analysant :
+
+Dashboard personnel avec backend FastAPI + frontend Next.js, analysant :
 - **Apple Health** : workouts, HRV, FC repos, VO2Max, sommeil
 - **Strava FIT** : activités + séances musculation avec exercices détaillés
+- **Garmin Connect** : sync API directe
 - **Groupes musculaires** : volume par muscle, déséquilibres, recommandations
+- **Planner** : planning hebdomadaire pilotable, sync Apple Calendar
 
 ## Architecture
+
 ```
-health_analyzer/
-├── sport_dashboard.py          ← Point d'entrée principal
-├── pipeline/
-│   ├── schema.py               ← SQLite DDL (athlete.db)
-│   ├── parse_apple_health.py   ← Parse export.xml → DB
-│   └── parse_strava_fit.py     ← Parse FIT.gz + CSV → DB
-├── analytics/
-│   ├── muscle_groups.py        ← Volume/sem, déséquilibres, radar
-│   └── training_load.py        ← ACWR, PMC, Wakeboard Score
-├── dashboard/
-│   └── generator.py            ← HTML iPhone-first (Plotly)
-├── athlete.db                  ← SQLite (source unique de vérité)
-├── export.xml                  ← Apple Health export (non versionné)
-├── export_strava/              ← Export Strava (non versionné)
-├── sync_and_generate.sh        ← Pipeline automatique
-└── run.command                 ← Lanceur double-clic macOS
+api/
+  main.py                    ← serveur FastAPI (port 8765) — CANONICAL
+  routes/                    ← activities, calendar, health, muscles, planner, training
+analytics/
+  training_load.py           ← ACWR, PMC, Wakeboard Score
+  muscle_groups.py           ← Volume/sem, déséquilibres, radar
+  planner.py                 ← Logique planning
+  sports_agent.py            ← Agent d'analyse sportive
+pipeline/
+  schema.py                  ← SQLite DDL (athlete.db)
+  parse_apple_health.py      ← Parse export.xml → DB
+  parse_strava_fit.py        ← Parse FIT.gz + CSV → DB
+  parse_garmin_connect.py    ← API Garmin → DB
+integrations/
+  apple_calendar.py          ← Sync bidirectionnelle Apple Calendar
+frontend/                    ← Next.js 16, React 19, Tailwind 4
+  app/                       ← App Router (sections: travail, sante, social, semaine, idees)
+  components/                ← Composants React réutilisables
+  lib/                       ← queries/, types.ts
 ```
 
-## Usage Claude
-### Régénérer le dashboard
-```
-Génère le dashboard PerformOS avec mes données actuelles
-```
+## Commandes
 
-### Analyser un muscle spécifique
-```
-Analyse mon entraînement des jambes sur les 4 dernières semaines
-```
-
-### Détecter les déséquilibres
-```
-Quels muscles je néglige le plus ? Compare mes volumes actuels aux recommandations
-```
-
-### Ajouter une source de données
-```
-Intègre mes données Garmin Connect dans le pipeline
-```
-
-## Commandes rapides
 ```bash
-# Dashboard complet
-python3 sport_dashboard.py
+# Backend
+python3 -m uvicorn api.main:app --port 8765 --reload
 
-# Sauter le parsing (DB déjà à jour)
-python3 sport_dashboard.py --skip-parse
+# Frontend
+cd frontend && npm run dev
 
-# Analyser 8 semaines au lieu de 4
-python3 sport_dashboard.py --weeks-muscle 8
+# Lint + format
+ruff check . && ruff format --check .
 
-# Pipeline automatique (double-clic sur le Bureau)
-./run.command
+# Tests
+pytest
+
+# Typecheck
+mypy analytics/
+
+# Garmin sync
+python3 garmin_sync_full.py --from 2025-01-01
 ```
 
 ## Données et Sources
 
 ### Apple Health (export.xml)
 - Workouts avec durée, distance, FC, training load
-- HRV SDNN (dernière mesure : jan 2025)
-- FC repos (dernière mesure : sept 2025)
-- VO2Max, Sommeil, Poids
+- HRV SDNN, FC repos, VO2Max, Sommeil, Poids
 
 ### Strava FIT (export_strava/)
-- 108 fichiers FIT.gz = activités complètes
-- 25 séances musculation avec données détaillées :
-  - Jan-Mai 2025 : noms d'exercices en français + catégories Garmin
-  - Sept 2025+ : catégories par indices uniquement
-- 468 séries enregistrées, 7 groupes musculaires identifiés
+- Fichiers FIT.gz = activités complètes
+- Séances musculation avec données détaillées
 
-### Données manquantes / à améliorer
-- Garmin Connect API (HRV live, Body Battery, Sleep score)
-- Poids corporel (seulement 4 mesures dans AH)
-- Reps non enregistrés pour les séances récentes (Sept-Fév)
+### Garmin Connect (garmin_sync.py / garmin_sync_full.py)
+- Sync API directe : activités, HRV, Body Battery, Sleep
 
 ## Métriques calculées
 
@@ -102,14 +88,10 @@ Volume cibles (sets/semaine, hypertrophie) :
 
 ## Notes développeur
 
-### SQLite ne fonctionne pas sur FUSE (virtiofs)
-Développer dans `/sessions/magical-beautiful-feynman/` et copier les fichiers Python vers `mnt/`.
-La DB `athlete.db` se crée automatiquement dans le dossier du projet sur macOS.
+### Déduplication
+Clé : `type[:8]|YYYY-MM-DD|dur_arrondi_5min`
+Strava FIT est inséré en premier → priorité sur Apple Health.
 
 ### Mapping exercices FIT
 Les fichiers récents (sept 2025+) n'ont pas de `exercise_title` messages.
 Utiliser `set.category` (tuple d'indices) → `GARMIN_CAT_IDX` dans `parse_strava_fit.py`.
-
-### Déduplication
-Clé : `type[:8]|YYYY-MM-DD|dur_arrondi_5min`
-Strava FIT est inséré en premier → priorité sur Apple Health.

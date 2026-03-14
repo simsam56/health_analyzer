@@ -6,7 +6,7 @@ import sqlite3
 from functools import lru_cache
 from pathlib import Path
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Header, HTTPException
 
 # Chemin par défaut de la BDD (configurable via env)
 DB_PATH = Path("athlete.db")

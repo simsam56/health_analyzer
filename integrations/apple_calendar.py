@@ -1,4 +1,4 @@
-"""Apple Calendar sync (macOS) for PerformOS v3."""
+"""Apple Calendar sync (macOS) for Bord."""
 
 from __future__ import annotations
 

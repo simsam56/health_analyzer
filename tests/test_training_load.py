@@ -1,6 +1,5 @@
 """Tests for analytics/training_load.py — TSS, PMC, ACWR, health metrics."""
 
-import math
 import sqlite3
 import tempfile
 from datetime import date, timedelta
@@ -17,7 +16,6 @@ from analytics.training_load import (
     tss_from_activity,
 )
 from pipeline.schema import init_db
-
 
 # ── Fixtures ─────────────────────────────────────────────────────
 

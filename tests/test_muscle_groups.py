@@ -16,7 +16,6 @@ from analytics.muscle_groups import (
 )
 from pipeline.schema import init_db
 
-
 # ── Fixtures ─────────────────────────────────────────────────────
 
 

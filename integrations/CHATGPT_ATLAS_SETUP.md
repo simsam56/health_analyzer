@@ -1,10 +1,10 @@
-# ChatGPT Atlas ↔ PerformOS (planning pilotable par IA)
+# ChatGPT Atlas ↔ Bord (planning pilotable par IA)
 
 ## Ce qui est possible
 
-Oui: ChatGPT Atlas peut ajouter/éditer des tâches dans PerformOS **si** on connecte un outil côté ChatGPT vers l'API planner.
+Oui: ChatGPT Atlas peut ajouter/éditer des tâches dans Bord **si** on connecte un outil côté ChatGPT vers l'API planner.
 
-Dans PerformOS, les endpoints utiles sont:
+Dans Bord, les endpoints utiles sont:
 
 - `GET /api/planner/agent/capabilities`
 - `POST /api/planner/tasks/batch`
@@ -14,7 +14,7 @@ Dans PerformOS, les endpoints utiles sont:
 
 Tous les endpoints d'écriture exigent le header:
 
-- `X-PerformOS-Token: <token>`
+- `X-Bord-Token: <token>`
 
 ## Limite importante (OpenAI docs)
 
@@ -26,11 +26,11 @@ Conséquence: pour piloter ton planning local depuis Atlas, il faut exposer ton 
 
 ## Setup recommandé (rapide)
 
-1. Lancer PerformOS:
+1. Lancer Bord:
 
 ```bash
 cd ~/Documents/health_analyzer
-PERFORMOS_API_TOKEN="ton-token-fort" python3 main.py --garmin --days 90 --serve --serve-port 8791
+python3 -m uvicorn api.main:app --port 8791
 ```
 
 2. Exposer `8791` avec un tunnel HTTPS (Cloudflare Tunnel ou ngrok).
