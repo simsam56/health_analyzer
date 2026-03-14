@@ -72,6 +72,48 @@ export function useSyncCalendar() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["planner-events"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
+      qc.invalidateQueries({ queryKey: ["calendar-status"] });
+    },
+  });
+}
+
+export function useCalendarStatus() {
+  return useQuery<{
+    ok: boolean;
+    permission: string;
+    error: string | null;
+    calendars_count: number;
+    default_calendar: string | null;
+  }>({
+    queryKey: ["calendar-status"],
+    queryFn: () => fetchAPI("/planner/calendar/status"),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useScheduleTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      start_at,
+      end_at,
+    }: {
+      id: number;
+      start_at: string;
+      end_at: string;
+    }) =>
+      mutateAPI(`/planner/tasks/${id}`, "PATCH", {
+        start_at,
+        end_at,
+        scheduled: true,
+        triage_status: "a_planifier",
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["planner-events"] });
+      qc.invalidateQueries({ queryKey: ["board-tasks"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
 }

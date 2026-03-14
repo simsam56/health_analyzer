@@ -49,3 +49,28 @@ export const TRIAGE_ORDER = [
   "non_urgent",
   "termine",
 ] as const;
+
+// ── Grille hebdomadaire ──────────────────────────────────────────
+
+export const HOUR_HEIGHT = 60;
+export const GRID_START_HOUR = 6;
+export const GRID_END_HOUR = 22;
+
+export const IDEA_CATEGORIES = ["Pro", "Perso", "Projet", "À creuser"] as const;
+
+export const SOURCE_LABELS: Record<string, string> = {
+  local: "Bord",
+  apple_calendar: "Apple",
+  google_calendar: "Google",
+};
+
+/** Resolve CSS variable category colors to hex (for non-CSS contexts). */
+export const CATEGORY_HEX: Record<Category, string> = {
+  sport: "#22c55e",
+  yoga: "#a855f7",
+  travail: "#3b82f6",
+  formation: "#06b6d4",
+  social: "#ec4899",
+  lecon: "#f59e0b",
+  autre: "#64748b",
+};

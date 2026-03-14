@@ -133,13 +133,32 @@ export interface PlannerEvent {
   start_at: string;
   end_at: string;
   notes: string | null;
-  source: "local" | "apple_calendar";
+  source: "local" | "apple_calendar" | "google_calendar";
   calendar_uid: string | null;
   calendar_name: string | null;
   editable: boolean;
   triage_status: TriageStatus;
   scheduled: boolean;
+  conflict?: string | null;
 }
+
+// ── Calendar sync ────────────────────────────────────────────────
+
+export interface CalendarServiceStatus {
+  connected: boolean;
+  permission: string;
+  error: string | null;
+  calendars_count: number;
+  default_calendar: string | null;
+  last_sync_at: string | null;
+}
+
+export interface CalendarSyncStatus {
+  apple: CalendarServiceStatus;
+  google: { connected: false; error: null };
+}
+
+export type IdeaCategory = "Pro" | "Perso" | "Projet" | "À creuser";
 
 export interface BoardTask {
   id: number;
