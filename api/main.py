@@ -1,4 +1,4 @@
-"""PerformOS API — FastAPI server (remplace cockpit_server.py)."""
+"""Bord API — FastAPI server (remplace cockpit_server.py)."""
 
 from __future__ import annotations
 
@@ -35,9 +35,9 @@ from pipeline.schema import get_connection, migrate_db
 async def lifespan(app: FastAPI):
     """Startup : migration DB + config."""
     # Config depuis .env ou variables d'environnement
-    db_path = Path(os.getenv("PERFORMOS_DB", "athlete.db"))
-    dashboard_path = Path(os.getenv("PERFORMOS_DASHBOARD", "reports/dashboard.html"))
-    api_token = os.getenv("PERFORMOS_API_TOKEN", "")
+    db_path = Path(os.getenv("BORD_DB", "athlete.db"))
+    dashboard_path = Path(os.getenv("BORD_DASHBOARD", "reports/dashboard.html"))
+    api_token = os.getenv("BORD_API_TOKEN", "")
 
     deps.DB_PATH = db_path
     deps.DASHBOARD_PATH = dashboard_path
@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠️  Migration DB: {e}")
 
-    print(f"🚀 PerformOS API démarrée")
+    print(f"🚀 Bord API démarrée")
     print(f"   DB: {db_path}")
     print(f"   Dashboard: {dashboard_path}")
     if api_token:
@@ -62,8 +62,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="PerformOS API",
-    description="API du cockpit de pilotage personnel",
+    title="Bord API",
+    description="API du tableau de bord personnel",
     version="4.0.0",
     lifespan=lifespan,
 )
@@ -255,7 +255,7 @@ def dashboard_aggregate():
 if __name__ == "__main__":
     import uvicorn
 
-    port = int(os.getenv("PERFORMOS_PORT", "8765"))
+    port = int(os.getenv("BORD_PORT", "8765"))
     uvicorn.run(
         "api.main:app",
         host="127.0.0.1",

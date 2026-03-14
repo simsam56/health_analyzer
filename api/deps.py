@@ -32,11 +32,11 @@ def get_db_rw() -> sqlite3.Connection:
     return conn
 
 
-def require_auth(x_performos_token: str = Header(default="")) -> None:
+def require_auth(x_bord_token: str = Header(default="")) -> None:
     """Vérifie le token API si configuré."""
     if not API_TOKEN:
         return
-    if x_performos_token != API_TOKEN:
+    if x_bord_token != API_TOKEN:
         raise HTTPException(status_code=401, detail="unauthorized")
 
 
