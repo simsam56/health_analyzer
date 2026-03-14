@@ -108,3 +108,4 @@ backups/
 dist/
 build/
 *.egg-info/
+frontend/tsconfig.tsbuildinfo
