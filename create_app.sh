@@ -16,12 +16,20 @@ rm -rf "$HOME/Desktop/PerformOS.app"
 mkdir -p "$APP_PATH/Contents/MacOS"
 mkdir -p "$APP_PATH/Contents/Resources"
 
-# Script exécutable
-cat > "$APP_PATH/Contents/MacOS/$APP_NAME" << EOF
+# Script exécutable — ouvre Terminal.app avec le bon PATH
+cat > "$APP_PATH/Contents/MacOS/$APP_NAME" << 'WRAPPER'
 #!/bin/bash
-cd "$SCRIPT_DIR"
-exec python3 quick_launch.py
-EOF
+# Lancer dans Terminal.app pour que l'utilisateur voie les logs et puisse Ctrl+C
+SCRIPT_DIR="PLACEHOLDER_SCRIPT_DIR"
+osascript -e "
+tell application \"Terminal\"
+    activate
+    do script \"export PATH=\\\"/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:\\$PATH\\\"; cd '$SCRIPT_DIR' && python3 quick_launch.py; exit\"
+end tell
+"
+WRAPPER
+# Injecter le vrai chemin (pas d'expansion dans le heredoc single-quoted)
+sed -i '' "s|PLACEHOLDER_SCRIPT_DIR|$SCRIPT_DIR|g" "$APP_PATH/Contents/MacOS/$APP_NAME"
 chmod +x "$APP_PATH/Contents/MacOS/$APP_NAME"
 
 # Info.plist

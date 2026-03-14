@@ -23,6 +23,11 @@ BACKEND_PORT = 8765
 FRONTEND_PORT = 3000
 COCKPIT_URL = f"http://localhost:{FRONTEND_PORT}/cockpit"
 
+# S'assurer que Homebrew et Node sont dans le PATH (macOS)
+for p in ["/opt/homebrew/bin", "/usr/local/bin", "/opt/node22/bin"]:
+    if p not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = p + ":" + os.environ.get("PATH", "")
+
 processes: list[subprocess.Popen] = []
 
 
@@ -115,14 +120,14 @@ def main():
     print(f"  Backend Python (port {BACKEND_PORT})...")
     backend = subprocess.Popen(
         [
-            sys.executable, str(ROOT / "cockpit_server.py"),
+            sys.executable, "-u", str(ROOT / "cockpit_server.py"),
             "--dashboard", str(DASHBOARD_PATH),
             "--db", str(DB_PATH),
             "--port", str(BACKEND_PORT),
         ],
         cwd=str(ROOT),
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=sys.stderr,
     )
     processes.append(backend)
 
@@ -147,7 +152,7 @@ def main():
         frontend_cmd,
         cwd=str(FRONTEND_DIR),
         stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stderr=sys.stderr,
     )
     processes.append(frontend)
 
@@ -187,4 +192,9 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception as e:
+        print(f"\n  ERREUR: {e}")
+        input("\n  Appuyez sur Entree pour fermer...")
+        sys.exit(1)
