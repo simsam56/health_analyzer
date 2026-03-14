@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from analytics import planner
+from analytics import muscle_groups, planner, training_load
 from integrations.apple_calendar import diagnose_apple_calendar, sync_apple_calendar
 from pipeline.schema import get_connection, migrate_db
 
@@ -117,12 +117,201 @@ class CockpitHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
+    def _build_artifact(self) -> dict:
+        """Aggregate all analytics data into a single artifact payload."""
+        import sqlite3
+
+        conn = sqlite3.connect(str(self.db_path))
+        today = date.today()
+
+        # ── Training load (PMC, ACWR, readiness) ──
+        daily_tss = training_load.build_daily_tss(conn)
+        pmc_series = training_load.compute_pmc(daily_tss, end_date=today)
+        today_pmc = pmc_series[-1] if pmc_series else {"ctl": 0, "atl": 0, "tsb": 0, "tss": 0}
+        acwr_data = training_load.compute_acwr(daily_tss, end_date=today)
+
+        # ── Health metrics ──
+        health = training_load.get_health_metrics(conn)
+
+        # ── Readiness score ──
+        readiness = training_load.compute_wakeboard_score(
+            hrv_val=health.get("hrv"),
+            hrv_baseline=health.get("hrv_baseline"),
+            sleep_h=health.get("sleep_h"),
+            acwr_val=acwr_data["acwr"],
+            rhr_val=health.get("rhr"),
+            rhr_baseline=health.get("rhr_baseline"),
+            body_battery=health.get("body_battery"),
+            freshness={
+                "hrv": health.get("hrv_freshness", 1.0),
+                "sleep": health.get("sleep_freshness", 1.0),
+                "rhr": health.get("rhr_freshness", 1.0),
+                "body_battery": health.get("body_battery_freshness", 1.0),
+            },
+        )
+
+        # ── Running ──
+        running = training_load.analyze_running(conn, weeks=12)
+        if running:
+            running["estimated_10k"] = training_load.estimate_10k_time(
+                base_10k_min=running.get("pred_10k_base_min"),
+                avg_pace_mpk=running.get("avg_pace"),
+                ctl=float(today_pmc.get("ctl", 0) or 0),
+                acwr=float(acwr_data.get("acwr", 0) or 0),
+                readiness_score=float(readiness.get("score", 0) or 0),
+            )
+
+        # ── Muscle groups ──
+        muscles_data = muscle_groups.run(db_path=self.db_path, weeks=4, verbose=False)
+
+        # Build opacity map for muscle zones (0-1 scale based on volume vs target)
+        muscle_zones: dict[str, float] = {}
+        cum = muscles_data.get("cumulative", {})
+        for mg, targets in muscle_groups.VOLUME_TARGETS.items():
+            spw = float(cum.get(mg, {}).get("sets_per_week", 0))
+            hyp = float(targets["hyper"])
+            muscle_zones[mg] = round(min(1.0, spw / hyp) if hyp > 0 else 0.0, 2)
+
+        # ── Recent activities ──
+        recent_rows = conn.execute("""
+            SELECT id, source, type, name, started_at, duration_s,
+                   distance_m, calories, avg_hr, tss_proxy
+            FROM activities ORDER BY started_at DESC LIMIT 15
+        """).fetchall()
+
+        def _fmt_duration(s: int | None) -> str:
+            if not s:
+                return "—"
+            h, rem = divmod(int(s), 3600)
+            m, sec = divmod(rem, 60)
+            return f"{h}h{m:02d}" if h else f"{m}m{sec:02d}s"
+
+        recent_activities = [
+            {
+                "id": r[0],
+                "source": r[1],
+                "type": r[2],
+                "name": r[3],
+                "started_at": r[4],
+                "duration_s": r[5],
+                "duration_str": _fmt_duration(r[5]),
+                "distance_m": r[6],
+                "distance_km": round(r[6] / 1000, 2) if r[6] else None,
+                "calories": r[7],
+                "avg_hr": r[8],
+                "tss": r[9],
+            }
+            for r in recent_rows
+        ]
+
+        # ── Activity hours per week (last 12 weeks) ──
+        hours_rows = conn.execute("""
+            SELECT strftime('%Y-W%W', started_at) AS week,
+                   COALESCE(SUM(duration_s), 0) / 3600.0 AS hours
+            FROM activities
+            WHERE started_at >= date('now', '-84 days')
+            GROUP BY week
+            ORDER BY week
+        """).fetchall()
+        hours_series = [{"week": r[0], "hours": round(r[1], 1)} for r in hours_rows]
+
+        # ── Week summary (current week events) ──
+        week_start = (today - timedelta(days=today.weekday())).strftime("%Y-%m-%dT00:00:00")
+        week_end = (today + timedelta(days=6 - today.weekday())).strftime("%Y-%m-%dT23:59:59")
+        events = planner.get_planner_events_db(
+            self.db_path, start_at=week_start, end_at=week_end
+        )
+        board = planner.get_board_tasks_db(self.db_path)
+
+        # Category hour sums from events
+        cat_hours: dict[str, float] = {}
+        for ev in events:
+            cat = ev.get("category", "autre")
+            start = ev.get("start_at", "")
+            end = ev.get("end_at", "")
+            try:
+                s = datetime.fromisoformat(start.replace("Z", ""))
+                e = datetime.fromisoformat(end.replace("Z", ""))
+                dur_h = (e - s).total_seconds() / 3600
+            except Exception:
+                dur_h = 0
+            cat_hours[cat] = cat_hours.get(cat, 0) + dur_h
+
+        week_summary = {
+            "sante_h": round(cat_hours.get("sport", 0) + cat_hours.get("yoga", 0), 1),
+            "travail_h": round(cat_hours.get("travail", 0), 1),
+            "relationnel_h": round(cat_hours.get("social", 0), 1),
+            "apprentissage_h": round(cat_hours.get("formation", 0), 1),
+            "autre_h": round(cat_hours.get("autre", 0) + cat_hours.get("lecon", 0), 1),
+        }
+        week_summary["total_h"] = round(sum(week_summary.values()), 1)
+
+        # ── PMC series: trim to last 90 days for the artifact ──
+        pmc_trimmed = pmc_series[-90:] if len(pmc_series) > 90 else pmc_series
+
+        # ── Totals ──
+        total_acts = conn.execute("SELECT COUNT(*) FROM activities").fetchone()[0]
+        total_km = conn.execute(
+            "SELECT COALESCE(SUM(distance_m),0)/1000 FROM activities WHERE distance_m>0"
+        ).fetchone()[0]
+        strength_count = conn.execute("SELECT COUNT(*) FROM strength_sessions").fetchone()[0]
+
+        conn.close()
+
+        return {
+            "ok": True,
+            "generated_at": datetime.now().isoformat(),
+            "health": health,
+            "readiness": readiness,
+            "acwr": acwr_data,
+            "pmc": {
+                "current": {
+                    "ctl": today_pmc.get("ctl", 0),
+                    "atl": today_pmc.get("atl", 0),
+                    "tsb": today_pmc.get("tsb", 0),
+                },
+                "series": pmc_trimmed,
+            },
+            "running": running or {},
+            "muscles": {
+                "zones": muscle_zones,
+                "cumulative": cum,
+                "weekly_volume": muscles_data.get("weekly_volume", {}),
+                "alerts": muscles_data.get("imbalances", []),
+                "score": muscles_data.get("muscle_score", 0),
+                "targets": {k: dict(v) for k, v in muscle_groups.VOLUME_TARGETS.items()},
+                "top_exercises": muscles_data.get("top_exercises", {}),
+                "recent_sessions": muscles_data.get("recent_sessions", []),
+            },
+            "week": {
+                "start": week_start[:10],
+                "summary": week_summary,
+                "events": events,
+                "board": board,
+            },
+            "activities": {
+                "recent": recent_activities,
+                "hours_series": hours_series,
+                "total_count": total_acts,
+                "total_km": round(total_km, 0),
+                "strength_sessions": strength_count,
+            },
+        }
+
     def do_GET(self):
         url = urlparse(self.path)
         path = url.path
 
         if path in ("/", "/index.html", "/dashboard"):
             self._send_file(self.dashboard_path)
+            return
+
+        if path == "/api/artifact":
+            try:
+                payload = self._build_artifact()
+                self._send_json(200, payload)
+            except Exception as exc:
+                self._send_json(500, {"ok": False, "error": str(exc)})
             return
 
         if path == "/api/planner/events":
