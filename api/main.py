@@ -28,7 +28,7 @@ from analytics.muscle_groups import (
 )
 from api import deps
 from api.routes import activities, calendar, health, muscles, planner as planner_routes, training
-from pipeline.schema import get_connection, migrate_db
+from pipeline.schema import get_connection, init_db, migrate_db
 
 
 @asynccontextmanager
@@ -43,8 +43,10 @@ async def lifespan(app: FastAPI):
     deps.DASHBOARD_PATH = dashboard_path
     deps.API_TOKEN = api_token
 
-    # Migration DB au démarrage
+    # Création des tables + migration DB au démarrage
     try:
+        conn = init_db(db_path)
+        conn.close()
         conn = get_connection(db_path)
         migrate_db(conn)
         conn.close()
