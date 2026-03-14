@@ -1,23 +1,21 @@
 "use client";
 
 import { useDashboard } from "@/lib/queries/use-dashboard";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { ErrorCard } from "@/components/ui/error-card";
+import { BoardKanban } from "@/components/planner/board-kanban";
 import { Briefcase, TrendingUp } from "lucide-react";
+import { formatTime } from "@/lib/utils";
 
 export default function TravailPage() {
-  const { data, isLoading } = useDashboard();
+  const { data, isLoading, error } = useDashboard();
 
-  if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-blue border-t-transparent" />
-      </div>
-    );
-  }
+  if (isLoading) return <LoadingSpinner />;
+  if (error) return <ErrorCard />;
 
   const summary = data?.week?.summary;
   const events = data?.week?.events?.filter((e) => e.category === "travail") ?? [];
   const board = data?.week?.board?.filter((t) => t.category === "travail" || t.category === "formation") ?? [];
-  const hoursSeries = data?.activities?.hours_series ?? [];
   const workHours = summary?.travail_h ?? 0;
   const targetHours = 40;
 
@@ -70,7 +68,7 @@ export default function TravailPage() {
                 <div className="h-2 w-2 rounded-full bg-accent-blue" />
                 <span className="flex-1 text-sm">{e.title}</span>
                 <span className="text-xs text-text-muted">
-                  {new Date(e.start_at).toLocaleDateString("fr-FR", { weekday: "short", hour: "2-digit", minute: "2-digit" })}
+                  {formatTime(e.start_at)}
                 </span>
               </div>
             ))}
@@ -78,24 +76,8 @@ export default function TravailPage() {
         )}
       </div>
 
-      {/* Backlog travail */}
       {board.length > 0 && (
-        <div className="glass rounded-2xl p-5">
-          <h3 className="mb-3 text-base font-semibold">
-            Backlog travail
-            <span className="ml-2 text-sm font-normal text-text-muted">{board.length} tâches</span>
-          </h3>
-          <div className="space-y-2">
-            {board.map((t) => (
-              <div key={t.id} className="flex items-center gap-3 rounded-lg bg-surface-0 px-3 py-2">
-                <span className="flex-1 text-sm">{t.title}</span>
-                <span className="text-[10px] uppercase text-text-muted">
-                  {t.triage_status?.replace(/_/g, " ")}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <BoardKanban tasks={board} title="Backlog travail" />
       )}
     </div>
   );

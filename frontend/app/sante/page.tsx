@@ -1,8 +1,11 @@
 "use client";
 
 import { useDashboard } from "@/lib/queries/use-dashboard";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { ErrorCard } from "@/components/ui/error-card";
 import { ThreeRings } from "@/components/health/three-rings";
 import { MetricCard } from "@/components/health/metric-card";
+import { formatDate } from "@/lib/utils";
 import {
   Heart,
   Activity,
@@ -17,21 +20,8 @@ import {
 export default function SantePage() {
   const { data, isLoading, error } = useDashboard();
 
-  if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-green border-t-transparent" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="glass rounded-2xl p-6 text-center text-accent-red">
-        Erreur de connexion à l&apos;API.
-      </div>
-    );
-  }
+  if (isLoading) return <LoadingSpinner color="border-accent-green" />;
+  if (error) return <ErrorCard />;
 
   const health = data?.health;
   const readiness = data?.readiness;
@@ -55,13 +45,13 @@ export default function SantePage() {
               className="text-5xl font-extrabold"
               style={{ color: readiness?.color ?? "#64748b" }}
             >
-              {readiness?.score ?? "—"}
+              {readiness?.score ?? "\u2014"}
             </div>
             <div
               className="mt-1 text-sm font-medium"
               style={{ color: readiness?.color ?? "#64748b" }}
             >
-              {readiness?.label ?? "—"}
+              {readiness?.label ?? "\u2014"}
             </div>
             <div className="mt-2 text-xs text-text-muted">
               Confiance : {((readiness?.confidence ?? 0) * 100).toFixed(0)}%
@@ -124,7 +114,6 @@ export default function SantePage() {
 
       {/* Running + Activités récentes */}
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Running */}
         {running && running.sessions > 0 && (
           <div className="glass rounded-2xl p-5">
             <h3 className="mb-3 flex items-center gap-2 text-base font-semibold">
@@ -152,7 +141,6 @@ export default function SantePage() {
           </div>
         )}
 
-        {/* Activités récentes */}
         <div className="glass rounded-2xl p-5">
           <h3 className="mb-3 flex items-center gap-2 text-base font-semibold">
             <Timer className="h-4 w-4 text-accent-blue" />
@@ -192,24 +180,13 @@ export default function SantePage() {
 
 function getActivityIcon(type: string): string {
   const icons: Record<string, string> = {
-    Running: "🏃",
-    Cycling: "🚴",
-    "Strength Training": "🏋️",
-    Swimming: "🏊",
-    Yoga: "🧘",
-    Hiking: "🥾",
-    Walking: "🚶",
+    Running: "\ud83c\udfc3",
+    Cycling: "\ud83d\udeb4",
+    "Strength Training": "\ud83c\udfcb\ufe0f",
+    Swimming: "\ud83c\udfca",
+    Yoga: "\ud83e\uddd8",
+    Hiking: "\ud83e\uddb6",
+    Walking: "\ud83d\udeb6",
   };
-  return icons[type] ?? "🏃";
-}
-
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString("fr-FR", {
-      day: "numeric",
-      month: "short",
-    });
-  } catch {
-    return "";
-  }
+  return icons[type] ?? "\ud83c\udfc3";
 }
