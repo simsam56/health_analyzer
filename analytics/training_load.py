@@ -903,6 +903,283 @@ def run(
     }
 
 
+# ─────────────────────────────────────────────────────────────────
+# WEEKLY TRENDS (tendances hebdomadaires par métrique santé)
+# ─────────────────────────────────────────────────────────────────
+METRIC_META: list[dict[str, str]] = [
+    {"metric": "rhr", "db_metric": "rhr", "label": "FC Repos", "unit": "bpm"},
+    {"metric": "hrv_sdnn", "db_metric": "hrv_sdnn", "label": "HRV", "unit": "ms"},
+    {"metric": "sleep_h", "db_metric": "sleep_h", "label": "Sommeil", "unit": "h"},
+    {"metric": "vo2max", "db_metric": "vo2max", "label": "VO2max", "unit": ""},
+    {"metric": "weight_kg", "db_metric": "weight_kg", "label": "Poids", "unit": "kg"},
+]
+
+# Metrics where "down" is favorable
+_DOWN_IS_GOOD = {"rhr", "weight_kg"}
+
+
+def compute_weekly_trends(
+    conn: sqlite3.Connection,
+    weeks: int = 8,
+    end_date: date | None = None,
+) -> list[dict]:
+    """
+    Retourne les tendances hebdomadaires pour chaque métrique santé.
+    """
+    if end_date is None:
+        end_date = date.today()
+    start_date = end_date - timedelta(weeks=weeks)
+
+    results = []
+    for meta in METRIC_META:
+        rows = conn.execute(
+            """
+            SELECT strftime('%Y-W%W', date) AS week, ROUND(AVG(value), 2) AS avg_val
+            FROM health_metrics
+            WHERE metric = ? AND date >= ? AND date <= ?
+            GROUP BY week
+            ORDER BY week
+            """,
+            (meta["db_metric"], str(start_date), str(end_date)),
+        ).fetchall()
+
+        series = [{"week": r[0], "value": r[1]} for r in rows]
+
+        current = series[-1]["value"] if series else None
+        previous = series[-2]["value"] if len(series) >= 2 else None
+
+        delta = None
+        delta_pct = None
+        trend = "stable"
+        favorable = False
+
+        if current is not None and previous is not None and previous != 0:
+            delta = round(current - previous, 2)
+            delta_pct = round((delta / abs(previous)) * 100, 1)
+            if abs(delta_pct) < 1.0:
+                trend = "stable"
+            elif delta > 0:
+                trend = "up"
+            else:
+                trend = "down"
+
+        # Determine if the trend is favorable
+        if meta["metric"] in _DOWN_IS_GOOD:
+            favorable = trend == "down" or trend == "stable"
+        else:
+            favorable = trend == "up" or trend == "stable"
+
+        results.append({
+            "metric": meta["metric"],
+            "label": meta["label"],
+            "unit": meta["unit"],
+            "current": current,
+            "previous": previous,
+            "delta": delta,
+            "delta_pct": delta_pct,
+            "trend": trend,
+            "favorable": favorable,
+            "series": series,
+        })
+
+    return results
+
+
+# ─────────────────────────────────────────────────────────────────
+# HIGHLIGHTS INTELLIGENTS
+# ─────────────────────────────────────────────────────────────────
+def generate_highlights(
+    conn: sqlite3.Connection,
+    health: dict,
+    acwr_data: dict,
+    running_data: dict,
+    muscle_alerts: list[dict],
+) -> list[dict]:
+    """
+    Génère 2-3 insights textuels à partir des données récentes.
+    Retourne [{text, type, icon}] trié par priorité.
+    """
+    highlights: list[dict] = []
+
+    # 1. RHR trend over 4 weeks
+    rhr_rows = conn.execute(
+        """
+        SELECT strftime('%Y-W%W', date) AS week, ROUND(AVG(value), 1)
+        FROM health_metrics
+        WHERE metric = 'rhr' AND date >= date('now', '-28 days')
+        GROUP BY week ORDER BY week
+        """
+    ).fetchall()
+    if len(rhr_rows) >= 3:
+        first_val = rhr_rows[0][1]
+        last_val = rhr_rows[-1][1]
+        if first_val and last_val:
+            diff = round(first_val - last_val, 1)
+            if diff >= 2:
+                highlights.append({
+                    "text": f"Ta FC repos a baissé de {diff} bpm sur les 4 dernières semaines → bonne tendance",
+                    "type": "positive",
+                    "icon": "heart",
+                })
+            elif diff <= -3:
+                highlights.append({
+                    "text": f"Ta FC repos a augmenté de {abs(diff)} bpm sur 4 semaines → surveiller la récupération",
+                    "type": "warning",
+                    "icon": "heart",
+                })
+
+    # 2. HRV vs baseline
+    hrv_val = health.get("hrv")
+    hrv_baseline = health.get("hrv_baseline")
+    if hrv_val and hrv_baseline and hrv_baseline > 0:
+        ratio = hrv_val / hrv_baseline
+        if ratio > 1.15:
+            highlights.append({
+                "text": f"HRV au-dessus de ta baseline ({hrv_val:.0f} vs {hrv_baseline:.0f} ms) → bonne récupération",
+                "type": "positive",
+                "icon": "activity",
+            })
+        elif ratio < 0.80:
+            highlights.append({
+                "text": f"HRV en dessous de ta baseline ({hrv_val:.0f} vs {hrv_baseline:.0f} ms) → fatigue possible",
+                "type": "warning",
+                "icon": "activity",
+            })
+
+    # 3. ACWR zone warning
+    acwr_zone = acwr_data.get("zone", "")
+    acwr_val = acwr_data.get("acwr", 0)
+    if acwr_zone in ("élevé", "danger"):
+        highlights.append({
+            "text": f"ACWR à {acwr_val:.2f} (zone {acwr_zone}) → risque de blessure, réduire la charge",
+            "type": "warning",
+            "icon": "alert-triangle",
+        })
+
+    # 4. Running volume trend
+    if running_data and running_data.get("km_per_week", 0) > 0:
+        km_week = running_data["km_per_week"]
+        total_km = running_data.get("total_km", 0)
+        sessions = running_data.get("sessions", 0)
+        if sessions >= 3:
+            # Compare recent 2 weeks vs previous 2 weeks
+            recent_rows = conn.execute(
+                """
+                SELECT SUM(distance_m) / 1000.0
+                FROM activities
+                WHERE type = 'Running' AND date(started_at) >= date('now', '-14 days')
+                """
+            ).fetchone()
+            prev_rows = conn.execute(
+                """
+                SELECT SUM(distance_m) / 1000.0
+                FROM activities
+                WHERE type = 'Running'
+                  AND date(started_at) >= date('now', '-28 days')
+                  AND date(started_at) < date('now', '-14 days')
+                """
+            ).fetchone()
+            recent_km = float(recent_rows[0] or 0) if recent_rows else 0
+            prev_km = float(prev_rows[0] or 0) if prev_rows else 0
+            if prev_km > 0 and recent_km > 0:
+                pct = round((recent_km - prev_km) / prev_km * 100)
+                if pct >= 15:
+                    highlights.append({
+                        "text": f"Tu as couru {recent_km:.0f} km ces 2 semaines, +{pct}% vs les 2 précédentes",
+                        "type": "neutral",
+                        "icon": "trending-up",
+                    })
+
+    # 5. Muscle alerts (legs not trained)
+    for alert in muscle_alerts:
+        if alert.get("level") == "critique" and alert.get("type") == "volume":
+            muscle = alert.get("muscle", "")
+            highlights.append({
+                "text": f"Attention : {muscle} non travaillé(es) récemment",
+                "type": "warning",
+                "icon": "alert-circle",
+            })
+            break  # Only show one muscle alert
+
+    # Sort: warnings first, then positive, then neutral. Cap at 3.
+    priority = {"warning": 0, "positive": 1, "neutral": 2}
+    highlights.sort(key=lambda h: priority.get(h["type"], 3))
+    return highlights[:3]
+
+
+# ─────────────────────────────────────────────────────────────────
+# WEEKLY LOAD BREAKDOWN (charge par type d'activité)
+# ─────────────────────────────────────────────────────────────────
+def compute_weekly_load_breakdown(
+    conn: sqlite3.Connection,
+    weeks: int = 12,
+    end_date: date | None = None,
+) -> list[dict]:
+    """
+    Volume hebdomadaire par type d'activité (en heures).
+    """
+    if end_date is None:
+        end_date = date.today()
+    start_date = end_date - timedelta(weeks=weeks)
+
+    rows = conn.execute(
+        """
+        SELECT
+            strftime('%Y-W%W', started_at) AS week,
+            type,
+            ROUND(SUM(COALESCE(duration_s, 0)) / 3600.0, 2) AS hours
+        FROM activities
+        WHERE started_at IS NOT NULL AND date(started_at) >= ? AND date(started_at) <= ?
+        GROUP BY week, type
+        ORDER BY week
+        """,
+        (str(start_date), str(end_date)),
+    ).fetchall()
+
+    weekly: dict[str, dict] = defaultdict(lambda: {"total_hours": 0.0, "breakdown": {}})
+    for row in rows:
+        week = row[0]
+        act_type = row[1] or "Autre"
+        hours = float(row[2] or 0)
+        weekly[week]["breakdown"][act_type] = hours
+        weekly[week]["total_hours"] = round(weekly[week]["total_hours"] + hours, 2)
+
+    return [
+        {"week": w, "total_hours": d["total_hours"], "breakdown": d["breakdown"]}
+        for w, d in sorted(weekly.items())
+    ]
+
+
+# ─────────────────────────────────────────────────────────────────
+# PREDICTION HISTORY (évolution prédiction 10K)
+# ─────────────────────────────────────────────────────────────────
+def get_prediction_history(
+    conn: sqlite3.Connection,
+    months: int = 6,
+    end_date: date | None = None,
+) -> list[dict]:
+    """
+    Calcule à la volée l'évolution de la prédiction 10K
+    en rejouant analyze_running sur des fenêtres glissantes mensuelles.
+    """
+    if end_date is None:
+        end_date = date.today()
+
+    results = []
+    for i in range(months, -1, -1):
+        # End of each month window
+        ref_date = end_date - timedelta(days=i * 30)
+        running = analyze_running(conn, weeks=12, end_date=ref_date)
+        pred_10k = running.get("pred_10k_base_min") if running else None
+        month_label = ref_date.strftime("%Y-%m")
+        results.append({
+            "month": month_label,
+            "pred_10k_min": round(pred_10k, 1) if pred_10k else None,
+        })
+
+    return results
+
+
 if __name__ == "__main__":
     import argparse
 

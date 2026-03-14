@@ -9,6 +9,8 @@ from analytics.training_load import (
     build_daily_tss,
     compute_acwr,
     compute_pmc,
+    compute_weekly_load_breakdown,
+    get_prediction_history,
 )
 from api.deps import get_db
 
@@ -61,6 +63,17 @@ def acwr_data() -> dict:
         conn.close()
 
 
+@router.get("/weekly-load")
+def weekly_load(weeks: int = 12) -> dict:
+    """Volume hebdomadaire par type d'activité."""
+    conn = get_db()
+    try:
+        data = compute_weekly_load_breakdown(conn, weeks=weeks)
+        return {"ok": True, "series": data}
+    finally:
+        conn.close()
+
+
 @router.get("/running")
 def running_analysis(weeks: int = 12) -> dict:
     """Analyse running : allure, prédictions Riegel, volume."""
@@ -68,5 +81,16 @@ def running_analysis(weeks: int = 12) -> dict:
     try:
         data = analyze_running(conn, weeks=weeks)
         return {"ok": True, "running": data}
+    finally:
+        conn.close()
+
+
+@router.get("/running/prediction-history")
+def prediction_history(months: int = 6) -> dict:
+    """Évolution de la prédiction 10K au fil des mois."""
+    conn = get_db()
+    try:
+        data = get_prediction_history(conn, months=months)
+        return {"ok": True, "series": data}
     finally:
         conn.close()

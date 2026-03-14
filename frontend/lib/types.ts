@@ -167,6 +167,59 @@ export interface Activity {
   tss: number | null;
 }
 
+// ── Health Highlights ─────────────────────────────────────────────
+
+export interface HealthHighlight {
+  text: string;
+  type: "positive" | "warning" | "neutral";
+  icon: string;
+}
+
+// ── Weekly Trends ────────────────────────────────────────────────
+
+export interface WeeklyTrendPoint {
+  week: string;
+  value: number | null;
+}
+
+export interface WeeklyTrend {
+  metric: string;
+  label: string;
+  unit: string;
+  current: number | null;
+  previous: number | null;
+  delta: number | null;
+  delta_pct: number | null;
+  trend: "up" | "down" | "stable";
+  favorable: boolean;
+  series: WeeklyTrendPoint[];
+}
+
+// ── Training Load ────────────────────────────────────────────────
+
+export interface WeeklyLoadBreakdown {
+  week: string;
+  total_hours: number;
+  breakdown: Record<string, number>;
+}
+
+// ── Activity Groups ──────────────────────────────────────────────
+
+export interface ActivityGroup {
+  type: string;
+  activities: Activity[];
+  total_duration_s: number;
+  total_distance_m: number;
+  count: number;
+}
+
+// ── Prediction History ───────────────────────────────────────────
+
+export interface PredictionHistoryPoint {
+  month: string;
+  pred_10k_min: number | null;
+}
+
 // ── Dashboard (agrégat) ───────────────────────────────────────────
 
 export interface WeekSummary {

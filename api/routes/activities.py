@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
+
 from fastapi import APIRouter
 
 from api.deps import get_db
@@ -50,6 +52,55 @@ def recent_activities(limit: int = 10) -> dict:
             })
 
         return {"ok": True, "activities": activities}
+    finally:
+        conn.close()
+
+
+@router.get("/weekly-grouped")
+def weekly_grouped_activities() -> dict:
+    """Activités de la semaine groupées par type avec totaux."""
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            """
+            SELECT
+                id, source, type, name, started_at,
+                duration_s, distance_m, calories, avg_hr, tss_proxy
+            FROM activities
+            WHERE started_at IS NOT NULL
+              AND date(started_at) >= date('now', 'weekday 0', '-7 days')
+            ORDER BY started_at DESC
+            """,
+        ).fetchall()
+
+        groups: dict[str, dict] = defaultdict(
+            lambda: {"type": "", "activities": [], "total_duration_s": 0, "total_distance_m": 0, "count": 0}
+        )
+        for r in rows:
+            act_type = r[2] or "Autre"
+            duration_s = r[5] or 0
+            distance_m = r[6] or 0
+            g = groups[act_type]
+            g["type"] = act_type
+            g["count"] += 1
+            g["total_duration_s"] += duration_s
+            g["total_distance_m"] += distance_m
+            g["activities"].append({
+                "id": r[0],
+                "source": r[1],
+                "type": act_type,
+                "name": r[3],
+                "started_at": r[4],
+                "duration_s": duration_s,
+                "duration_str": f"{duration_s // 3600}h{(duration_s % 3600) // 60:02d}",
+                "distance_m": distance_m,
+                "distance_km": round(distance_m / 1000, 1) if distance_m else None,
+                "calories": r[7],
+                "avg_hr": r[8],
+                "tss": round(r[9], 1) if r[9] else None,
+            })
+
+        return {"ok": True, "groups": list(groups.values())}
     finally:
         conn.close()
 
