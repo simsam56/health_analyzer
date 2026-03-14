@@ -52,11 +52,6 @@ export default function SantePage() {
 
   return (
     <div className="space-y-6">
-      {/* Debug banner - confirms new page is loaded */}
-      <div className="rounded-xl bg-accent-green/20 border border-accent-green/40 px-4 py-3 text-center text-sm font-medium text-accent-green">
-        Nouvelle page Santé v2 chargée avec succès
-      </div>
-
       {/* 1. Highlights intelligents */}
       {highlights.length > 0 && (
         <FadeInSection delay={0}>
