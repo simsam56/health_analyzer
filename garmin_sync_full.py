@@ -133,7 +133,7 @@ def connect_garmin() -> garminconnect.Garmin:
 def get_conn() -> sqlite3.Connection:
     if not DB_PATH.exists():
         log(f"❌ DB non trouvée : {DB_PATH}")
-        log("   Lance d'abord : python3 main.py --skip-parse (depuis le dossier health_analyzer)")
+        log("   Lance d'abord : python3 main.py --skip-parse (depuis le dossier du projet)")
         sys.exit(1)
     conn = sqlite3.connect(str(DB_PATH))
     conn.execute("PRAGMA journal_mode=WAL")
@@ -417,7 +417,7 @@ def main():
         return
 
     log("=" * 56)
-    log("  Garmin Connect Sync — PerformOS v3")
+    log("  Garmin Connect Sync — Bord")
     log("=" * 56)
 
     # Calculer les dates
@@ -476,7 +476,7 @@ def main():
 # ── AUTO-RUN macOS (LaunchAgent) ──────────────────────────────────
 def install_launchagent():
     """Installe une tâche automatique quotidienne à 06:30."""
-    plist_id = "com.performos.garmin-sync"
+    plist_id = "com.bord.garmin-sync"
     plist_dir = Path.home() / "Library" / "LaunchAgents"
     plist_path = plist_dir / f"{plist_id}.plist"
 

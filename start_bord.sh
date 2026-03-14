@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# start_cockpit.sh — lancement Bord (tableau de bord personnel)
+# start_bord.sh — lancement Bord (tableau de bord personnel)
 #
 # Usage:
-#   bash start_cockpit.sh
-#   BORD_PORT=8770 bash start_cockpit.sh
+#   bash start_bord.sh
+#   BORD_PORT=8770 bash start_bord.sh
 #
 # Comportement:
 # - run rapide: skip parse local + Garmin 90j (smart-skip actif)
@@ -16,7 +16,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-DEFAULT_PORT="${BORD_PORT:-${PERFORMOS_PORT:-8765}}"
+DEFAULT_PORT="${BORD_PORT:-8765}"
 PORT="$DEFAULT_PORT"
 
 # Choisir un port libre si le port souhaité est déjà pris
@@ -37,6 +37,6 @@ echo ""
 (sleep 2; open "http://127.0.0.1:${PORT}" >/dev/null 2>&1 || true) &
 
 # Token API:
-# - si PERFORMOS_API_TOKEN défini: utilisé
+# - si BORD_API_TOKEN défini: utilisé
 # - sinon: main.py génère un token temporaire automatiquement
 exec python3 -u main.py --skip-parse --garmin --days 90 --garmin-refresh-tail-days 3 --serve --serve-port "$PORT"

@@ -1,4 +1,4 @@
-# SKILL — PerformOS v2 : Sport Performance Dashboard
+# SKILL — Bord v2 : Sport Performance Dashboard
 
 ## Description
 Génère un dashboard HTML de performance sportive (Apple Dark, iPhone-first) en analysant :
@@ -8,7 +8,7 @@ Génère un dashboard HTML de performance sportive (Apple Dark, iPhone-first) en
 
 ## Architecture
 ```
-health_analyzer/
+bord/
 ├── sport_dashboard.py          ← Point d'entrée principal
 ├── pipeline/
 │   ├── schema.py               ← SQLite DDL (athlete.db)
@@ -29,7 +29,7 @@ health_analyzer/
 ## Usage Claude
 ### Régénérer le dashboard
 ```
-Génère le dashboard PerformOS avec mes données actuelles
+Génère le dashboard Bord avec mes données actuelles
 ```
 
 ### Analyser un muscle spécifique

@@ -1,6 +1,6 @@
-# PerformOS Cockpit — Roadmap Implémentation 2026
+# Bord — Roadmap Implémentation 2026
 
-## Phase 1 (fait) — Fondation cockpit
+## Phase 1 (fait) — Fondation dashboard
 
 - Refonte UI 3 pages:
   - Pilotage (planning central),
@@ -9,7 +9,7 @@
 - CRUD planning complet:
   - ajout, modification, suppression, drag&drop.
 - Sync Apple Calendar bidirectionnelle.
-- API locale planner intégrée au serveur cockpit.
+- API locale planner intégrée au serveur Bord.
 - Durcissement sécurité API locale (token + validation).
 
 ## Phase 2 (prochaine) — Fiabilité data & précision sportive
@@ -37,7 +37,7 @@
   - “objectif sport en retard”,
   - “charge trop élevée”.
 
-## Phase 4 — Extension cockpit de vie
+## Phase 4 — Extension dashboard de vie
 
 - Ajout interfaces Travail / Relationnel (planning partagé).
 - Automatisations ciblées:

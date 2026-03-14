@@ -1,11 +1,11 @@
-# 🚀 PerformOS - Guide d'utilisation
+# 🚀 Bord - Guide d'utilisation
 
 ## Icône Bureau Créée ✅
 
-Une application **PerformOS.app** a été créée sur votre bureau avec :
+Une application **Bord.app** a été créée sur votre bureau avec :
 
 ### 🎯 Lancement Rapide
-- **Double-cliquez** sur l'icône PerformOS.app
+- **Double-cliquez** sur l'icône Bord.app
 - Interface web s'ouvre automatiquement
 - Calendrier Apple synchronisé
 
@@ -59,11 +59,11 @@ cd /Users/simonhingant/Documents/health_analyzer
 #### Reset complet
 ```bash
 # Supprimer et recréer
-rm -rf ~/Desktop/PerformOS.app
+rm -rf ~/Desktop/Bord.app
 cd /Users/simonhingant/Documents/health_analyzer
 ./setup_desktop.sh
 ```
 
 ### 🎉 Prêt à utiliser !
 
-Double-cliquez sur **PerformOS.app** pour commencer !
+Double-cliquez sur **Bord.app** pour commencer !

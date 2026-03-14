@@ -1,20 +1,20 @@
-# 🎯 PerformOS - Guide de lancement
+# 🎯 Bord - Guide de lancement
 
 ## ✅ Méthodes de lancement (essayez dans l'ordre)
 
 ### 1️⃣ Lanceur Terminal (Recommandé)
-**Double-cliquez** sur `PerformOS_Terminal` sur votre bureau.
+**Double-cliquez** sur `Bord_Terminal` sur votre bureau.
 - ✅ Ouvre automatiquement une fenêtre Terminal
 - ✅ Affiche les messages de progression
 - ✅ Plus fiable que l'app .app
 
 ### 2️⃣ Application Desktop
-**Double-cliquez** sur `PerformOS_Simple.app` sur votre bureau.
+**Double-cliquez** sur `Bord_Simple.app` sur votre bureau.
 - ✅ Interface native macOS
 - ✅ Lancement silencieux (si elle fonctionne)
 
 ### 3️⃣ Script Direct (Solution de secours)
-**Double-cliquez** sur `PerformOS_Lancer` sur votre bureau.
+**Double-cliquez** sur `Bord_Lancer` sur votre bureau.
 - ✅ Lanceur simple et direct
 - ✅ Interface utilisateur basique
 
@@ -41,10 +41,10 @@ Au premier lancement, une boîte de dialogue apparaîtra pour autoriser l'accès
 2. Si vous avez refusé par erreur :
    - Allez dans **Préférences Système** > **Sécurité et confidentialité** > **Confidentialité**
    - Cliquez sur **Calendriers** dans la barre latérale
-   - Cherchez **Python** ou **PerformOS** et activez l'accès
+   - Cherchez **Python** ou **Bord** et activez l'accès
 
 ### 🔄 Configuration Automatique
-PerformOS configure automatiquement les permissions au premier lancement.
+Bord configure automatiquement les permissions au premier lancement.
 
 ## 🆘 Dépannage
 
@@ -68,12 +68,12 @@ python3 setup_calendar.py
 ```
 
 ### Jeton API
-Au lancement avec `PerformOS_Terminal` ou `server_simple.py`, le jeton
+Au lancement avec `Bord_Terminal` ou `server_simple.py`, le jeton
 utilisé pour authentifier les appels POST (`/api/planner/...`) est affiché
 dans la console. Il correspond à la valeur stockée dans
 `reports/dashboard.html` et peut être fixé via la variable
-`PERFORMOS_API_TOKEN`.
+`BORD_API_TOKEN`.
 
 ---
 
-**PerformOS v3.0** - Prêt à l'emploi ! 🚀
+**Bord v3.0** - Prêt à l'emploi ! 🚀

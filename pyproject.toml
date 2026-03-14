@@ -1,7 +1,7 @@
 [project]
-name = "performos"
+name = "bord"
 version = "3.0.0"
-description = "Personal fitness/health analytics cockpit"
+description = "Personal fitness/health analytics dashboard — Bord"
 requires-python = ">=3.11"
 
 # ─── Ruff ────────────────────────────────────────────────────────
@@ -35,13 +35,10 @@ ignore = [
 "diagnose*.py" = ["F401", "S110", "E722"]
 "launch.py" = ["F401"]
 "quick_launch.py" = ["F401", "S110"]
-"test_launch.py" = ["F401"]
 "setup_calendar.py" = ["F401"]
 "garmin_sync*.py" = ["S110", "S112"]
 "main.py" = ["S110", "S112", "N806", "E722"]
-"cockpit_server.py" = ["S110", "N806", "E722"]
 "build_dashboard.py" = ["S110", "N806", "F821", "E722"]
-"health_analyzer.py" = ["S110", "N806", "F821", "E722"]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -1,4 +1,4 @@
-# Audit UI/UX — Page Pilotage (PerformOS v3)
+# Audit UI/UX — Page Pilotage (Bord v3)
 
 > Date : 2026-03-05 | Auteur : Claude Code | Score UX : 5.5/10
 

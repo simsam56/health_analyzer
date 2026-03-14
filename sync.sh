@@ -1,5 +1,5 @@
 #!/bin/bash
-# sync.sh — PerformOS v3 · Script de synchronisation complète
+# sync.sh — Bord v3 · Script de synchronisation complète
 # Utilisation : ./sync.sh [--garmin] [--reset] [--days 60]
 #
 # Ce script :
@@ -14,7 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Config
-ICLOUD_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/PerformOS"
+ICLOUD_DIR="$HOME/Library/Mobile Documents/com~apple~CloudDocs/Bord"
 DASHBOARD_FILE="reports/dashboard_$(date +%Y-%m-%d).html"
 GARMIN_FLAG=""
 RESET_FLAG=""
@@ -30,7 +30,7 @@ for arg in "$@"; do
 done
 
 echo "╔════════════════════════════════════════════╗"
-echo "║  PerformOS v3 · Sync & Dashboard           ║"
+echo "║  Bord v3 · Sync & Dashboard                 ║"
 echo "╚════════════════════════════════════════════╝"
 echo ""
 
@@ -55,7 +55,7 @@ git add -A -- '*.py' '*.sh' '*.md' reports/
 CHANGED=$(git diff --cached --name-only 2>/dev/null | wc -l | tr -d ' ')
 if [ "$CHANGED" -gt "0" ]; then
     DATE=$(date +"%Y-%m-%d %H:%M")
-    git commit -m "perf: dashboard PerformOS v3 - $DATE"
+    git commit -m "perf: dashboard Bord v3 - $DATE"
     echo "  ✅ Git commit : $CHANGED fichiers"
 else
     echo "  ℹ️  Aucun changement à committer"

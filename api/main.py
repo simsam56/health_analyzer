@@ -1,4 +1,4 @@
-"""Bord API — FastAPI server (remplace cockpit_server.py)."""
+"""Bord API — FastAPI server."""
 
 from __future__ import annotations
 

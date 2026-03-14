@@ -1,4 +1,4 @@
-"""Routes calendrier Apple (port depuis cockpit_server.py)."""
+"""Routes calendrier Apple."""
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-main.py — PerformOS v3 · Point d'entrée unique
+main.py — Bord · Point d'entrée unique
 Simon Hingant · Lorient
 
 Usage :
@@ -50,13 +50,13 @@ DB_PATH = ROOT / "athlete.db"
 AH_XML = ROOT / "export.xml"
 STRAVA_DIR = ROOT / "export_strava"
 REPORTS_DIR = ROOT / "reports"
-STATE_PATH = ROOT / ".performos_state.json"
+STATE_PATH = ROOT / ".bord_state.json"
 
 
 def banner():
     print()
     print("╔══════════════════════════════════════════════════════════╗")
-    print("║  ⚡  PerformOS v3 · Sport Performance Intelligence       ║")
+    print("║  ⚡  Bord · Tableau de bord personnel                    ║")
     print(
         f"║     Simon Hingant · {date.today().strftime('%d %b %Y')} · {datetime.now().strftime('%H:%M')}             ║"
     )
@@ -555,7 +555,7 @@ def _pick_available_port(preferred: int, host: str = "127.0.0.1", tries: int = 1
 
 
 def main():
-    parser = argparse.ArgumentParser(description="PerformOS v3 — Sport Performance Dashboard")
+    parser = argparse.ArgumentParser(description="Bord — Tableau de bord personnel")
     parser.add_argument("--export", default=str(AH_XML), help="Chemin vers export.xml Apple Health")
     parser.add_argument("--strava", default=str(STRAVA_DIR), help="Dossier export Strava")
     parser.add_argument("--db", default=str(DB_PATH), help="Chemin base SQLite")
@@ -634,7 +634,7 @@ def main():
         help="Lance un serveur local pour interactions UI persistantes",
     )
     parser.add_argument(
-        "--serve-port", type=int, default=8765, help="Port du serveur local PerformOS"
+        "--serve-port", type=int, default=8765, help="Port du serveur local Bord"
     )
     args = parser.parse_args()
 
@@ -672,20 +672,24 @@ def main():
     serve_thread = None
     early_server_started = False
     if args.serve:
-        api_token = (os.getenv("PERFORMOS_API_TOKEN") or "").strip() or secrets.token_urlsafe(24)
+        api_token = (os.getenv("BORD_API_TOKEN") or "").strip() or secrets.token_urlsafe(24)
         serve_port = _pick_available_port(args.serve_port, host="127.0.0.1", tries=10)
         if output_path.exists():
             try:
-                from cockpit_server import serve as serve_cockpit
+                import uvicorn
+
+                os.environ["BORD_DB"] = str(db_path)
+                os.environ["BORD_DASHBOARD"] = str(output_path)
+                if api_token:
+                    os.environ["BORD_API_TOKEN"] = api_token
 
                 serve_thread = threading.Thread(
-                    target=serve_cockpit,
+                    target=uvicorn.run,
                     kwargs={
-                        "dashboard_path": output_path,
-                        "db_path": db_path,
+                        "app": "api.main:app",
                         "host": "127.0.0.1",
                         "port": serve_port,
-                        "api_token": api_token,
+                        "log_level": "warning",
                     },
                     daemon=True,
                 )
@@ -693,7 +697,7 @@ def main():
                 if serve_port != args.serve_port:
                     print(f"⚠️  Port {args.serve_port} occupé — utilisation du port {serve_port}")
                 url = f"http://127.0.0.1:{serve_port}"
-                print(f"⚡ Cockpit lancé immédiatement: {url}")
+                print(f"⚡ Bord lancé immédiatement: {url}")
                 print("   Données en cours de rafraîchissement…")
                 try:
                     subprocess.Popen(["open", url])
@@ -993,7 +997,7 @@ def main():
         "series": planner_series,
     }
     if args.serve and not api_token:
-        api_token = (os.getenv("PERFORMOS_API_TOKEN") or "").strip() or secrets.token_urlsafe(24)
+        api_token = (os.getenv("BORD_API_TOKEN") or "").strip() or secrets.token_urlsafe(24)
 
     # ─── 8. Sports Agent ─────────────────────────────────────────
     print("🤖 Sports Analysis Agent…")
@@ -1051,7 +1055,7 @@ def main():
             serve_port = _pick_available_port(args.serve_port, host="127.0.0.1", tries=10)
         if early_server_started and serve_thread is not None:
             print(
-                "🌐 Cockpit déjà lancé — rafraîchissez la page pour voir les données mises à jour."
+                "🌐 Bord déjà lancé — rafraîchissez la page pour voir les données mises à jour."
             )
             try:
                 serve_thread.join()
@@ -1060,20 +1064,24 @@ def main():
         else:
             if serve_port != args.serve_port:
                 print(f"⚠️  Port {args.serve_port} occupé — utilisation du port {serve_port}")
+            import uvicorn
+
+            os.environ["BORD_DB"] = str(db_path)
+            os.environ["BORD_DASHBOARD"] = str(output_path)
+            if api_token:
+                os.environ["BORD_API_TOKEN"] = api_token
+
             url = f"http://127.0.0.1:{serve_port}"
-            print(f"🌐 Lancement serveur cockpit: {url}")
+            print(f"🌐 Lancement Bord: {url}")
             try:
                 subprocess.Popen(["open", url])
             except Exception:
                 pass
-            from cockpit_server import serve as serve_cockpit
-
-            serve_cockpit(
-                dashboard_path=output_path,
-                db_path=db_path,
+            uvicorn.run(
+                "api.main:app",
                 host="127.0.0.1",
                 port=serve_port,
-                api_token=api_token,
+                log_level="warning",
             )
 
 

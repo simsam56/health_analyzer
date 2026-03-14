@@ -2,21 +2,21 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "PerformOS Cockpit (Full)",
+      "name": "Bord (Full)",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["main.py", "--skip-parse", "--garmin", "--days", "90", "--garmin-refresh-tail-days", "3", "--serve", "--serve-port", "8765"],
       "port": 8765
     },
     {
-      "name": "PerformOS Cockpit (Fast)",
+      "name": "Bord (Fast)",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["main.py", "--skip-parse", "--serve", "--serve-port", "8765"],
       "port": 8765
     },
     {
-      "name": "PerformOS Cockpit Server (Standalone)",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["cockpit_server.py", "--dashboard", "reports/dashboard_smoke.html", "--db", "athlete.db", "--port", "8765"],
+      "name": "Bord Server (Standalone)",
+      "runtimeExecutable": "uvicorn",
+      "runtimeArgs": ["api.main:app", "--host", "127.0.0.1", "--port", "8765"],
       "port": 8765
     },
     {

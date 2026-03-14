@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# PerformOS - Vérification et demande des permissions calendrier
+# Bord - Vérification et demande des permissions calendrier
 
 import sys
 import threading
@@ -38,7 +38,7 @@ def check_calendar_permissions():
         else:
             print(f"❌ Permissions refusées: {grant['err'] or 'inconnue'}")
             print("   💡 Allez dans : Système > Confidentialité > Calendriers")
-            print("   💡 Cherchez PerformOS et activez l'accès")
+            print("   💡 Cherchez Bord et activez l'accès")
             return False
     else:
         print("⏰ Timeout - pas de réponse de l'utilisateur")
@@ -73,7 +73,7 @@ def test_calendar_access():
 
 
 if __name__ == "__main__":
-    print("🚀 PerformOS - Configuration calendrier Apple")
+    print("🚀 Bord - Configuration calendrier Apple")
     print("=" * 50)
 
     # Vérifier les dépendances

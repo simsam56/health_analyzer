@@ -1,5 +1,5 @@
 """
-generator.py — PerformOS cockpit (v4)
+generator.py — Bord — générateur dashboard
 UI centered on weekly planning + health progression.
 """
 
@@ -446,7 +446,7 @@ def generate_html(
         )
     if pending_sync > 0:
         recommendations.append(
-            f"Synchronisation Apple incomplète: {pending_sync} tâche(s) à pousser depuis le cockpit."
+            f"Synchronisation Apple incomplète: {pending_sync} tâche(s) à pousser depuis le dashboard."
         )
     unresolved_unk = int(muscle_quality.get("unknown_sets_unresolved", 0) or 0)
     if unresolved_unk > 0:
@@ -463,7 +463,7 @@ def generate_html(
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>PerformOS Cockpit</title>
+<title>Bord</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -1433,10 +1433,10 @@ input:focus, select:focus {
 .tab:hover:not(.active) { color:var(--text); }
 
 /* ─── TOP-COCKPIT v4 ────────────────────────────────────────── */
-.top-cockpit { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; padding:12px 16px; background:var(--surface-1); border:1px solid var(--line); border-radius:var(--radius-lg); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); flex-wrap:wrap; }
-.top-cockpit .brand-zone { display:flex; align-items:center; gap:10px; }
-.top-cockpit .brand-zone h1 { font-size:22px; margin:0; letter-spacing:-0.03em; font-weight:800; }
-.top-cockpit .brand-zone .sub { margin:2px 0 0; color:var(--muted); font-size:11px; }
+.top-bar { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; padding:12px 16px; background:var(--surface-1); border:1px solid var(--line); border-radius:var(--radius-lg); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); flex-wrap:wrap; }
+.top-bar .brand-zone { display:flex; align-items:center; gap:10px; }
+.top-bar .brand-zone h1 { font-size:22px; margin:0; letter-spacing:-0.03em; font-weight:800; }
+.top-bar .brand-zone .sub { margin:2px 0 0; color:var(--muted); font-size:11px; }
 
 /* ─── INDICATOR STRIP v4 (replaces hero-rings) ───────────────── */
 .indicator-strip { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
@@ -1546,9 +1546,9 @@ input:focus, select:focus {
 <body>
 <div class="app">
   <!-- ═══ TOP COCKPIT v4 ═══ -->
-  <div class="top-cockpit">
+  <div class="top-bar">
     <div class="brand-zone">
-      <div class="mascot" id="mascot" title="PerformOS"><div class="mascot-body"><div class="mascot-face"><div class="mascot-eyes"><div class="mascot-eye"></div><div class="mascot-eye"></div></div><div class="mascot-mouth"></div></div></div></div>
+      <div class="mascot" id="mascot" title="Bord"><div class="mascot-body"><div class="mascot-face"><div class="mascot-eyes"><div class="mascot-eye"></div><div class="mascot-eye"></div></div><div class="mascot-mouth"></div></div></div></div>
       <div>
         <h1>Simsam</h1>
         <p class="sub">__TODAY__ · __NOW__</p>
@@ -1563,7 +1563,7 @@ input:focus, select:focus {
         </div>
         <span class="apple-cal-spinner" id="appleCalSpinner" style="display:none">⟳</span>
       </button>
-      <button class="btn-icon" id="debugPanelBtn" title="Debug PerformOS">🐛</button>
+      <button class="btn-icon" id="debugPanelBtn" title="Debug Bord">🐛</button>
       <button class="badge __CAL_BADGE_CLASS__" id="calendarBadgeBtn" style="display:none"></button>
     </div>
   </div>
@@ -1775,7 +1775,7 @@ input:focus, select:focus {
 <div class="toast-wrap" id="toastWrap"></div>
 
 <div class="debug-panel" id="debugPanel">
-  <div class="debug-title">🐛 Debug PerformOS <button onclick="document.getElementById('debugPanel').classList.remove('open')" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:12px;">✕</button></div>
+  <div class="debug-title">🐛 Debug Bord <button onclick="document.getElementById('debugPanel').classList.remove('open')" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:12px;">✕</button></div>
   <div class="debug-row"><span class="debug-key">API:</span> <span class="debug-val" id="dbgApi">—</span></div>
   <div class="debug-row"><span class="debug-key">WBS:</span> <span class="debug-val">__WBS__</span></div>
   <div class="debug-row"><span class="debug-key">TSB:</span> <span class="debug-val">__TSB__</span></div>
@@ -1792,11 +1792,11 @@ input:focus, select:focus {
 </div>
 
 <script>
-// ── PerformOS Cockpit v5 — Pilotage JS ────────────────────────────────────────
+// ── Bord — Pilotage JS ────────────────────────────────────────
 const TYPE_DEFS = __TYPE_DEFS__;
 const CATEGORY_LABELS = __CATEGORY_LABELS__;
 const BASE_EVENTS = __PLANNER_EVENTS__;
-const STORAGE_KEY = 'performos_planner_v5';
+const STORAGE_KEY = 'bord_planner_v1';
 const WEEK_START_ISO = '__WEEK_START__';
 const GOAL_TARGET = __GOAL_TARGET_NUM__;
 const READINESS_GLOBAL = __READINESS_GLOBAL_NUM__;
@@ -1887,7 +1887,7 @@ function eventDurationMin(ev) {
 
 function apiHeaders() {
   const h={'Content-Type':'application/json'};
-  if (API_TOKEN) h['X-PerformOS-Token']=API_TOKEN;
+  if (API_TOKEN) h['X-Bord-Token']=API_TOKEN;
   return h;
 }
 
@@ -2474,7 +2474,7 @@ function renderBoard() {
     grid.querySelectorAll('.board-lane').forEach(lane=>{
       if(lane.dataset.sortableBound==='1') return;
       Sortable.create(lane,{
-        group:'performos-board', animation:160, draggable:'.board-card', ghostClass:'dragging',
+        group:'bord-board', animation:160, draggable:'.board-card', ghostClass:'dragging',
         onEnd:evt=>{const tid=evt.item&&evt.item.dataset.taskId; const to=evt.to&&evt.to.dataset.triage; if(tid&&to) updateTaskTriage(tid,to);}
       });
       lane.dataset.sortableBound='1';
@@ -2753,7 +2753,7 @@ window.addEventListener('DOMContentLoaded', () => {
         "__TENK_VALUES__": json.dumps(tenk_values, ensure_ascii=False),
         "__VO2_LABELS__": json.dumps(vo2_labels, ensure_ascii=False),
         "__VO2_VALUES__": json.dumps(vo2_values, ensure_ascii=False),
-        # Laisser le placeholder pour injection dynamique par cockpit_server.py
+        # Laisser le placeholder pour injection dynamique par le serveur
         # Si api_token est fourni, l'injecter directement (mode fichier statique)
         # Sinon, garder le placeholder pour le serveur
         "__API_TOKEN_JS__": "__API_TOKEN_JS__"

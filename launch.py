@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Launcher script for PerformOS v3
+Launcher script for Bord
 """
 
 import sys
@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 
 
 def main():
-    print("🚀 PerformOS v3 Launcher")
+    print("🚀 Bord Launcher")
     print(f"📍 Directory: {ROOT}")
     print(f"🐍 Python: {sys.version}")
     print()
@@ -47,7 +47,7 @@ def main():
         # For now, just show that we can import
         print("✅ Main module imported successfully")
         print()
-        print("💡 To run PerformOS:")
+        print("💡 To run Bord:")
         print("   python3 main.py --help")
         print("   python3 main.py --skip-parse --audit")
         print("   python3 main.py --serve  # With web interface")

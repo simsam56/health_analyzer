@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# .gitignore — Sport Performance Dashboard
+# .gitignore — Bord
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Données sensibles & identifiants ─────────────────────────────────────────
@@ -20,7 +20,7 @@ export_cda.xml
 .ah_cache.pkl
 .health_cache.pkl
 .garmin_cache.pkl
-.performos_state.json
+.bord_state.json
 .garminconnect/
 __pycache__/
 *.pyc
