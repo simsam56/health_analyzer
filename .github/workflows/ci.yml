@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint with Ruff
+        run: |
+          ruff check . --output-format=github
+          ruff format --check .
+
+      - name: Security check
+        run: |
+          bandit -r analytics/ pipeline/ -ll -q
+          pip-audit --desc
+
+      - name: Type check
+        run: mypy analytics/ --no-error-summary || true
+
+      - name: Run tests
+        run: pytest tests/test_training_load.py tests/test_muscle_groups.py tests/test_planner.py --cov=analytics --cov-report=term-missing -v
