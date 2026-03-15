@@ -1,6 +1,6 @@
 /**
  * Client API pour communiquer avec le backend Python FastAPI.
- * Toutes les requêtes passent par le proxy Next.js (/api/python/ → :8765/api/).
+ * Toutes les requêtes passent par le proxy Next.js (/api/python/ → backend FastAPI).
  */
 
 const API_BASE = "/api/python";

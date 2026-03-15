@@ -16,7 +16,7 @@ export default function SemainePage() {
   if (error) {
     return (
       <div className="glass rounded-2xl p-6 text-center text-accent-red">
-        Erreur de connexion à l&apos;API Python. Vérifiez que le serveur tourne sur le port 8765.
+        Erreur de connexion à l&apos;API Python. Vérifiez que le backend FastAPI est bien démarré (BORD_API_PORT).
       </div>
     );
   }
