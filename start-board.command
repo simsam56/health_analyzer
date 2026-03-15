@@ -1,19 +1,48 @@
 #!/bin/bash
-# Bord — Lance le backend Python + frontend Next.js et ouvre le navigateur
-cd "$(dirname "$0")"
+# Bord — Lance l'API Python + le frontend Next.js et ouvre le navigateur
 
-# Lancer le backend Python
-python3 cockpit_server.py &
-BACKEND_PID=$!
+DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$DIR"
 
-# Lancer le frontend Next.js
-cd frontend
+echo "Bord - Démarrage"
+echo "================"
+
+cleanup() {
+    echo ""
+    echo "Arrêt de Bord..."
+    kill $API_PID $NEXT_PID 2>/dev/null
+    wait $API_PID $NEXT_PID 2>/dev/null
+    echo "Arrêté."
+}
+trap cleanup EXIT INT TERM
+
+# Vérifier les dépendances frontend
+if [ ! -d "$DIR/frontend/node_modules" ]; then
+    echo "-> Installation des dépendances frontend..."
+    cd "$DIR/frontend" && npm install
+    cd "$DIR"
+fi
+
+echo "-> API Python (port 8765)..."
+python3 -m uvicorn api.main:app --host 127.0.0.1 --port 8765 &
+API_PID=$!
+
+sleep 2
+
+echo "-> Frontend Next.js (port 3001)..."
+cd "$DIR/frontend"
 npm run dev &
-FRONTEND_PID=$!
+NEXT_PID=$!
 
-# Ouvrir le navigateur après 3s
-sleep 3
-open http://localhost:3001
+cd "$DIR"
+sleep 2
 
-# Attendre les deux processus
-wait $BACKEND_PID $FRONTEND_PID
+echo ""
+echo "Bord prêt !"
+echo "   http://localhost:3001"
+echo "   API : http://localhost:8765/docs"
+echo ""
+
+open http://localhost:3001 2>/dev/null || true
+
+wait

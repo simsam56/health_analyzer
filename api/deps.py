@@ -10,7 +10,6 @@ from fastapi import Depends, Header, HTTPException
 
 # Chemin par défaut de la BDD (configurable via env)
 DB_PATH = Path("athlete.db")
-DASHBOARD_PATH = Path("reports/dashboard.html")
 API_TOKEN: str = ""
 
 

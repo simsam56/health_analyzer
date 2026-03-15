@@ -1,8 +1,7 @@
-"""Bord API — FastAPI server (remplace cockpit_server.py)."""
+"""Bord API — FastAPI server."""
 
 from __future__ import annotations
 
-import json
 import os
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
@@ -10,7 +9,6 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
 
 from analytics import planner
 from analytics.training_load import (
@@ -36,11 +34,9 @@ async def lifespan(app: FastAPI):
     """Startup : migration DB + config."""
     # Config depuis .env ou variables d'environnement
     db_path = Path(os.getenv("BORD_DB", "athlete.db"))
-    dashboard_path = Path(os.getenv("BORD_DASHBOARD", "reports/dashboard.html"))
     api_token = os.getenv("BORD_API_TOKEN", "")
 
     deps.DB_PATH = db_path
-    deps.DASHBOARD_PATH = dashboard_path
     deps.API_TOKEN = api_token
 
     # Migration DB au démarrage
@@ -54,7 +50,6 @@ async def lifespan(app: FastAPI):
 
     print(f"🚀 Bord API démarrée")
     print(f"   DB: {db_path}")
-    print(f"   Dashboard: {dashboard_path}")
     if api_token:
         print("   API write protection: enabled")
 
@@ -89,24 +84,6 @@ app.include_router(health.router)
 app.include_router(training.router)
 app.include_router(muscles.router)
 app.include_router(activities.router)
-
-
-# ── Ancien dashboard (backward-compat) ─────────────────────────────
-
-
-@app.get("/", response_class=HTMLResponse, include_in_schema=False)
-@app.get("/index.html", response_class=HTMLResponse, include_in_schema=False)
-@app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
-def serve_dashboard():
-    """Sert l'ancien dashboard HTML (backward-compat)."""
-    path = deps.DASHBOARD_PATH
-    if not path.exists():
-        return HTMLResponse("<h1>Dashboard non généré</h1><p>Lancez main.py d'abord.</p>", status_code=404)
-    raw = path.read_text("utf-8")
-    if deps.API_TOKEN:
-        token_js = json.dumps(deps.API_TOKEN, ensure_ascii=False)
-        raw = raw.replace("__API_TOKEN_JS__", token_js)
-    return HTMLResponse(raw)
 
 
 # ── Endpoint agrégat /api/dashboard ────────────────────────────────
