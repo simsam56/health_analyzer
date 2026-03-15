@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Board
+Comment=Tableau de bord santé et performance
+Exec=bash /home/user/health_analyzer/board.sh
+Icon=/home/user/health_analyzer/board-icon.svg
+Terminal=true
+Categories=Utility;Health;
+StartupNotify=true

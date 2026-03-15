@@ -72,19 +72,21 @@ fi
 echo "[SETUP] OK"
 echo ""
 
-# ── Port libre ────────────────────────────────────────────────
-is_port_busy() {
-    lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
+# ── Libérer le port si occupé ────────────────────────────────
+# Le frontend (next.config.ts) proxifie vers 127.0.0.1:8765 en dur,
+# donc le backend DOIT tourner sur ce port.
+kill_port() {
+    local pids
+    pids=$(lsof -t -nP -iTCP:"$1" -sTCP:LISTEN 2>/dev/null || true)
+    if [ -n "$pids" ]; then
+        echo "[SETUP] Port $1 occupé (PID $pids), arrêt..."
+        echo "$pids" | xargs kill 2>/dev/null || true
+        sleep 1
+    fi
 }
 
-if is_port_busy "$API_PORT"; then
-    for p in 8770 8771 8772 8773 8774 8775; do
-        if ! is_port_busy "$p"; then
-            API_PORT="$p"
-            break
-        fi
-    done
-fi
+kill_port "$API_PORT"
+kill_port "$FRONT_PORT"
 
 # ── Lancement backend FastAPI ─────────────────────────────────
 echo "[API]   Démarrage sur http://127.0.0.1:${API_PORT}"
@@ -116,7 +118,7 @@ PIDS+=($!)
 # Attendre que le frontend soit prêt
 echo "[FRONT] Attente du démarrage..."
 for i in $(seq 1 30); do
-    if curl -s "http://localhost:${FRONT_PORT}" >/dev/null 2>&1; then
+    if curl -sL "http://localhost:${FRONT_PORT}" >/dev/null 2>&1; then
         echo "[FRONT] Prêt"
         break
     fi
@@ -132,11 +134,11 @@ echo ""
 echo "Ctrl+C pour arrêter"
 echo ""
 
-# Ouvrir le navigateur (macOS: open, Linux: xdg-open, fallback: python)
-if command -v open >/dev/null 2>&1; then
+# Ouvrir le navigateur (Linux: xdg-open, macOS: open, fallback: python)
+if command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "http://localhost:${FRONT_PORT}" 2>/dev/null &
+elif [[ "$(uname)" == "Darwin" ]] && command -v open >/dev/null 2>&1; then
     open "http://localhost:${FRONT_PORT}"
-elif command -v xdg-open >/dev/null 2>&1; then
-    xdg-open "http://localhost:${FRONT_PORT}"
 else
     python3 -m webbrowser "http://localhost:${FRONT_PORT}" 2>/dev/null || true
 fi
