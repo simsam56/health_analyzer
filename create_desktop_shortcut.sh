@@ -1,35 +1,33 @@
 #!/bin/bash
-# Créer un raccourci bureau pour PerformOS
+# Créer un raccourci bureau pour Board
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DESKTOP="$HOME/Desktop"
-APP_NAME="PerformOS"
-ICON_PATH="$SCRIPT_DIR/icon.icns"  # À créer
 
-echo "🎯 Création du raccourci bureau PerformOS..."
+echo "Création du raccourci bureau Board..."
 
-# Créer le script de lancement
-cat > "$DESKTOP/PerformOS Launcher.command" << 'EOF'
+# Créer le script de lancement .command
+cat > "$DESKTOP/Board.command" << SCRIPT
 #!/bin/bash
-cd "/Users/simonhingant/Documents/health_analyzer"
-python3 quick_launch.py
-EOF
+cd "$SCRIPT_DIR"
+bash board.sh
+SCRIPT
 
-chmod +x "$DESKTOP/PerformOS Launcher.command"
+chmod +x "$DESKTOP/Board.command"
 
 # Créer un AppleScript pour une meilleure intégration
-cat > "$DESKTOP/PerformOS.scpt" << 'EOF'
+cat > "$DESKTOP/Board.scpt" << SCRIPT
 tell application "Terminal"
-    do script "cd \"/Users/simonhingant/Documents/health_analyzer\" && python3 quick_launch.py"
+    do script "cd \"$SCRIPT_DIR\" && bash board.sh"
     activate
 end tell
-EOF
+SCRIPT
 
 # Compiler l'AppleScript en application
-osacompile -o "$DESKTOP/PerformOS.app" "$DESKTOP/PerformOS.scpt"
+osacompile -o "$DESKTOP/Board.app" "$DESKTOP/Board.scpt" 2>/dev/null
 
 # Nettoyer
-rm "$DESKTOP/PerformOS.scpt"
+rm -f "$DESKTOP/Board.scpt"
 
-echo "✅ Raccourci créé: $DESKTOP/PerformOS.app"
-echo "💡 Double-cliquez pour lancer PerformOS avec calendrier intégré"
+echo "Raccourci créé: $DESKTOP/Board.app"
+echo "Double-cliquez pour lancer Board"

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-PerformOS Quick Launcher - Icône bureau avec calendrier intégré
+Board Quick Launcher - Lancement rapide avec calendrier intégré
 """
 
 import subprocess
 import sys
 import time
+import webbrowser
 from pathlib import Path
 
 # Configuration
@@ -25,15 +26,15 @@ def check_dependencies():
         missing.append(str(e))
 
     if missing:
-        print(f"❌ Dépendances manquantes: {', '.join(missing)}")
+        print(f"Dépendances manquantes: {', '.join(missing)}")
         print("Installez avec: pip install -r requirements.txt")
         return False
     return True
 
 
-def launch_performos():
-    """Lancer PerformOS avec calendrier intégré"""
-    print("🚀 PerformOS - Lancement rapide avec calendrier")
+def launch_board():
+    """Lancer Board avec calendrier intégré"""
+    print("Board - Lancement rapide avec calendrier")
     print("=" * 60)
 
     if not check_dependencies():
@@ -52,9 +53,9 @@ def launch_performos():
         "8765",  # Port fixe
     ]
 
-    print(f"📅 Calendrier: {CALENDAR_DAYS} jours")
-    print("🌐 Interface: http://127.0.0.1:8765")
-    print("💪 Analyse musculaire: 8 semaines")
+    print(f"Calendrier: {CALENDAR_DAYS} jours")
+    print("Interface: http://127.0.0.1:8765")
+    print("Analyse musculaire: 8 semaines")
     print()
 
     try:
@@ -73,38 +74,34 @@ def launch_performos():
         time.sleep(3)
 
         # Ouvrir le navigateur automatiquement
-        try:
-            subprocess.run(["open", "http://127.0.0.1:8765"], check=False)
-        except:
-            pass
+        webbrowser.open("http://127.0.0.1:8765")
 
-        print("✅ PerformOS lancé!")
-        print("📱 Interface ouverte dans le navigateur")
-        print("🗓️ Calendrier Apple synchronisé")
+        print("Board lancé!")
+        print("Interface ouverte dans le navigateur")
         print()
-        print("💡 Fonctionnalités disponibles:")
-        print("   • Planning hebdomadaire")
-        print("   • Synchronisation calendrier Apple")
-        print("   • Création/modification d'événements")
-        print("   • Analyse santé et performance")
+        print("Fonctionnalités disponibles:")
+        print("   - Planning hebdomadaire")
+        print("   - Synchronisation calendrier Apple")
+        print("   - Création/modification d'événements")
+        print("   - Analyse santé et performance")
         print()
-        print("🔄 Le serveur tourne en arrière-plan...")
+        print("Le serveur tourne en arrière-plan...")
         print("   Appuyez Ctrl+C pour arrêter")
 
         # Garder le processus en vie
         try:
             process.wait()
         except KeyboardInterrupt:
-            print("\n🛑 Arrêt du serveur...")
+            print("\nArrêt du serveur...")
             process.terminate()
             process.wait()
 
     except Exception as e:
-        print(f"❌ Erreur lancement: {e}")
+        print(f"Erreur lancement: {e}")
         return 1
 
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(launch_performos())
+    sys.exit(launch_board())

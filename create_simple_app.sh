@@ -1,50 +1,57 @@
 #!/bin/bash
-# Créer une version simplifiée de l'app PerformOS
+# Créer une version simplifiée de l'app Board
+# NOTE: Préférez create_board_app.sh pour la version complète (FastAPI + Next.js)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_PATH="$HOME/Desktop/PerformOS_Simple.app"
+APP_PATH="$HOME/Desktop/Board.app"
 
-echo "🎯 Création de PerformOS Simple..."
+echo "Création de Board..."
 
 # Créer la structure
 mkdir -p "$APP_PATH/Contents/MacOS"
 mkdir -p "$APP_PATH/Contents/Resources"
 
-# Script exécutable simplifié
-cat > "$APP_PATH/Contents/MacOS/PerformOS" << 'EOF'
+# Script exécutable simplifié (chemin dynamique)
+cat > "$APP_PATH/Contents/MacOS/Board" << SCRIPT
 #!/bin/bash
-cd "/Users/simonhingant/Documents/health_analyzer"
-exec /bin/bash launch_simple.sh
-EOF
+cd "$SCRIPT_DIR"
+exec /bin/bash board.sh
+SCRIPT
 
-chmod +x "$APP_PATH/Contents/MacOS/PerformOS"
+chmod +x "$APP_PATH/Contents/MacOS/Board"
 
-# Info.plist simplifié
+# Info.plist
 cat > "$APP_PATH/Contents/Info.plist" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>CFBundleExecutable</key>
-    <string>PerformOS</string>
+    <string>Board</string>
     <key>CFBundleIdentifier</key>
-    <string>com.performos.simple</string>
+    <string>com.bord.dashboard</string>
     <key>CFBundleName</key>
-    <string>PerformOS Simple</string>
+    <string>Board</string>
     <key>CFBundleVersion</key>
-    <string>1.0</string>
+    <string>4.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>4.0</string>
     <key>LSMinimumSystemVersion</key>
-    <string>10.12</string>
+    <string>12.0</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
 </dict>
 </plist>
 EOF
 
-# Copier une icône système
-cp "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns" "$APP_PATH/Contents/Resources/AppIcon.icns" 2>/dev/null || echo "Icône système non trouvée"
+# Copier l'icône
+if [ -f "$SCRIPT_DIR/assets/board-icon.icns" ]; then
+    cp "$SCRIPT_DIR/assets/board-icon.icns" "$APP_PATH/Contents/Resources/AppIcon.icns"
+else
+    cp "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/GenericApplicationIcon.icns" "$APP_PATH/Contents/Resources/AppIcon.icns" 2>/dev/null || echo "Icône système non trouvée"
+fi
 
-echo "✅ Application créée: $APP_PATH"
-echo "💡 Double-cliquez pour lancer PerformOS (version simplifiée)"
+echo "Application créée: $APP_PATH"
+echo "Double-cliquez pour lancer Board"

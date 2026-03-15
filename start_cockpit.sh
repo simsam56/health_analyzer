@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# start_cockpit.sh — lancement PerformOS Cockpit v5
+# start_cockpit.sh — lancement Board Cockpit v5
 #
 # Usage:
 #   bash start_cockpit.sh
-#   PERFORMOS_PORT=8770 bash start_cockpit.sh
+#   BOARD_PORT=8770 bash start_cockpit.sh
 #
 # Comportement:
 # - run rapide: skip parse local + Garmin 90j (smart-skip actif)
@@ -16,7 +16,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-DEFAULT_PORT="${PERFORMOS_PORT:-8765}"
+DEFAULT_PORT="${BOARD_PORT:-${PERFORMOS_PORT:-8765}}"
 PORT="$DEFAULT_PORT"
 
 # Choisir un port libre si le port souhaité est déjà pris
@@ -29,14 +29,22 @@ if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
   done
 fi
 
-echo "🚀 Démarrage PerformOS Cockpit sur http://127.0.0.1:${PORT}"
+echo "Démarrage Board sur http://127.0.0.1:${PORT}"
 echo "   (Ctrl+C pour arrêter)"
 echo ""
 
-# Ouvre le navigateur après 2 secondes
-(sleep 2; open "http://127.0.0.1:${PORT}" >/dev/null 2>&1 || true) &
+# Ouvre le navigateur après 2 secondes (macOS: open, Linux: xdg-open, fallback: python)
+(sleep 2
+ if command -v open >/dev/null 2>&1; then
+   open "http://127.0.0.1:${PORT}"
+ elif command -v xdg-open >/dev/null 2>&1; then
+   xdg-open "http://127.0.0.1:${PORT}"
+ else
+   python3 -m webbrowser "http://127.0.0.1:${PORT}" 2>/dev/null
+ fi
+) &
 
 # Token API:
-# - si PERFORMOS_API_TOKEN défini: utilisé
+# - si BOARD_API_TOKEN ou PERFORMOS_API_TOKEN défini: utilisé
 # - sinon: main.py génère un token temporaire automatiquement
 exec python3 -u main.py --skip-parse --garmin --days 90 --garmin-refresh-tail-days 3 --serve --serve-port "$PORT"

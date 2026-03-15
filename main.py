@@ -56,7 +56,7 @@ STATE_PATH = ROOT / ".performos_state.json"
 def banner():
     print()
     print("╔══════════════════════════════════════════════════════════╗")
-    print("║  ⚡  PerformOS v3 · Sport Performance Intelligence       ║")
+    print("║  Board v4 · Tableau de bord santé & performance          ║")
     print(
         f"║     Simon Hingant · {date.today().strftime('%d %b %Y')} · {datetime.now().strftime('%H:%M')}             ║"
     )
