@@ -22,14 +22,14 @@ API_PID=$!
 
 sleep 2
 
-echo "-> Frontend Next.js (port 3000)..."
+echo "-> Frontend Next.js (port 3001)..."
 cd "$DIR/frontend"
 
 if [ -d ".next" ]; then
-    ./node_modules/.bin/next start -p 3000 &
+    ./node_modules/.bin/next start -p 3001 &
 else
     echo "Build non trouve, lancement en mode dev..."
-    ./node_modules/.bin/next dev -p 3000 &
+    ./node_modules/.bin/next dev -p 3001 &
 fi
 NEXT_PID=$!
 
@@ -38,10 +38,10 @@ sleep 2
 
 echo ""
 echo "Bord pret !"
-echo "   http://localhost:3000"
+echo "   http://localhost:3001"
 echo "   API : http://localhost:8765/docs"
 echo ""
 
-open http://localhost:3000 2>/dev/null || true
+open http://localhost:3001 2>/dev/null || true
 
 wait
