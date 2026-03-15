@@ -68,12 +68,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS pour Next.js (dev sur port 3000)
+# CORS pour Next.js (port configurable via BORD_FRONTEND_PORT)
+_frontend_port = os.getenv("BORD_FRONTEND_PORT", "3000")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
+        f"http://localhost:{_frontend_port}",
+        f"http://127.0.0.1:{_frontend_port}",
     ],
     allow_credentials=True,
     allow_methods=["*"],
